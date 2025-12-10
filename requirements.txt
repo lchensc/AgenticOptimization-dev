@@ -1,0 +1,30 @@
+# Core dependencies
+python>=3.10
+
+# AI/Agent framework
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-qwq>=0.1.0  # Qwen models (primary)
+langchain-anthropic>=0.2.0  # Claude models (optional)
+langchain-openai>=0.2.0  # OpenAI/GPT models (optional)
+langgraph>=0.2.0
+
+# Optimization
+scipy>=1.11.0
+pymoo>=0.6.0
+
+# Data/Schema
+pydantic>=2.0.0
+numpy>=1.24.0
+
+# UI/Console
+rich>=13.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+
+# Development
+pytest>=8.0.0
+pytest-cov>=4.0.0
+black>=24.0.0
+ruff>=0.0.290
