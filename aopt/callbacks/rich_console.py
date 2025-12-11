@@ -91,7 +91,7 @@ class RichConsoleCallback:
         """Display agent reasoning."""
         reasoning = event.data.get('reasoning', '')
         if reasoning:
-            self.console.print(f"[dim]💭 {reasoning}[/dim]")
+            self.console.print(f"[dim]💭 {reasoning.strip()}[/dim]")
 
     def _handle_tool_call(self, event: AgentEvent) -> None:
         """Display tool call."""
@@ -103,7 +103,7 @@ class RichConsoleCallback:
         tool_name = event.data.get('tool_name', 'unknown')
         duration = event.data.get('duration', 0)
         self.console.print(
-            f"[green]✓ {tool_name} completed ({duration:.2f}s)[/green]"
+            f"[green]✓ {tool_name} completed ({duration:.2f}s)[/green]\n"
         )
 
     def _handle_cache_hit(self, event: AgentEvent) -> None:
