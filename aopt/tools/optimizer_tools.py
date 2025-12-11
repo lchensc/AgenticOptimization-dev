@@ -481,14 +481,12 @@ def run_scipy_optimization(
 
     Example:
         result = run_scipy_optimization(
-            problem_id="rosenbrock_10d",
+            problem_id="rosenbrock_2d",
             algorithm="SLSQP",
-            bounds=[[-5.0, 10.0]] * 10,
-            initial_design=[0.0] * 10,
+            bounds=[[-5.0, 10.0], [-5.0, 10.0]],
+            initial_design=[0.0, 0.0],
             options='{"maxiter": 200, "ftol": 1e-9}'
         )
-        if result["success"]:
-            print(f"Optimal: {result['final_objective']}")
     """
     from scipy.optimize import minimize
     from aopt.tools.evaluator_tools import _get_problem

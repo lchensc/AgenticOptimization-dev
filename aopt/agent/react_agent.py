@@ -291,13 +291,11 @@ def create_react_node(tools: list, llm_model: str, temperature: float = 0.0):
                         }
                     ))
 
-                # Send error back to LLM via ToolMessage
-                # The LLM will see this and retry with corrected arguments
+                # Send error back to LLM via ToolMessage for self-correction
                 new_messages.append(ToolMessage(
-                    content=f"Error calling {tool_name}: {error_msg}\n"
-                            f"Please check the tool schema and provide valid JSON arguments.",
+                    content=f"Error: {error_msg}",
                     tool_call_id=tool_id,
-                    status="error"  # Mark as error
+                    status="error"
                 ))
 
         # Execute tool calls and collect results
@@ -540,52 +538,32 @@ def build_optimization_prompt(context: dict, tools: list = None) -> str:
     cache_hit_rate = cache_stats.get('hit_rate', 0.0)
 
     return f"""
-You are an autonomous optimization agent specialized in engineering/science.
+You are an autonomous optimization agent.
 
-**Current Goal:**
-{context.get('goal', 'Not set yet')}
+**Goal:** {context.get('goal', 'Not set')}
 
-**Current Problem Formulation:**
-{format_problem(context.get('problem', {}))}
-
-**Optimization Status:**
+**Status:**
+- Problem: {format_problem(context.get('problem', {}))}
 - Optimizer: {context.get('optimizer_type', 'Not created')}
 - Iteration: {context.get('iteration', 0)}
-- Current objective(s): {context.get('current_objectives', 'Not evaluated')}
-- Best objective(s): {context.get('best_objectives', 'N/A')}
+- Current objective: {context.get('current_objectives', 'N/A')}
+- Best objective: {context.get('best_objectives', 'N/A')}
 
-**Resource Status:**
-- Budget: {budget_text} ({budget_remaining_pct:.0f}% remaining)
-- Cache hit rate: {cache_hit_rate:.1%} (higher = more efficient)
-- Total evaluations: {context.get('total_evaluations', 0)}
+**Resources:**
+- Budget: {budget_text}
+- Cache hit rate: {cache_hit_rate:.1%}
+- Evaluations: {context.get('total_evaluations', 0)}
 
-**Recent History (last 5 iterations):**
+**History:**
 {format_history(context.get('history', [])[-5:])}
 
-**Convergence Analysis:**
+**Observations:**
 {format_observations(context.get('observations', {}))}
 
-**Available Tools ({len(tools) if tools else 18} total):**
+**Tools:**
 {format_tools(tools)}
 
-**Your Task:**
-Decide the next action autonomously. You have full control.
-
-Strategy considerations:
-1. Use cache_get before expensive evaluations to check for cached results
-2. Monitor budget - if low, consider stopping or reducing evaluations
-3. Observe convergence regularly (analyze_convergence)
-4. Adapt if stuck (modify_constraints, optimizer_restart with safety)
-
-If you haven't formulated the problem yet, start with formulate_problem().
-Then create optimizer, execute iterations, observe, adapt as needed.
-
-Stop when:
-- Converged (e.g.,gradient norm < 1e-6, no improvement)
-- Budget exhausted
-- Agent satisfied with result
-
-Think step-by-step, then use a tool or respond "DONE".
+Decide next action. Use tools or respond "DONE".
 """
 
 

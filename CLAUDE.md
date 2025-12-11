@@ -165,6 +165,7 @@ When implementing this platform:
 4. **Strategic Restarts**: Adaptations are informed restarts from better positions, not unpredictable experiments
 5. **Cache Everything**: Simulations are expensive, cache all evaluations
 6. **Learn Continuously**: Every optimization adds to the knowledge base
+7. **CRITICAL - Minimal Prompting**: Keep system prompts and tool schemas minimal. Trust the LLM's intelligence. Never add verbose guidance, formatting rules, or hand-holding without explicit permission. The agent must learn from experience, not from over-specified prompts.
 
 ## Key Terminology
 
