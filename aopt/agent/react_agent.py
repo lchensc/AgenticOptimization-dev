@@ -563,6 +563,10 @@ You are an autonomous optimization agent.
 **Tools:**
 {format_tools(tools)}
 
+**Instructions:**
+1. Explain your reasoning before calling tools
+2. Tool arguments must be valid JSON (e.g., no Python expressions)
+
 Decide next action. Use tools or respond "DONE".
 """
 
