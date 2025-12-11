@@ -27,12 +27,11 @@ load_dotenv()
 
 import numpy as np
 
-from aopt.backends.analytical import Rosenbrock
 from aopt.tools import (
-    register_problem,
     clear_problem_registry,
     clear_optimizer_registry,
     cache_clear,
+    create_benchmark_problem,
     run_scipy_optimization,
     analyze_convergence,
 )
@@ -55,17 +54,14 @@ def run_with_llm():
     from debug_agent.minimal_react_agent import create_minimal_react_agent
     from aopt.agent.react_agent import initialize_llm
 
-    # Setup
+    # Setup - clear registries but DON'T pre-register problem
+    # The agent must formulate the problem autonomously
     clear_problem_registry()
     clear_optimizer_registry()
     cache_clear()
 
-    problem = Rosenbrock(dimension=10)
-    register_problem("rosenbrock_10d", problem)
-
-    x_opt, f_opt = problem.get_optimum()
     print(f"\nProblem: 10D Rosenbrock")
-    print(f"Known optimum: f* = {f_opt}")
+    print(f"Known optimum: f* = 0.0")
 
     # Initialize LLM
     print("\n" + "-" * 70)
@@ -74,8 +70,10 @@ def run_with_llm():
 
     llm = initialize_llm("qwen-plus", temperature=0.0)
 
-    # Only give the agent the tools it needs
+    # Give the agent tools for autonomous problem formulation
+    # Agent must call create_benchmark_problem BEFORE run_scipy_optimization
     tools = [
+        create_benchmark_problem,
         run_scipy_optimization,
         analyze_convergence,
     ]
@@ -93,7 +91,7 @@ def run_with_llm():
     print("-" * 70)
 
     result = agent(
-        goal="""Solve a 10D Rosenbrock optimization problem with SLSQP.""",
+        goal="""Solve a 10D Rosenbrock optimization problem with SLSQP and BFGS, and compare the results.""",
         verbose=True
     )
 

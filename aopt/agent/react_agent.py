@@ -218,8 +218,8 @@ def create_react_node(tools: list, llm_model: str, temperature: float = 0.0):
                 data={"step": iteration}
             ))
 
-        # Build prompt with current context
-        prompt = build_optimization_prompt(context)
+        # Build prompt with current context and actual available tools
+        prompt = build_optimization_prompt(context, tools)
 
         # For first iteration, start fresh with just the prompt
         # For subsequent iterations, we continue from where we left off
@@ -521,11 +521,14 @@ def update_context(context: dict, tool_results: list) -> dict:
     return new_context
 
 
-def build_optimization_prompt(context: dict) -> str:
+def build_optimization_prompt(context: dict, tools: list = None) -> str:
     """
     Build prompt with current optimization state.
 
     UPDATED: Now includes budget awareness and cache statistics.
+    Args:
+        context: Current optimization context
+        tools: List of actually available tools (if None, lists all 18 tools)
     """
     # Get budget status
     budget_status = context.get('budget_status', {})
@@ -562,8 +565,8 @@ You are an autonomous optimization agent specialized in engineering/science.
 **Convergence Analysis:**
 {format_observations(context.get('observations', {}))}
 
-**Available Tools (18 total):**
-{format_tools()}
+**Available Tools ({len(tools) if tools else 18} total):**
+{format_tools(tools)}
 
 **Your Task:**
 Decide the next action autonomously. You have full control.
@@ -641,9 +644,19 @@ def format_observations(observations: dict) -> str:
     return '\n'.join(lines) if lines else "No observations"
 
 
-def format_tools() -> str:
-    """Format available tools for prompt."""
-    return """
+def format_tools(tools: list = None) -> str:
+    """
+    Format available tools for prompt.
+
+    Args:
+        tools: List of actual tools bound to agent (if None, uses hardcoded list)
+
+    Returns:
+        Formatted string listing available tools
+    """
+    if tools is None:
+        # Fallback to hardcoded list for backward compatibility
+        return """
 **Evaluator Tools:**
 - evaluate_function: Evaluate objective at design point (with automatic caching)
 - compute_gradient: Compute gradient (analytical or finite-difference)
@@ -673,3 +686,12 @@ def format_tools() -> str:
 - cache_clear: Clear evaluation cache
 - run_db_query: Query optimization history
 """
+
+    # Dynamic tool listing based on actual bound tools
+    lines = []
+    for tool in tools:
+        tool_name = tool.name if hasattr(tool, 'name') else str(tool)
+        tool_desc = tool.description if hasattr(tool, 'description') else "No description"
+        lines.append(f"- {tool_name}: {tool_desc}")
+
+    return '\n'.join(lines) if lines else "No tools available"

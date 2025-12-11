@@ -295,6 +295,98 @@ def compute_gradient(
         }
 
 
+@tool
+def create_benchmark_problem(
+    problem_id: str,
+    function_name: str,
+    dimension: Optional[int] = None,
+) -> Dict[str, Any]:
+    """
+    Create and register an analytical benchmark problem.
+
+    This tool allows the agent to autonomously create optimization test problems
+    from standard analytical benchmark functions. Once created, the problem can
+    be used with run_scipy_optimization, evaluate_function, etc.
+
+    Available benchmark functions:
+    - "rosenbrock": Classic Rosenbrock function with narrow curved valley
+      Global minimum: f(1,1,...,1) = 0
+      Recommended bounds: [-5, 10] for each dimension
+    - "sphere": Simple quadratic bowl, easy to optimize
+      Global minimum: f(0,0,...,0) = 0
+      Recommended bounds: [-5, 5] for each dimension
+    - "constrained_rosenbrock": 2D Rosenbrock with circular constraint
+      Constrained minimum: f(0.786, 0.618) ≈ 0.046
+      Fixed at 2D, dimension parameter ignored
+
+    Args:
+        problem_id: Unique identifier for this problem (e.g., "rosenbrock_10d")
+        function_name: Benchmark function name (case-insensitive)
+        dimension: Problem dimensionality (default: 2). Ignored for constrained_rosenbrock.
+
+    Returns:
+        Dict with:
+            - success: bool
+            - problem_id: str - identifier to use in other tools
+            - function_name: str
+            - dimension: int
+            - global_optimum: Dict with x_opt and f_opt
+            - message: str
+
+    Example:
+        # Agent receives: "Solve 10D Rosenbrock problem"
+        # Agent calls:
+        result = create_benchmark_problem(
+            problem_id="rosenbrock_10d",
+            function_name="rosenbrock",
+            dimension=10
+        )
+        # Returns: {"success": True, "problem_id": "rosenbrock_10d", ...}
+        # Now agent can use "rosenbrock_10d" with run_scipy_optimization
+    """
+    try:
+        # Check if problem_id already exists
+        if problem_id in _PROBLEM_REGISTRY:
+            return {
+                "success": False,
+                "problem_id": problem_id,
+                "message": f"Problem '{problem_id}' already registered. Use a different ID or clear registry first.",
+            }
+
+        # Create analytical function
+        problem = get_analytical_function(name=function_name, dimension=dimension)
+
+        # Register it
+        register_problem(problem_id, problem)
+
+        # Get optimum info
+        x_opt, f_opt = problem.get_optimum()
+
+        return {
+            "success": True,
+            "problem_id": problem_id,
+            "function_name": function_name,
+            "dimension": problem.dimension,
+            "global_optimum": {
+                "x_opt": x_opt.tolist() if hasattr(x_opt, 'tolist') else list(x_opt),
+                "f_opt": float(f_opt),
+            },
+            "message": f"Created {problem.dimension}D {function_name} problem with ID '{problem_id}'. Global optimum: f* = {f_opt:.6f}",
+        }
+
+    except ValueError as e:
+        # Invalid function name
+        return {
+            "success": False,
+            "message": str(e),
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error creating benchmark problem: {str(e)}",
+        }
+
+
 # Utility functions
 def clear_problem_registry():
     """Clear all problems from registry."""

@@ -32,6 +32,7 @@ from aopt.tools.optimizer_tools import (
 from aopt.tools.evaluator_tools import (
     evaluate_function,
     compute_gradient,
+    create_benchmark_problem,
     register_problem,
     clear_problem_registry,
     get_problem_by_id,
@@ -75,6 +76,7 @@ __all__ = [
     # Evaluator tools
     "evaluate_function",
     "compute_gradient",
+    "create_benchmark_problem",
     "register_problem",
     "clear_problem_registry",
     "get_problem_by_id",

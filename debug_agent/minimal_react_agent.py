@@ -76,10 +76,8 @@ def create_minimal_react_agent(llm, tools: list, max_iterations: int = 20):
                 print(f"\n💭 Agent Reasoning:")
                 # Format multi-line content nicely
                 lines = response.content.split('\n')
-                for line in lines[:10]:  # Show first 10 lines
+                for line in lines:
                     print(f"   {line}")
-                if len(lines) > 10:
-                    print(f"   ... ({len(lines) - 10} more lines)")
 
             # Process tool calls (valid ones)
             tool_calls = getattr(response, 'tool_calls', None) or []
@@ -98,11 +96,10 @@ def create_minimal_react_agent(llm, tools: list, max_iterations: int = 20):
 
                 if verbose:
                     print(f"\n   Tool: {tool_name}")
-                    print(f"   Error: {error_msg[:150]}...")
+                    print(f"   Error: {error_msg}")
                     # Show the actual invalid args if available
                     if 'args' in inv and isinstance(inv['args'], str):
-                        args_preview = inv['args'][:100] + "..." if len(inv['args']) > 100 else inv['args']
-                        print(f"   Invalid JSON: {args_preview}")
+                        print(f"   Invalid JSON: {inv['args']}")
 
                 # Send the error message exactly as LangChain provides it
                 # LangChain already includes: the invalid JSON, the JSONDecodeError, and position
@@ -130,7 +127,7 @@ def create_minimal_react_agent(llm, tools: list, max_iterations: int = 20):
                     if tool_name in tool_map:
                         try:
                             result = tool_map[tool_name].invoke(tool_args)
-                            result_str = str(result)[:500]
+                            result_str = str(result)
                             if verbose:
                                 summary = _summarize_result(result)
                                 print(f"   📥 Result: {summary}")
@@ -183,27 +180,22 @@ def create_minimal_react_agent(llm, tools: list, max_iterations: int = 20):
 
 
 def _format_args(args: dict) -> str:
-    """Format args for display."""
+    """Format args for display (full content, no truncation)."""
     items = []
     for k, v in args.items():
-        if isinstance(v, list) and len(v) > 3:
-            items.append(f"{k}=[...{len(v)} items]")
-        elif isinstance(v, str) and len(v) > 50:
-            items.append(f"{k}='{v[:47]}...'")
-        else:
-            items.append(f"{k}={v}")
+        items.append(f"{k}={v}")
     return ", ".join(items)
 
 
 def _summarize_result(result) -> str:
-    """Summarize tool result."""
+    """Format tool result for display (full content, no truncation)."""
     if isinstance(result, dict):
         if "success" in result:
             msg = f"success={result['success']}"
             if "final_objective" in result:
                 msg += f", f={result['final_objective']:.2e}"
             if "message" in result:
-                msg += f" - {result['message'][:50]}"
+                msg += f" - {result['message']}"
             return msg
-        return str(result)[:100]
-    return str(result)[:100]
+        return str(result)
+    return str(result)
