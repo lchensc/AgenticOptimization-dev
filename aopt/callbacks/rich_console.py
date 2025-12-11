@@ -91,9 +91,6 @@ class RichConsoleCallback:
         """Display agent reasoning."""
         reasoning = event.data.get('reasoning', '')
         if reasoning:
-            # Truncate very long reasoning
-            if len(reasoning) > 200:
-                reasoning = reasoning[:200] + "..."
             self.console.print(f"[dim]💭 {reasoning}[/dim]")
 
     def _handle_tool_call(self, event: AgentEvent) -> None:
