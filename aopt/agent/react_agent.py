@@ -197,8 +197,14 @@ def create_react_node(tools: list, llm_model: str, temperature: float = 0.0):
         """
         Execute one ReAct cycle with full history retention.
 
-        FIXED: Accumulates all messages (user + assistant + tool results)
-        to maintain grounding, tool threading, and termination detection.
+        Message format must be:
+        - HumanMessage (prompt)
+        - AIMessage (possibly with tool_calls)
+        - ToolMessage (for each tool_call)
+        - Repeat...
+
+        The key is that after an AIMessage with tool_calls, we MUST have
+        ToolMessages before the next HumanMessage.
         """
         context = state["context"]
         iteration = state.get("iteration", 0) + 1
@@ -215,8 +221,20 @@ def create_react_node(tools: list, llm_model: str, temperature: float = 0.0):
         # Build prompt with current context
         prompt = build_optimization_prompt(context)
 
-        # FIXED: Preserve full history + add new user prompt
-        messages = state["messages"] + [HumanMessage(content=prompt)]
+        # For first iteration, start fresh with just the prompt
+        # For subsequent iterations, we continue from where we left off
+        if iteration == 1:
+            # First iteration: start with system context + user goal
+            messages = [HumanMessage(content=prompt)]
+        else:
+            # Subsequent iterations: use existing history
+            # Don't add another HumanMessage - let the agent continue
+            messages = list(state["messages"])
+
+            # If the last message was from assistant without tool calls,
+            # add a follow-up prompt
+            if messages and not (hasattr(messages[-1], 'tool_calls') and messages[-1].tool_calls):
+                messages.append(HumanMessage(content=f"Continue. Current status:\n{prompt}"))
 
         # Get LLM decision (reasoning + tool calls)
         try:
@@ -231,8 +249,16 @@ def create_react_node(tools: list, llm_model: str, temperature: float = 0.0):
                 ))
             raise
 
-        # FIXED: Collect all new messages from this turn
-        new_messages = [response]
+        # Collect all new messages from this turn
+        # Start with the prompt we added (if first iteration)
+        if iteration == 1:
+            new_messages = [HumanMessage(content=prompt), response]
+        else:
+            # Check if we added a follow-up prompt
+            if messages and isinstance(messages[-1], HumanMessage) and messages[-1] not in state["messages"]:
+                new_messages = [messages[-1], response]
+            else:
+                new_messages = [response]
 
         # EMIT: Reasoning (if agent provided text)
         if callback_manager and hasattr(response, 'content') and response.content:
@@ -241,6 +267,38 @@ def create_react_node(tools: list, llm_model: str, temperature: float = 0.0):
                 iteration=iteration,
                 data={"reasoning": response.content}
             ))
+
+        # Handle invalid_tool_calls - send error feedback to LLM for self-correction
+        # This is the standard LangChain pattern: don't try to fix, let LLM retry
+        if hasattr(response, 'invalid_tool_calls') and response.invalid_tool_calls:
+            for inv in response.invalid_tool_calls:
+                # Extract error information
+                tool_name = inv.get('name', 'unknown')
+                error_msg = inv.get('error', 'Failed to parse tool call')
+                tool_id = inv.get('id', 'unknown')
+
+                logger.warning(f"Invalid tool call: {tool_name} - {error_msg}")
+
+                # EMIT: Tool error for invalid call
+                if callback_manager:
+                    callback_manager.emit(create_event(
+                        event_type=EventType.TOOL_ERROR,
+                        iteration=iteration,
+                        data={
+                            "tool_name": tool_name,
+                            "error": f"Invalid tool call: {error_msg}",
+                            "invalid": True
+                        }
+                    ))
+
+                # Send error back to LLM via ToolMessage
+                # The LLM will see this and retry with corrected arguments
+                new_messages.append(ToolMessage(
+                    content=f"Error calling {tool_name}: {error_msg}\n"
+                            f"Please check the tool schema and provide valid JSON arguments.",
+                    tool_call_id=tool_id,
+                    status="error"  # Mark as error
+                ))
 
         # Execute tool calls and collect results
         if hasattr(response, 'tool_calls') and response.tool_calls:
@@ -585,23 +643,33 @@ def format_observations(observations: dict) -> str:
 
 def format_tools() -> str:
     """Format available tools for prompt."""
-    # TODO: Generate from actual tool list
     return """
-- formulate_problem: Convert natural language goal to structured problem
-- analyze_problem_structure: Analyze mathematical properties
-- recommend_optimizers: Get optimizer recommendations
-- optimizer_create: Create optimizer instance
+**Evaluator Tools:**
+- evaluate_function: Evaluate objective at design point (with automatic caching)
+- compute_gradient: Compute gradient (analytical or finite-difference)
+
+**Optimizer Tools:**
+- optimizer_create: Create optimizer instance (SLSQP, L-BFGS-B, COBYLA)
 - optimizer_propose: Get next design to evaluate
-- optimizer_update: Update optimizer with results
-- optimizer_restart: Restart with modified problem (safe)
-- evaluate_function: Evaluate objective(s) with cache
-- compute_gradient: Compute gradient
-- cache_get: Check for cached evaluation
-- query_history: Query optimization history
-- analyze_convergence: Analyze convergence health
-- detect_pattern: Detect optimization patterns
-- modify_constraints: Modify constraint bounds
-- switch_gradient_method: Switch gradient method
-- budget_remaining: Check remaining budget
-- run_db_log: Log decision for provenance
+- optimizer_update: Update optimizer with evaluation results
+- optimizer_restart: Strategic restart from best design
+
+**Gate Control Tools (for blocking mode):**
+- gate_continue: Continue optimization to next iteration
+- gate_stop: Stop optimization with reason
+- gate_restart_from: Restart with new settings
+- gate_get_history: Get iteration history for analysis
+- gate_get_statistics: Get gate performance stats
+
+**Observation Tools:**
+- analyze_convergence: Analyze if converging/stalled/diverging
+- detect_pattern: Detect constraint violations, gradient noise, etc.
+- check_feasibility: Check if design satisfies constraints
+- get_gradient_quality: Analyze gradient reliability
+- compute_improvement_statistics: Get efficiency metrics
+
+**Cache/Database Tools:**
+- cache_stats: Get cache hit rate and savings
+- cache_clear: Clear evaluation cache
+- run_db_query: Query optimization history
 """

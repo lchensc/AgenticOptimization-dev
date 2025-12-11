@@ -221,23 +221,37 @@ class Agent:
         Initialize tools for agent.
 
         Registers all available tools:
-        - Cache tools (3): cache_stats, cache_clear, run_db_query
-        - Optimizer tools (4): optimizer_create, optimizer_propose, optimizer_update, optimizer_restart
         - Evaluator tools (2): evaluate_function, compute_gradient
+        - Optimizer tools (4): optimizer_create, optimizer_propose, optimizer_update, optimizer_restart
+        - Gate control tools (5): gate_continue, gate_stop, gate_restart_from, gate_get_history, gate_get_statistics
+        - Observation tools (5): analyze_convergence, detect_pattern, check_feasibility, get_gradient_quality, compute_improvement_statistics
+        - Cache tools (3): cache_stats, cache_clear, run_db_query
         """
         from ..tools import (
-            # Cache tools
-            cache_stats,
-            cache_clear,
-            run_db_query,
+            # Evaluator tools
+            evaluate_function,
+            compute_gradient,
             # Optimizer tools
             optimizer_create,
             optimizer_propose,
             optimizer_update,
             optimizer_restart,
-            # Evaluator tools
-            evaluate_function,
-            compute_gradient,
+            # Gate control tools
+            gate_continue,
+            gate_stop,
+            gate_restart_from,
+            gate_get_history,
+            gate_get_statistics,
+            # Observation tools
+            analyze_convergence,
+            detect_pattern,
+            check_feasibility,
+            get_gradient_quality,
+            compute_improvement_statistics,
+            # Cache tools
+            cache_stats,
+            cache_clear,
+            run_db_query,
         )
 
         self.tools = [
@@ -249,6 +263,18 @@ class Agent:
             optimizer_propose,
             optimizer_update,
             optimizer_restart,
+            # Gate control tools
+            gate_continue,
+            gate_stop,
+            gate_restart_from,
+            gate_get_history,
+            gate_get_statistics,
+            # Observation tools
+            analyze_convergence,
+            detect_pattern,
+            check_feasibility,
+            get_gradient_quality,
+            compute_improvement_statistics,
             # Cache tools
             cache_stats,
             cache_clear,

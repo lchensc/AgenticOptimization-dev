@@ -435,6 +435,194 @@ def optimizer_restart(
         }
 
 
+@tool
+def run_scipy_optimization(
+    problem_id: str,
+    algorithm: str,
+    bounds: List[List[float]],
+    initial_design: Optional[List[float]] = None,
+    options: Optional[str] = None,
+    use_gradient: bool = True,
+) -> Dict[str, Any]:
+    """
+    Run scipy optimization to completion in a single call.
+
+    This tool runs a full scipy.optimize.minimize optimization from start to finish.
+    Use this when you want to run an optimization without step-by-step interception.
+    The optimization runs autonomously and returns final results.
+
+    For step-by-step control, use optimizer_create/propose/update instead.
+
+    Args:
+        problem_id: Problem identifier (must be registered via register_problem)
+        algorithm: Scipy algorithm - one of:
+            - "SLSQP": Sequential Least Squares Programming (gradient-based, constrained)
+            - "L-BFGS-B": Limited-memory BFGS (gradient-based, box constraints)
+            - "COBYLA": Constrained Optimization BY Linear Approximation (derivative-free)
+            - "Nelder-Mead": Simplex algorithm (derivative-free)
+            - "Powell": Powell's method (derivative-free)
+        bounds: Variable bounds as [[lower1, upper1], [lower2, upper2], ...]
+        initial_design: Starting design [x1, x2, ...]. Random if not provided.
+        options: JSON string with algorithm options, e.g.:
+                '{"maxiter": 200, "ftol": 1e-9}'
+        use_gradient: If True (default), use analytical gradient for gradient-based methods.
+
+    Returns:
+        Dict with:
+            - success: bool - scipy optimization success flag
+            - message: str - scipy termination message
+            - final_design: List[float] - optimal design found
+            - final_objective: float - final objective value
+            - n_iterations: int - number of iterations
+            - n_function_evals: int - number of function evaluations
+            - n_gradient_evals: int - number of gradient evaluations (if used)
+            - optimization_history: List[Dict] - history of iterations
+            - convergence_info: Dict - convergence analysis
+
+    Example:
+        result = run_scipy_optimization(
+            problem_id="rosenbrock_10d",
+            algorithm="SLSQP",
+            bounds=[[-5.0, 10.0]] * 10,
+            initial_design=[0.0] * 10,
+            options='{"maxiter": 200, "ftol": 1e-9}'
+        )
+        if result["success"]:
+            print(f"Optimal: {result['final_objective']}")
+    """
+    from scipy.optimize import minimize
+    from aopt.tools.evaluator_tools import _get_problem
+
+    try:
+        # Get problem
+        problem = _get_problem(problem_id)
+
+        # Parse bounds
+        bounds_array = np.array(bounds)
+        if bounds_array.ndim != 2 or bounds_array.shape[1] != 2:
+            return {
+                "success": False,
+                "message": f"Invalid bounds format. Expected [[lower, upper], ...], got shape {bounds_array.shape}",
+            }
+
+        lower_bounds = bounds_array[:, 0]
+        upper_bounds = bounds_array[:, 1]
+        n_vars = len(lower_bounds)
+
+        # Parse initial design
+        if initial_design is not None:
+            x0 = np.array(initial_design)
+            if len(x0) != n_vars:
+                return {
+                    "success": False,
+                    "message": f"Initial design dimension {len(x0)} doesn't match bounds {n_vars}",
+                }
+        else:
+            # Random initial design within bounds
+            x0 = lower_bounds + np.random.rand(n_vars) * (upper_bounds - lower_bounds)
+
+        # Parse options
+        options_dict = {"maxiter": 200, "disp": False}
+        if options:
+            try:
+                user_options = json.loads(options)
+                options_dict.update(user_options)
+            except json.JSONDecodeError as e:
+                return {
+                    "success": False,
+                    "message": f"Invalid options JSON: {e}",
+                }
+
+        # Prepare history tracking
+        history = []
+        n_func_evals = [0]
+        n_grad_evals = [0]
+
+        def objective_with_history(x):
+            obj = float(problem.evaluate(x))
+            n_func_evals[0] += 1
+            history.append({
+                "iteration": len(history),
+                "objective": obj,
+                "design": x.tolist(),
+            })
+            return obj
+
+        def gradient_with_count(x):
+            grad = problem.gradient(x)
+            n_grad_evals[0] += 1
+            return grad
+
+        # Determine if gradient-based
+        gradient_methods = {"SLSQP", "L-BFGS-B", "BFGS", "CG", "Newton-CG", "TNC", "trust-constr"}
+        is_gradient_method = algorithm.upper() in [m.upper() for m in gradient_methods]
+
+        # Set up scipy bounds
+        scipy_bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
+
+        # Run optimization
+        import time
+        start_time = time.time()
+
+        if is_gradient_method and use_gradient and hasattr(problem, "gradient"):
+            result = minimize(
+                fun=objective_with_history,
+                x0=x0,
+                method=algorithm,
+                jac=gradient_with_count,
+                bounds=scipy_bounds,
+                options=options_dict,
+            )
+        else:
+            result = minimize(
+                fun=objective_with_history,
+                x0=x0,
+                method=algorithm,
+                bounds=scipy_bounds,
+                options=options_dict,
+            )
+
+        elapsed = time.time() - start_time
+
+        # Analyze convergence from history
+        objectives = [h["objective"] for h in history]
+        if len(objectives) >= 2:
+            total_improvement = objectives[0] - objectives[-1]
+            avg_improvement = total_improvement / len(objectives) if objectives else 0
+            convergence_info = {
+                "initial_objective": objectives[0],
+                "final_objective": objectives[-1],
+                "total_improvement": total_improvement,
+                "improvement_rate": avg_improvement,
+                "converged": result.success,
+            }
+        else:
+            convergence_info = {
+                "converged": result.success,
+            }
+
+        return {
+            "success": result.success,
+            "message": result.message if hasattr(result, "message") else str(result.get("message", "completed")),
+            "final_design": result.x.tolist(),
+            "final_objective": float(result.fun),
+            "n_iterations": int(result.nit) if hasattr(result, "nit") else len(history),
+            "n_function_evals": n_func_evals[0],
+            "n_gradient_evals": n_grad_evals[0],
+            "elapsed_time": elapsed,
+            "optimization_history": history[-20:] if len(history) > 20 else history,  # Last 20 entries
+            "convergence_info": convergence_info,
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "message": f"Error running optimization: {str(e)}",
+            "traceback": traceback.format_exc(),
+        }
+
+
 # Utility function to clear registry (for testing)
 def clear_optimizer_registry():
     """Clear all optimizers from registry."""
