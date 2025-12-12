@@ -19,6 +19,7 @@ numpy>=1.24.0
 
 # UI/Console
 rich>=13.0.0
+prompt-toolkit>=3.0.0
 
 # Utilities
 python-dotenv>=1.0.0
