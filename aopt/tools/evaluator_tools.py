@@ -300,7 +300,6 @@ def create_benchmark_problem(
     problem_id: str,
     function_name: str,
     dimension: Optional[int] = None,
-    callback_manager: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
     Create and register an analytical benchmark problem.
@@ -362,24 +361,6 @@ def create_benchmark_problem(
 
         # Get optimum info
         x_opt, f_opt = problem.get_optimum()
-
-        # Emit PROBLEM_CREATED event for storage
-        if callback_manager:
-            from aopt.callbacks import EventType, create_event
-
-            callback_manager.emit(create_event(
-                event_type=EventType.PROBLEM_CREATED,
-                data={
-                    "problem_id": problem_id,
-                    "name": function_name,
-                    "dimensions": problem.dimension,
-                    "problem_type": "unconstrained" if function_name != "constrained_rosenbrock" else "constrained",
-                    "metadata": {
-                        "global_optimum_x": x_opt.tolist() if hasattr(x_opt, 'tolist') else list(x_opt),
-                        "global_optimum_f": float(f_opt),
-                    }
-                }
-            ))
 
         return {
             "success": True,

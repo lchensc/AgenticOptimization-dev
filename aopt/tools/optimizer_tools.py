@@ -443,7 +443,7 @@ def run_scipy_optimization(
     initial_design: Optional[List[float]] = None,
     options: Optional[str] = None,
     use_gradient: bool = True,
-    callback_manager: Optional[Any] = None,
+    run_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
     Run scipy optimization to completion in a single call.
@@ -451,6 +451,9 @@ def run_scipy_optimization(
     This tool runs a full scipy.optimize.minimize optimization from start to finish.
     Use this when you want to run an optimization without step-by-step interception.
     The optimization runs autonomously and returns final results.
+
+    IMPORTANT: Use start_optimization_run BEFORE calling this tool to create a
+    tracked run. Pass the returned run_id to this tool to record results.
 
     For step-by-step control, use optimizer_create/propose/update instead.
 
@@ -467,6 +470,7 @@ def run_scipy_optimization(
         options: JSON string with algorithm options, e.g.:
                 '{"maxiter": 200, "ftol": 1e-9}'
         use_gradient: If True (default), use analytical gradient for gradient-based methods.
+        run_id: Optional run ID from start_optimization_run to record results.
 
     Returns:
         Dict with:
@@ -600,21 +604,26 @@ def run_scipy_optimization(
                 "converged": result.success,
             }
 
-        # Emit OPTIMIZATION_COMPLETE event for storage
-        if callback_manager:
-            from datetime import datetime
-            from aopt.callbacks import EventType, create_event
+        # Record to run if run_id provided
+        if run_id is not None:
+            from aopt.runs import RunManager
 
-            callback_manager.emit(create_event(
-                event_type=EventType.OPTIMIZATION_COMPLETE,
-                data={
-                    "problem_id": problem_id,
-                    "algorithm": algorithm,
-                    "result": result,
-                    "timestamp": datetime.now(),
-                    "duration": elapsed,
-                }
-            ))
+            manager = RunManager()
+            run = manager.get_run(run_id)
+
+            if run:
+                # Record iterations
+                for h in history:
+                    run.record_iteration(
+                        design=np.array(h["design"]),
+                        objective=h["objective"]
+                    )
+
+                # Finalize run with result
+                run.finalize(result, metadata={"convergence_info": convergence_info})
+            else:
+                # Run not found, just continue without recording
+                pass
 
         return {
             "success": result.success,

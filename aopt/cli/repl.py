@@ -1,5 +1,6 @@
 """Main REPL for AgenticOpt CLI."""
 
+from functools import partial
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
@@ -12,10 +13,11 @@ from ..agent.react_agent import build_aopt_agent
 from ..tools.optimizer_tools import run_scipy_optimization
 from ..tools.evaluator_tools import create_benchmark_problem
 from ..tools.observation_tools import analyze_convergence
+from ..tools.run_tools import start_optimization_run, finalize_optimization_run, get_active_runs
 from ..callbacks import CallbackManager
 from ..storage import FileStorage, StorageBackend
+from ..runs import RunManager
 from .callback import CLICallback
-from .tracker_callback import StorageCallback
 from .commands import CommandHandler
 
 
@@ -44,6 +46,10 @@ class AgenticOptREPL:
         # Storage layer (persists independently)
         self.storage = storage or FileStorage()
 
+        # Initialize RunManager with storage
+        run_manager = RunManager()
+        run_manager.set_storage(self.storage)
+
         # Command handler (reads from storage)
         self.command_handler = CommandHandler(self.storage, self.console)
 
@@ -52,15 +58,17 @@ class AgenticOptREPL:
         self.agent = None
         self.conversation_history = []
 
-        # Callback manager with display and storage callbacks
+        # Callback manager with display callback only
         self.callback_manager = CallbackManager()
         self.callback_manager.register(CLICallback())  # Display events
-        self.callback_manager.register(StorageCallback(self.storage))  # Persist events
 
-        # Tools
+        # Tools - agent explicitly manages runs
         self.tools = [
             create_benchmark_problem,
+            start_optimization_run,
             run_scipy_optimization,
+            finalize_optimization_run,
+            get_active_runs,
             analyze_convergence
         ]
 
