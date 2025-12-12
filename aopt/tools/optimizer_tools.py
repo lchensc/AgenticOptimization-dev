@@ -443,6 +443,7 @@ def run_scipy_optimization(
     initial_design: Optional[List[float]] = None,
     options: Optional[str] = None,
     use_gradient: bool = True,
+    callback_manager: Optional[Any] = None,
 ) -> Dict[str, Any]:
     """
     Run scipy optimization to completion in a single call.
@@ -598,6 +599,22 @@ def run_scipy_optimization(
             convergence_info = {
                 "converged": result.success,
             }
+
+        # Emit OPTIMIZATION_COMPLETE event for storage
+        if callback_manager:
+            from datetime import datetime
+            from aopt.callbacks import EventType, create_event
+
+            callback_manager.emit(create_event(
+                event_type=EventType.OPTIMIZATION_COMPLETE,
+                data={
+                    "problem_id": problem_id,
+                    "algorithm": algorithm,
+                    "result": result,
+                    "timestamp": datetime.now(),
+                    "duration": elapsed,
+                }
+            ))
 
         return {
             "success": result.success,

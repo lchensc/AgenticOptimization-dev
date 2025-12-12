@@ -103,3 +103,7 @@ temp/
 context/
 claude_tasks/
 .claude/
+
+# AgenticOpt CLI files
+.aopt_runs/
+.aopt_history

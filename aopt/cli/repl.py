@@ -13,7 +13,10 @@ from ..tools.optimizer_tools import run_scipy_optimization
 from ..tools.evaluator_tools import create_benchmark_problem
 from ..tools.observation_tools import analyze_convergence
 from ..callbacks import CallbackManager
+from ..storage import FileStorage, StorageBackend
 from .callback import CLICallback
+from .tracker_callback import StorageCallback
+from .commands import CommandHandler
 
 
 class AgenticOptREPL:
@@ -23,25 +26,36 @@ class AgenticOptREPL:
     Provides a Claude Code-style conversational interface for optimization.
     """
 
-    def __init__(self, llm_model: str = "qwen-flash"):
+    def __init__(self, llm_model: str = "qwen-flash", storage: StorageBackend = None):
         """
         Initialize REPL.
 
         Args:
             llm_model: LLM model to use (default: qwen-flash for cost)
+            storage: Storage backend (default: FileStorage)
         """
         self.console = Console()
         self.session = PromptSession(
             history=FileHistory('.aopt_history'),
             auto_suggest=AutoSuggestFromHistory(),
+            mouse_support=False,  # Allow terminal native scrollback
         )
+
+        # Storage layer (persists independently)
+        self.storage = storage or FileStorage()
+
+        # Command handler (reads from storage)
+        self.command_handler = CommandHandler(self.storage, self.console)
 
         # Agent state
         self.llm_model = llm_model
         self.agent = None
         self.conversation_history = []
+
+        # Callback manager with display and storage callbacks
         self.callback_manager = CallbackManager()
-        self.callback_manager.register(CLICallback())
+        self.callback_manager.register(CLICallback())  # Display events
+        self.callback_manager.register(StorageCallback(self.storage))  # Persist events
 
         # Tools
         self.tools = [
@@ -176,7 +190,8 @@ class AgenticOptREPL:
         Returns:
             True to continue REPL, False to exit
         """
-        cmd = command.lower().split()[0]
+        cmd_parts = command.split()
+        cmd = cmd_parts[0].lower()
 
         if cmd == '/help':
             self._show_help()
@@ -188,6 +203,28 @@ class AgenticOptREPL:
             self._show_model_info()
         elif cmd == '/models':
             self._select_model()
+        elif cmd == '/runs':
+            self.command_handler.handle_runs()
+        elif cmd == '/show':
+            if len(cmd_parts) < 2:
+                self.console.print("[red]Usage: /show <run_id>[/red]")
+            else:
+                try:
+                    run_id = int(cmd_parts[1])
+                    self.command_handler.handle_show(run_id)
+                except ValueError:
+                    self.console.print("[red]Run ID must be a number[/red]")
+        elif cmd == '/plot':
+            if len(cmd_parts) < 2:
+                self.console.print("[red]Usage: /plot <run_id>[/red]")
+            else:
+                try:
+                    run_id = int(cmd_parts[1])
+                    self.command_handler.handle_plot(run_id)
+                except ValueError:
+                    self.console.print("[red]Run ID must be a number[/red]")
+        elif cmd == '/best':
+            self.command_handler.handle_best()
         else:
             self.console.print(f"Unknown command: {cmd}. Type /help for available commands.", style="yellow")
 
@@ -204,12 +241,18 @@ class AgenticOptREPL:
   - "compare SLSQP and BFGS on this problem"
   - "analyze the convergence behavior"
 
-[bold]Slash Commands:[/bold]
-  /help    - Show this help message
-  /exit    - Exit the CLI
-  /clear   - Clear conversation history
-  /model   - Show current LLM model
-  /models  - Select a different LLM model
+[bold]Inspection Commands:[/bold]
+  /runs           - List all optimization runs
+  /show <id>      - Show detailed results for run
+  /plot <id>      - Plot convergence for run
+  /best           - Show best solution across all runs
+
+[bold]Session Commands:[/bold]
+  /help           - Show this help message
+  /exit           - Exit the CLI
+  /clear          - Clear conversation history
+  /model          - Show current LLM model
+  /models         - Select a different LLM model
 
 [bold]Exit:[/bold]
   /exit or Ctrl+D

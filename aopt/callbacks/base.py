@@ -52,6 +52,10 @@ class EventType(str, Enum):
     # Resource tracking
     BUDGET_UPDATE = "budget_update"
 
+    # Storage events
+    OPTIMIZATION_COMPLETE = "optimization_complete"
+    PROBLEM_CREATED = "problem_created"
+
 
 class AgentEvent(BaseModel):
     """
