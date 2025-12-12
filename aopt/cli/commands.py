@@ -1,8 +1,11 @@
 """Command handlers for CLI - reads from storage and displays."""
 
-from rich.console import Console
+from typing import List, Optional
+from rich.console import Console, Group
 from rich.table import Table
 from rich.panel import Panel
+from rich.text import Text
+import asciichartpy as asciichart
 
 from ..storage import StorageBackend
 
@@ -95,20 +98,93 @@ class CommandHandler:
             self.console.print(f"\n[red]Run #{run_id} not found[/red]\n")
             return
 
-        # For now, show basic info - convergence history plotting will be added
-        # when we capture iteration-by-iteration data
-        info = f"""[bold]Convergence Plot - Run #{run.run_id}[/bold]
+        # Extract iterations from result_data
+        iterations = run.result_data.get('iterations', [])
 
-[cyan]Problem:[/cyan]     {run.problem_name}
-[cyan]Algorithm:[/cyan]   {run.algorithm}
-[cyan]Final Value:[/cyan] {run.objective_value:.6f}
-[cyan]Evaluations:[/cyan] {run.n_evaluations}
+        if not iterations:
+            self.console.print(f"\n[yellow]No iteration data available for run #{run_id}[/yellow]\n")
+            return
 
-[yellow]Note:[/yellow] Detailed iteration-by-iteration plotting coming soon.
-For now, use the analyze_convergence tool for detailed analysis."""
+        # Extract objective values
+        objectives = [it['objective'] for it in iterations]
+
+        # Normalize to fixed chart width for terminal display
+        max_chart_width = 60  # Fits in 80-char terminal with Y-axis labels
+        original_length = len(objectives)
+
+        if len(objectives) > max_chart_width:
+            # Downsample to max_chart_width points for clean terminal display
+            step = len(objectives) / max_chart_width
+            objectives_to_plot = []
+            for i in range(max_chart_width):
+                idx = int(i * step)
+                objectives_to_plot.append(objectives[idx])
+        else:
+            objectives_to_plot = objectives
+
+        # Create ASCII plot
+        plot_config = {
+            'height': 15,
+            'format': '{:8.2e}',
+        }
+
+        try:
+            chart = asciichart.plot(objectives_to_plot, plot_config)
+        except Exception as e:
+            # Fallback if plotting fails
+            self.console.print(f"\n[red]Error creating plot: {e}[/red]\n")
+            return
+
+        # Create x-axis labels aligned with actual chart width
+        # asciichartpy makes chart width = number of data points
+        chart_width = len(objectives_to_plot)
+        num_ticks = 5
+
+        # Build x-axis string with labels at exact positions
+        x_axis_line = " " * 10  # Space for Y-axis labels (asciichartpy uses ~10 chars)
+        x_axis_chars = [' '] * chart_width
+
+        for i in range(num_ticks):
+            tick_pos = int(i * (chart_width - 1) / (num_ticks - 1))
+            # Use original_length for actual iteration number
+            tick_label = str(int(i * (original_length - 1) / (num_ticks - 1)))
+            # Center the label at tick position (shift left by half label length)
+            label_start = tick_pos - len(tick_label) // 2
+            # Ensure label doesn't go out of bounds
+            if label_start < 0:
+                label_start = 0
+            if label_start + len(tick_label) > chart_width:
+                label_start = chart_width - len(tick_label)
+            # Place label characters
+            for j, char in enumerate(tick_label):
+                char_pos = label_start + j
+                if 0 <= char_pos < chart_width:
+                    x_axis_chars[char_pos] = char
+
+        x_axis_line += ''.join(x_axis_chars)
+
+        # Build info panel
+        downsampled_note = f" [dim](chart shows {len(objectives_to_plot)} sampled points)[/dim]" if len(objectives_to_plot) < original_length else ""
+
+        info = f"""[bold cyan]Convergence History - Run #{run.run_id}[/bold cyan]
+
+[bold]{run.algorithm} on {run.problem_name}[/bold]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[cyan]Initial Value:[/cyan]  {objectives[0]:.6e}
+[cyan]Final Value:[/cyan]    {objectives[-1]:.6e}
+[cyan]Improvement:[/cyan]    {objectives[0] - objectives[-1]:.6e}
+[cyan]Evaluations:[/cyan]    {original_length}{downsampled_note}
+
+[bold]Objective Value vs Iterations:[/bold]
+
+{chart}
+          {'─' * chart_width}
+[white]{x_axis_line}[/white]
+Iteration"""
 
         self.console.print()
-        self.console.print(Panel(info, border_style="yellow", padding=(1, 2)))
+        self.console.print(Panel(info, border_style="cyan", padding=(1, 2)))
         self.console.print()
 
     def handle_best(self):
@@ -134,4 +210,206 @@ For now, use the analyze_convergence tool for detailed analysis."""
 
         self.console.print()
         self.console.print(Panel(info, border_style="green", padding=(1, 2)))
+        self.console.print()
+
+    def handle_compare(self, run_ids: List[int]):
+        """Compare multiple runs side-by-side."""
+        if len(run_ids) < 2:
+            self.console.print("\n[red]Need at least 2 runs to compare[/red]\n")
+            return
+
+        # Load all runs
+        runs = []
+        for run_id in run_ids:
+            run = self.storage.load_run(run_id)
+            if run is None:
+                self.console.print(f"\n[red]Run #{run_id} not found[/red]\n")
+                return
+            runs.append(run)
+
+        # Create comparison table
+        table = Table(title=f"Comparison: {' vs '.join(f'Run #{r.run_id}' for r in runs)}")
+        table.add_column("Metric", style="cyan")
+
+        for run in runs:
+            status_icon = "✓" if run.success else "✗"
+            table.add_column(f"#{run.run_id} ({run.algorithm})", justify="right")
+
+        # Add rows for each metric
+        metrics = [
+            ("Problem", [r.problem_name for r in runs]),
+            ("Objective", [f"{r.objective_value:.6e}" for r in runs]),
+            ("Evaluations", [str(r.n_evaluations) for r in runs]),
+            ("Time (s)", [f"{r.duration:.2f}" for r in runs]),
+            ("Success", ["✓" if r.success else "✗" for r in runs]),
+        ]
+
+        for metric_name, values in metrics:
+            # Highlight best value for numeric metrics
+            if metric_name in ["Objective", "Evaluations", "Time (s)"]:
+                # Find best (minimum for these metrics)
+                numeric_values = []
+                for v in values:
+                    try:
+                        if metric_name == "Success":
+                            numeric_values.append(0)
+                        else:
+                            numeric_values.append(float(v.replace('✓', '0').replace('✗', '1')))
+                    except:
+                        numeric_values.append(float('inf'))
+
+                best_idx = numeric_values.index(min(numeric_values))
+                styled_values = []
+                for i, v in enumerate(values):
+                    if i == best_idx and metric_name != "Success":
+                        styled_values.append(f"[bold green]{v} ✓[/bold green]")
+                    else:
+                        styled_values.append(v)
+                table.add_row(metric_name, *styled_values)
+            else:
+                table.add_row(metric_name, *values)
+
+        self.console.print()
+        self.console.print(table)
+        self.console.print()
+
+    def handle_plot_compare(self, run_ids: List[int]):
+        """Plot convergence comparison for multiple runs."""
+        if len(run_ids) < 2:
+            self.console.print("\n[red]Need at least 2 runs to compare[/red]\n")
+            return
+
+        # Load all runs and extract convergence data
+        runs_data = []
+        for run_id in run_ids:
+            run = self.storage.load_run(run_id)
+            if run is None:
+                self.console.print(f"\n[red]Run #{run_id} not found[/red]\n")
+                return
+
+            iterations = run.result_data.get('iterations', [])
+            if not iterations:
+                self.console.print(f"\n[yellow]No iteration data for run #{run_id}[/yellow]\n")
+                return
+
+            objectives = [it['objective'] for it in iterations]
+            runs_data.append({
+                'run': run,
+                'objectives': objectives
+            })
+
+        # Find max length and pad shorter sequences with their final value
+        max_len = max(len(rd['objectives']) for rd in runs_data)
+
+        series = []
+        labels = []
+        for rd in runs_data:
+            run = rd['run']
+            obj = rd['objectives']
+
+            # Pad with final value if needed
+            if len(obj) < max_len:
+                obj = obj + [obj[-1]] * (max_len - len(obj))
+
+            series.append(obj)
+            labels.append(f"#{run.run_id} ({run.algorithm})")
+
+        # Downsample if too many points (to fit terminal width)
+        max_chart_width = 60  # Fits in 80-char terminal with Y-axis labels
+        original_max_len = max_len
+        if max_len > max_chart_width:
+            # Downsample all series to max_chart_width points
+            step = max_len / max_chart_width
+            downsampled_series = []
+            for s in series:
+                downsampled = []
+                for i in range(max_chart_width):
+                    idx = int(i * step)
+                    downsampled.append(s[idx])
+                downsampled_series.append(downsampled)
+            series = downsampled_series
+            max_len = max_chart_width
+
+        # Create multi-line ASCII plot with colors
+        try:
+            plot_config = {
+                'height': 15,
+                'format': '{:8.2e}',
+                'colors': [
+                    asciichart.blue,
+                    asciichart.red,
+                    asciichart.green,
+                    asciichart.yellow,
+                    asciichart.magenta,
+                ][:len(series)]
+            }
+            chart = asciichart.plot(series, plot_config)
+        except Exception as e:
+            self.console.print(f"\n[red]Error creating comparison plot: {e}[/red]\n")
+            return
+
+        # Build legend with colored markers
+        color_styles = ['blue', 'red', 'green', 'yellow', 'magenta']
+        legend_lines = []
+        for i in range(len(runs_data)):
+            color = color_styles[i % len(color_styles)]
+            legend_lines.append(
+                f"  [{color}]●[/{color}] {labels[i]}: {runs_data[i]['run'].problem_name} → {runs_data[i]['objectives'][-1]:.6e}"
+            )
+        legend = "\n".join(legend_lines)
+
+        # Build header with legend
+        downsampled_note = f"\n[dim](Chart shows {max_len} sampled points from {original_max_len} total iterations)[/dim]" if max_len < original_max_len else ""
+
+        header = f"""[bold cyan]Convergence Comparison[/bold cyan]
+
+[bold]Legend:[/bold]
+{legend}{downsampled_note}
+
+[bold]Objective Value vs Iterations:[/bold]"""
+
+        # Create x-axis labels aligned with actual chart width
+        # asciichartpy makes chart width = number of data points
+        chart_width = max_len
+        num_ticks = 5
+
+        # Build x-axis string with labels at exact positions
+        x_axis_line = " " * 10  # Space for Y-axis labels (asciichartpy uses ~10 chars)
+        x_axis_chars = [' '] * chart_width
+
+        for i in range(num_ticks):
+            tick_pos = int(i * (chart_width - 1) / (num_ticks - 1))
+            # Use original_max_len for actual iteration number
+            tick_label = str(int(i * (original_max_len - 1) / (num_ticks - 1)))
+            # Center the label at tick position (shift left by half label length)
+            label_start = tick_pos - len(tick_label) // 2
+            # Ensure label doesn't go out of bounds
+            if label_start < 0:
+                label_start = 0
+            if label_start + len(tick_label) > chart_width:
+                label_start = chart_width - len(tick_label)
+            # Place label characters
+            for j, char in enumerate(tick_label):
+                char_pos = label_start + j
+                if 0 <= char_pos < chart_width:
+                    x_axis_chars[char_pos] = char
+
+        x_axis_line += ''.join(x_axis_chars)
+
+        # Build complete panel content including chart and x-axis
+        separator_line = " " * 10 + "─" * chart_width
+
+        # Create renderable with chart (ANSI colors) and x-axis
+        panel_content = Group(
+            Text.from_markup(header),
+            Text(""),
+            Text.from_ansi(chart),
+            Text(""),
+            Text(separator_line),
+            Text.from_markup(f"[white]{x_axis_line}[/white]"),
+            Text("Iteration")
+        )
+
+        self.console.print()
+        self.console.print(Panel(panel_content, border_style="cyan", padding=(1, 2)))
         self.console.print()

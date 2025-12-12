@@ -20,6 +20,7 @@ numpy>=1.24.0
 # UI/Console
 rich>=13.0.0
 prompt-toolkit>=3.0.0
+asciichartpy>=1.5.25  # Terminal plotting
 
 # Utilities
 python-dotenv>=1.0.0

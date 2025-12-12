@@ -224,13 +224,33 @@ class AgenticOptREPL:
                     self.console.print("[red]Run ID must be a number[/red]")
         elif cmd == '/plot':
             if len(cmd_parts) < 2:
-                self.console.print("[red]Usage: /plot <run_id>[/red]")
+                self.console.print("[red]Usage: /plot <run_id> OR /plot compare <run1> <run2> ...[/red]")
+            elif cmd_parts[1].lower() == 'compare':
+                # /plot compare <run1> <run2> ...
+                if len(cmd_parts) < 4:
+                    self.console.print("[red]Usage: /plot compare <run1> <run2> [run3...][/red]")
+                else:
+                    try:
+                        run_ids = [int(id) for id in cmd_parts[2:]]
+                        self.command_handler.handle_plot_compare(run_ids)
+                    except ValueError:
+                        self.console.print("[red]Run IDs must be numbers[/red]")
             else:
+                # /plot <run_id>
                 try:
                     run_id = int(cmd_parts[1])
                     self.command_handler.handle_plot(run_id)
                 except ValueError:
                     self.console.print("[red]Run ID must be a number[/red]")
+        elif cmd == '/compare':
+            if len(cmd_parts) < 3:  # Need at least 2 run IDs
+                self.console.print("[red]Usage: /compare <run1> <run2> [run3...][/red]")
+            else:
+                try:
+                    run_ids = [int(id) for id in cmd_parts[1:]]
+                    self.command_handler.handle_compare(run_ids)
+                except ValueError:
+                    self.console.print("[red]Run IDs must be numbers[/red]")
         elif cmd == '/best':
             self.command_handler.handle_best()
         else:
@@ -250,10 +270,12 @@ class AgenticOptREPL:
   - "analyze the convergence behavior"
 
 [bold]Inspection Commands:[/bold]
-  /runs           - List all optimization runs
-  /show <id>      - Show detailed results for run
-  /plot <id>      - Plot convergence for run
-  /best           - Show best solution across all runs
+  /runs                      - List all optimization runs
+  /show <id>                 - Show detailed results for run
+  /plot <id>                 - Plot convergence for run
+  /plot compare <id1> <id2>  - Overlay convergence curves for multiple runs
+  /compare <id1> <id2>       - Side-by-side comparison of runs
+  /best                      - Show best solution across all runs
 
 [bold]Session Commands:[/bold]
   /help           - Show this help message

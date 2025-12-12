@@ -163,7 +163,7 @@ class OptimizationRun:
             "nfev": int(result.nfev),
             "nit": int(getattr(result, 'nit', 0)),
             "njev": int(getattr(result, 'njev', 0)),
-            "iterations": self.iterations[-20:] if len(self.iterations) > 20 else self.iterations,
+            "iterations": self.iterations,  # Store all iterations for complete convergence history
         }
 
     def get_current_best(self) -> Optional[Dict[str, Any]]:
