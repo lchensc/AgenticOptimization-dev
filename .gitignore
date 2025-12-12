@@ -98,3 +98,8 @@ checkpoints/
 tmp/
 temp/
 *.tmp
+
+# Claude working directories
+context/
+claude_tasks/
+.claude/
