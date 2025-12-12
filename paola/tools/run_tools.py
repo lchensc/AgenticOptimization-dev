@@ -2,13 +2,42 @@
 Tools for agent to manage optimization runs.
 
 Provides explicit run creation and finalization.
+
+REFACTORED: Now uses OptimizationPlatform with dependency injection
+instead of RunManager singleton.
 """
 
 from typing import Dict, Any, Optional
 from langchain_core.tools import tool
 
-from ..runs import RunManager
+from ..platform import OptimizationPlatform
 from .evaluator_tools import _get_problem
+
+# Global platform reference (set by build_tools)
+_PLATFORM: Optional[OptimizationPlatform] = None
+
+
+def set_platform(platform: OptimizationPlatform) -> None:
+    """
+    Set global platform reference for tools.
+
+    This is called by build_tools() during initialization.
+
+    Args:
+        platform: OptimizationPlatform instance
+    """
+    global _PLATFORM
+    _PLATFORM = platform
+
+
+def get_platform() -> Optional[OptimizationPlatform]:
+    """
+    Get current platform reference.
+
+    Returns:
+        Current platform instance or None if not set
+    """
+    return _PLATFORM
 
 
 @tool
@@ -63,14 +92,11 @@ def start_optimization_run(
         )
     """
     try:
-        # Get run manager
-        manager = RunManager()
-
-        # Check if storage is set
-        if manager.get_storage() is None:
+        # Get platform
+        if _PLATFORM is None:
             return {
                 "success": False,
-                "message": "Run tracking not available (storage not initialized). Results will not be saved."
+                "message": "Platform not initialized. Call set_platform() first."
             }
 
         # Get problem to extract name
@@ -82,7 +108,7 @@ def start_optimization_run(
             problem_name = problem_id
 
         # Create run
-        run = manager.create_run(
+        run = _PLATFORM.create_run(
             problem_id=problem_id,
             problem_name=problem_name,
             algorithm=algorithm,
@@ -134,8 +160,13 @@ def finalize_optimization_run(
         )
     """
     try:
-        manager = RunManager()
-        run = manager.get_run(run_id)
+        if _PLATFORM is None:
+            return {
+                "success": False,
+                "message": "Platform not initialized. Call set_platform() first."
+            }
+
+        run = _PLATFORM.get_run(run_id)
 
         if run is None:
             return {
@@ -148,7 +179,7 @@ def finalize_optimization_run(
             run.metadata["final_notes"] = notes
 
         # Remove from active registry
-        manager.finalize_run(run_id)
+        _PLATFORM.finalize_run(run_id)
 
         return {
             "success": True,
@@ -180,8 +211,13 @@ def get_active_runs() -> Dict[str, Any]:
         # Returns: {"success": True, "active_runs": [...], "count": 2}
     """
     try:
-        manager = RunManager()
-        active_runs = manager.get_active_runs()
+        if _PLATFORM is None:
+            return {
+                "success": False,
+                "message": "Platform not initialized. Call set_platform() first."
+            }
+
+        active_runs = _PLATFORM.get_active_runs()
 
         runs_info = []
         for run_id, run in active_runs.items():

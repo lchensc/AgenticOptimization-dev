@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 from langgraph.graph import StateGraph, END
 
 from ..callbacks import CallbackManager, EventType, create_event
+from .prompts import build_optimization_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +139,7 @@ def initialize_llm(
         return ChatAnthropic(model=llm_model, temperature=temperature, max_tokens=4096)
 
 
-def build_aopt_agent(
+def build_optimization_agent(
     tools: list,
     llm_model: str,
     callback_manager: Optional[CallbackManager] = None,
@@ -504,6 +505,9 @@ def update_context(context: dict, tool_results: list) -> dict:
     """
     Update agent context with tool results.
 
+    Context updates are mostly handled by tools themselves (via run management).
+    This function maintains agent working memory for decision-making.
+
     Args:
         context: Current context
         tool_results: Results from tool executions
@@ -513,167 +517,8 @@ def update_context(context: dict, tool_results: list) -> dict:
     """
     new_context = context.copy()
 
-    # TODO: Implement context update logic based on tool results
-    # For now, just return copy
+    # Tool results are already persisted by the platform
+    # Context here is just for agent's working memory
+    # Most updates happen in tools (start_optimization_run, run_scipy_optimization, etc.)
 
     return new_context
-
-
-def build_optimization_prompt(context: dict, tools: list = None) -> str:
-    """
-    Build prompt with current optimization state.
-
-    UPDATED: Now includes budget awareness and cache statistics.
-    Args:
-        context: Current optimization context
-        tools: List of actually available tools (if None, lists all 18 tools)
-    """
-    # Get budget status
-    budget_status = context.get('budget_status', {})
-    budget_text = f"{budget_status.get('used', 0):.1f} / {budget_status.get('total', 'Unknown')} CPU hours"
-    budget_remaining_pct = budget_status.get('remaining_pct', 100)
-
-    # Get cache stats
-    cache_stats = context.get('cache_stats', {})
-    cache_hit_rate = cache_stats.get('hit_rate', 0.0)
-
-    return f"""
-You are an autonomous optimization agent.
-
-**Goal:** {context.get('goal', 'Not set')}
-
-**Status:**
-- Problem: {format_problem(context.get('problem', {}))}
-- Optimizer: {context.get('optimizer_type', 'Not created')}
-- Iteration: {context.get('iteration', 0)}
-- Current objective: {context.get('current_objectives', 'N/A')}
-- Best objective: {context.get('best_objectives', 'N/A')}
-
-**Resources:**
-- Budget: {budget_text}
-- Cache hit rate: {cache_hit_rate:.1%}
-- Evaluations: {context.get('total_evaluations', 0)}
-
-**History:**
-{format_history(context.get('history', [])[-5:])}
-
-**Observations:**
-{format_observations(context.get('observations', {}))}
-
-**Tools:**
-{format_tools(tools)}
-
-**Instructions:**
-1. Explain your reasoning before calling tools
-2. Tool arguments must be valid JSON (e.g., no Python expressions)
-
-Decide next action. Use tools or respond "DONE".
-"""
-
-
-def format_problem(problem: dict) -> str:
-    """Format problem for prompt."""
-    if not problem:
-        return "Not formulated yet"
-
-    lines = []
-
-    # Objectives
-    objectives = problem.get('objectives', [])
-    if objectives:
-        obj_strs = [f"{obj.get('name')} ({obj.get('sense')})" for obj in objectives]
-        lines.append(f"Objectives: {', '.join(obj_strs)}")
-
-    # Variables
-    variables = problem.get('variables', [])
-    if variables:
-        lines.append(f"Variables: {len(variables)} design variables")
-
-    # Constraints
-    constraints = problem.get('constraints', [])
-    if constraints:
-        lines.append(f"Constraints: {len(constraints)} constraints")
-
-    return '\n'.join(lines) if lines else "Empty problem"
-
-
-def format_history(history: list) -> str:
-    """Format recent history for prompt."""
-    if not history:
-        return "No history yet"
-
-    lines = []
-    for entry in history:
-        iter_num = entry.get('iteration', '?')
-        obj = entry.get('objective', 'N/A')
-        lines.append(f"  Iter {iter_num}: obj={obj}")
-
-    return '\n'.join(lines) if lines else "No history"
-
-
-def format_observations(observations: dict) -> str:
-    """Format observations for prompt."""
-    if not observations:
-        return "No observations yet"
-
-    lines = []
-    for key, value in observations.items():
-        if isinstance(value, float):
-            lines.append(f"  {key}: {value:.6e}")
-        else:
-            lines.append(f"  {key}: {value}")
-
-    return '\n'.join(lines) if lines else "No observations"
-
-
-def format_tools(tools: list = None) -> str:
-    """
-    Format available tools for prompt.
-
-    Args:
-        tools: List of actual tools bound to agent (if None, uses hardcoded list)
-
-    Returns:
-        Formatted string listing available tools
-    """
-    if tools is None:
-        # Fallback to hardcoded list for backward compatibility
-        return """
-**Evaluator Tools:**
-- evaluate_function: Evaluate objective at design point (with automatic caching)
-- compute_gradient: Compute gradient (analytical or finite-difference)
-
-**Optimizer Tools:**
-- optimizer_create: Create optimizer instance (SLSQP, L-BFGS-B, COBYLA)
-- optimizer_propose: Get next design to evaluate
-- optimizer_update: Update optimizer with evaluation results
-- optimizer_restart: Strategic restart from best design
-
-**Gate Control Tools (for blocking mode):**
-- gate_continue: Continue optimization to next iteration
-- gate_stop: Stop optimization with reason
-- gate_restart_from: Restart with new settings
-- gate_get_history: Get iteration history for analysis
-- gate_get_statistics: Get gate performance stats
-
-**Observation Tools:**
-- analyze_convergence: Analyze if converging/stalled/diverging
-- detect_pattern: Detect constraint violations, gradient noise, etc.
-- check_feasibility: Check if design satisfies constraints
-- get_gradient_quality: Analyze gradient reliability
-- compute_improvement_statistics: Get efficiency metrics
-
-**Cache/Database Tools:**
-- cache_stats: Get cache hit rate and savings
-- cache_clear: Clear evaluation cache
-- run_db_query: Query optimization history
-"""
-
-    # Dynamic tool listing based on actual bound tools
-    lines = []
-    for tool in tools:
-        tool_name = tool.name if hasattr(tool, 'name') else str(tool)
-        tool_desc = tool.description if hasattr(tool, 'description') else "No description"
-        lines.append(f"- {tool_name}: {tool_desc}")
-
-    return '\n'.join(lines) if lines else "No tools available"

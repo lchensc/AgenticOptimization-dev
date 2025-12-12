@@ -7,7 +7,7 @@ showing the full agent reasoning and tool usage patterns.
 
 import logging
 from paola.agent.agent import Agent
-from paola.agent.react_agent import build_aopt_agent
+from paola.agent.react_agent import build_optimization_agent
 from paola.tools.optimizer_tools import run_scipy_optimization
 from paola.tools.observation_tools import analyze_convergence
 from paola.callbacks import EventCapture, EventType
@@ -61,7 +61,7 @@ def test_production_agent_rosenbrock():
     print("Building Agent Graph...")
     print("-" * 70)
 
-    agent.graph = build_aopt_agent(
+    agent.graph = build_optimization_agent(
         tools=agent.tools,
         llm_model=agent.llm_model,
         callback_manager=agent.callback_manager,

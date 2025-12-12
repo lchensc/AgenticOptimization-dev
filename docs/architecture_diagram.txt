@@ -1,0 +1,316 @@
+PAOLA Architecture Diagram
+==========================
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            USER INTERACTION LAYER                            │
+│                                                                              │
+│  User Input: "optimize 10D Rosenbrock"  │  Slash Command: "/runs"          │
+│              ↓                           │              ↓                     │
+└──────────────┬──────────────────────────┴──────────────┬────────────────────┘
+               │                                          │
+               │ Natural Language                         │ Direct Query
+               │                                          │
+┌──────────────▼──────────────────────────┐  ┌───────────▼────────────────────┐
+│         CLI LAYER (paola/cli/)          │  │    COMMAND HANDLER             │
+│                                         │  │   (paola/cli/commands.py)      │
+│  • repl.py - Main REPL loop             │  │                                │
+│  • CLICallback - Real-time display      │  │  Pure presentation layer:      │
+│  • Session management                   │  │  • /runs → list table          │
+│  • History tracking                     │  │  • /show → detailed view       │
+└─────────────┬───────────────────────────┘  │  • /plot → ASCII convergence   │
+              │                               │  • /compare → side-by-side     │
+              │ Invoke agent                  └───────────┬────────────────────┘
+              │                                           │
+┌─────────────▼───────────────────────────┐               │ Read only
+│       AGENT LAYER (paola/agent/)        │               │
+│                                         │               │
+│  • react_agent.py - LangGraph ReAct    │               │
+│  • Continuous loop: Observe → Reason   │               │
+│                     → Act → Repeat      │               │
+│  • Multi-LLM support (Qwen/Claude/GPT) │               │
+│  • Message history retention            │               │
+│  • Event emission via callbacks         │               │
+└─────────────┬───────────────────────────┘               │
+              │                                           │
+              │ Call tools                                │
+              │                                           │
+┌─────────────▼───────────────────────────────────────────┼────────────────────┐
+│                       TOOL LAYER (paola/tools/)         │                    │
+│                                                          │                    │
+│  ┌────────────────┐  ┌──────────────┐  ┌──────────────┐│                    │
+│  │ Evaluator      │  │ Optimizer    │  │ Run Mgmt     ││                    │
+│  │ Tools          │  │ Tools        │  │ Tools        ││                    │
+│  │                │  │              │  │              ││                    │
+│  │ • create_      │  │ • run_scipy_ │  │ • start_     ││                    │
+│  │   benchmark    │  │   optimization│  │   run        ││                    │
+│  │ • evaluate     │  │ • algorithm  │  │ • finalize   ││                    │
+│  │ • gradient     │  │   selection  │  │ • get_active ││                    │
+│  └────────────────┘  └──────────────┘  └──────┬───────┘│                    │
+│                                                 │        │                    │
+│  ┌────────────────┐  ┌──────────────┐          │        │                    │
+│  │ Observation    │  │ Cache        │          │        │                    │
+│  │ Tools          │  │ Tools        │          │        │                    │
+│  │                │  │              │          │        │                    │
+│  │ • analyze_     │  │ • cache_get  │          │        │                    │
+│  │   convergence  │  │ • cache_     │          │        │                    │
+│  │ • detect_      │  │   stats      │          │        │                    │
+│  │   pattern      │  │ • cache_     │          │        │                    │
+│  └────────────────┘  │   clear      │          │        │                    │
+│                      └──────────────┘          │        │                    │
+│                                                 │        │                    │
+│  All tools access RunManager singleton ────────┘        │                    │
+└─────────────────────────────────────┬───────────────────┼────────────────────┘
+                                      │                   │
+                                      │ Get/Update        │
+                                      │ active runs       │
+┌─────────────────────────────────────▼───────────────────┘
+│          RUN MANAGEMENT LAYER (paola/runs/)
+│
+│  ┌──────────────────────────────────────────────────┐
+│  │   RunManager (manager.py) - SINGLETON            │
+│  │                                                  │
+│  │   • _active_runs: Dict[run_id, Run]            │
+│  │   • create_run() → OptimizationRun             │
+│  │   • get_run(run_id)                            │
+│  │   • finalize_run(run_id)                       │
+│  │   • Thread-safe singleton pattern              │
+│  └────────────────────┬─────────────────────────────┘
+│                       │
+│                       │ Manages
+│                       │
+│  ┌────────────────────▼───────────────────────────┐
+│  │  OptimizationRun (active_run.py)              │
+│  │                                                │
+│  │  Active object that:                          │
+│  │  • Records iterations                         │
+│  │  • Auto-persists to storage                   │
+│  │  • Tracks start/end time                      │
+│  │  • Finalizes with OptimizeResult              │
+│  │  • Maintains full iteration history           │
+│  └────────────────────┬───────────────────────────┘
+└───────────────────────┼────────────────────────────────┘
+                        │
+                        │ persist/load
+                        │
+┌───────────────────────▼────────────────────────────────┐
+│        STORAGE LAYER (paola/storage/)                  │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  StorageBackend (base.py) - ABSTRACT             │  │
+│  │                                                  │  │
+│  │  • save_run(run)                                │  │
+│  │  • load_run(run_id)                             │  │
+│  │  • load_all_runs()                              │  │
+│  │  • get_next_run_id()                            │  │
+│  └────────────┬───────────────────────────────────┘  │
+│               │ implements                            │
+│  ┌────────────▼───────────────────────────────────┐  │
+│  │  FileStorage (file_storage.py)                 │  │
+│  │                                                │  │
+│  │  JSON files in .paola_runs/:                   │  │
+│  │  • runs/run_001.json                           │  │
+│  │  • runs/run_002.json                           │  │
+│  │  • problems/rosenbrock_10d.json                │  │
+│  │  • metadata.json (next_run_id counter)         │  │
+│  └────────────────────────────────────────────────┘  │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │  Data Models (models.py)                         │  │
+│  │                                                  │  │
+│  │  • OptimizationRun (dataclass)                  │  │
+│  │  • Problem (dataclass)                          │  │
+│  │  • to_json() / from_json()                      │  │
+│  └──────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────┘
+
+
+CROSS-CUTTING CONCERNS
+======================
+
+┌─────────────────────────────────────────────────────────┐
+│      CALLBACK SYSTEM (paola/callbacks/)                 │
+│                                                          │
+│  Agent emits events → CallbackManager → [Callbacks]     │
+│                                                          │
+│  Event Types:                                            │
+│  • AGENT_STEP, REASONING, TOOL_CALL, TOOL_RESULT       │
+│  • ITERATION_START, EVALUATION, CACHE_HIT              │
+│  • CONVERGENCE_CHECK, PATTERN_DETECTED, RESTART        │
+│                                                          │
+│  Callback Implementations:                               │
+│  • CLICallback → Rich console display                   │
+│  • FileLoggerCallback → JSON event log                  │
+│  • CaptureCallback → Testing/replay                     │
+└─────────────────────────────────────────────────────────┘
+
+
+DATA FLOW PATTERNS
+==================
+
+Pattern 1: Optimization Run (Agent-Driven)
+───────────────────────────────────────────
+User: "optimize Rosenbrock"
+  ↓
+Agent decides to:
+  1. create_benchmark_problem("rosenbrock_10d", ...)
+     → Problem registered in storage
+
+  2. start_optimization_run("rosenbrock_10d", "SLSQP", ...)
+     → RunManager.create_run()
+     → Gets run_id=1 from storage
+     → Creates OptimizationRun(1, ...)
+     → Registers in _active_runs
+     → Returns {"run_id": 1}
+
+  3. run_scipy_optimization("rosenbrock_10d", "SLSQP", run_id=1)
+     → Gets run from RunManager.get_run(1)
+     → Runs scipy.optimize.minimize(...)
+     → For each iteration:
+         run.record_iteration(design, obj, gradient)
+           → Appends to run.iterations[]
+           → Calls run._persist()
+             → Converts to storage model
+             → storage.save_run()
+               → Writes .paola_runs/runs/run_001.json
+     → On completion:
+         run.finalize(result)
+           → Sets run.result, run.end_time
+           → Final persist
+     → Returns result to agent
+
+  4. finalize_optimization_run(1, "Converged successfully")
+     → Adds metadata notes
+     → RunManager.finalize_run(1)
+       → Removes from _active_runs
+
+
+Pattern 2: Inspection Query (Direct Storage Read)
+──────────────────────────────────────────────────
+User: "/runs"
+  ↓
+CommandHandler.handle_runs()
+  ↓
+storage.load_all_runs()
+  ↓
+Reads .paola_runs/runs/*.json
+  ↓
+Returns List[OptimizationRun]
+  ↓
+Formats as Rich table
+  ↓
+Display to console
+
+
+Pattern 3: Event Streaming (Real-Time)
+───────────────────────────────────────
+Agent calls tool
+  ↓
+Tool executes
+  ↓
+Agent emits create_event(TOOL_RESULT, ...)
+  ↓
+callback_manager.emit(event)
+  ↓
+For each registered callback:
+  callback(event)
+    ↓
+    CLICallback displays:
+      "Tool: run_scipy_optimization"
+      "  Result: {...}"
+
+
+KEY ARCHITECTURAL DECISIONS
+============================
+
+1. Message History Retention (operator.add)
+   → Agent maintains full grounding across ReAct cycles
+
+2. Explicit Run Creation
+   → Agent must intentionally call start_optimization_run
+   → No implicit state, clear lifecycle
+
+3. Auto-Persistence
+   → Every iteration immediately saved to storage
+   → Crash recovery (partial runs preserved)
+
+4. Singleton RunManager
+   → Global registry of active runs
+   → Trade-off: Simple but limits parallelism
+
+5. Dual Data Models
+   → Active objects (OptimizationRun) vs Storage models (@dataclass)
+   → Separation of concerns: runtime vs persistence
+
+6. Callback-Based Display
+   → Agent decoupled from UI
+   → Real-time streaming without blocking
+
+7. Two Interaction Modes
+   → Natural language → Agent (non-deterministic)
+   → Slash commands → Direct query (deterministic)
+
+8. Storage Abstraction
+   → FileStorage now, easy to swap to SQL/S3 later
+   → Interface defines contract
+
+
+LAYER DEPENDENCIES
+==================
+
+CLI ─────┬─────→ Agent ────→ Tools ────→ RunManager ────→ Storage
+         │                                    ↑
+         │                                    │
+         └────→ CommandHandler ───────────────┘
+                (read-only)
+
+Callbacks ←──── Agent
+          ←──── Tools (emit events)
+
+
+TESTING STRATEGY
+================
+
+Layer 1 - Storage:
+  • Test save/load round-trip
+  • Test ID generation (atomicity)
+  • Test schema serialization
+
+Layer 2 - Run Management:
+  • Test run lifecycle (create → record → finalize)
+  • Test auto-persistence
+  • Test RunManager singleton (reset in teardown)
+
+Layer 3 - Tools:
+  • Mock RunManager, Storage
+  • Test tool logic in isolation
+  • Test run tracking integration
+
+Layer 4 - Agent:
+  • Mock LLM responses
+  • Test ReAct loop
+  • Test message history retention
+  • Test event emission
+
+Layer 5 - CLI:
+  • Test command routing
+  • Test display formatting
+  • Integration tests with real storage
+
+
+FUTURE PHASES
+=============
+
+Phase 3: Knowledge Base & Learning
+───────────────────────────────────
+• RAG over past runs (storage.query_runs(...))
+• Problem signature matching
+• Warm-starting from similar optimizations
+• Multi-run analysis and recommendation
+
+Phase 4: Production Hardening
+──────────────────────────────
+• Concurrent run support (multiple agents)
+• Transaction semantics
+• Storage migration tools
+• Performance optimization (caching, indexing)
+• Error recovery and replay

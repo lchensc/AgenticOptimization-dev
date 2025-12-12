@@ -606,24 +606,24 @@ def run_scipy_optimization(
 
         # Record to run if run_id provided
         if run_id is not None:
-            from paola.runs import RunManager
+            from .run_tools import _PLATFORM
 
-            manager = RunManager()
-            run = manager.get_run(run_id)
+            if _PLATFORM is not None:
+                run = _PLATFORM.get_run(run_id)
 
-            if run:
-                # Record iterations
-                for h in history:
-                    run.record_iteration(
-                        design=np.array(h["design"]),
-                        objective=h["objective"]
-                    )
+                if run:
+                    # Record iterations
+                    for h in history:
+                        run.record_iteration(
+                            design=np.array(h["design"]),
+                            objective=h["objective"]
+                        )
 
-                # Finalize run with result
-                run.finalize(result, metadata={"convergence_info": convergence_info})
-            else:
-                # Run not found, just continue without recording
-                pass
+                    # Finalize run with result
+                    run.finalize(result, metadata={"convergence_info": convergence_info})
+                else:
+                    # Run not found, just continue without recording
+                    pass
 
         return {
             "success": result.success,

@@ -9,14 +9,15 @@ from rich.panel import Panel
 from rich.text import Text
 from langchain_core.messages import HumanMessage
 
-from ..agent.react_agent import build_aopt_agent
+from ..agent.react_agent import build_optimization_agent
 from ..tools.optimizer_tools import run_scipy_optimization
 from ..tools.evaluator_tools import create_benchmark_problem
 from ..tools.observation_tools import analyze_convergence
-from ..tools.run_tools import start_optimization_run, finalize_optimization_run, get_active_runs
+from ..tools.run_tools import start_optimization_run, finalize_optimization_run, get_active_runs, set_platform
+from ..tools.analysis import analyze_convergence as analyze_convergence_new, analyze_efficiency, get_all_metrics, analyze_run_with_ai
+from ..tools.knowledge_tools import store_optimization_insight, retrieve_optimization_knowledge, list_all_knowledge
 from ..callbacks import CallbackManager
-from ..storage import FileStorage, StorageBackend
-from ..runs import RunManager
+from ..platform import FileStorage, StorageBackend, OptimizationPlatform
 from .callback import CLICallback
 from .commands import CommandHandler
 
@@ -44,14 +45,16 @@ class AgenticOptREPL:
         )
 
         # Storage layer (persists independently)
-        self.storage = storage or FileStorage()
+        storage_backend = storage or FileStorage()
 
-        # Initialize RunManager with storage
-        run_manager = RunManager()
-        run_manager.set_storage(self.storage)
+        # Initialize OptimizationPlatform (replaces RunManager)
+        self.platform = OptimizationPlatform(storage=storage_backend)
 
-        # Command handler (reads from storage)
-        self.command_handler = CommandHandler(self.storage, self.console)
+        # Set global platform for tools
+        set_platform(self.platform)
+
+        # Command handler (reads from platform)
+        self.command_handler = CommandHandler(self.platform, self.console)
 
         # Agent state
         self.llm_model = llm_model
@@ -64,12 +67,29 @@ class AgenticOptREPL:
 
         # Tools - agent explicitly manages runs
         self.tools = [
+            # Problem formulation
             create_benchmark_problem,
+
+            # Run management
             start_optimization_run,
-            run_scipy_optimization,
             finalize_optimization_run,
             get_active_runs,
-            analyze_convergence
+
+            # Optimization
+            run_scipy_optimization,
+
+            # Analysis (deterministic - fast & free)
+            analyze_convergence_new,
+            analyze_efficiency,
+            get_all_metrics,
+
+            # Analysis (AI-powered - strategic, costs money)
+            analyze_run_with_ai,
+
+            # Knowledge (skeleton - not yet implemented)
+            store_optimization_insight,
+            retrieve_optimization_knowledge,
+            list_all_knowledge,
         ]
 
         # Running state
@@ -135,7 +155,7 @@ class AgenticOptREPL:
         """Initialize the optimization agent."""
         self.console.print("[dim]Initializing agent...[/dim]")
 
-        self.agent = build_aopt_agent(
+        self.agent = build_optimization_agent(
             tools=self.tools,
             llm_model=self.llm_model,
             callback_manager=self.callback_manager,
@@ -254,6 +274,24 @@ class AgenticOptREPL:
                     self.console.print("[red]Run IDs must be numbers[/red]")
         elif cmd == '/best':
             self.command_handler.handle_best()
+        elif cmd == '/analyze':
+            if len(cmd_parts) < 2:
+                self.console.print("[red]Usage: /analyze <run_id> [focus][/red]")
+                self.console.print("[dim]Focus options: convergence, efficiency, algorithm, overall (default)[/dim]")
+            else:
+                try:
+                    run_id = int(cmd_parts[1])
+                    focus = cmd_parts[2] if len(cmd_parts) > 2 else "overall"
+                    self.command_handler.handle_analyze(run_id, focus)
+                except ValueError:
+                    self.console.print("[red]Run ID must be a number[/red]")
+        elif cmd == '/knowledge':
+            if len(cmd_parts) == 1:
+                self.command_handler.handle_knowledge_list()
+            elif cmd_parts[1] == 'show' and len(cmd_parts) > 2:
+                self.command_handler.handle_knowledge_show(cmd_parts[2])
+            else:
+                self.console.print("[red]Usage: /knowledge OR /knowledge show <id>[/red]")
         else:
             self.console.print(f"Unknown command: {cmd}. Type /help for available commands.", style="yellow")
 
@@ -272,11 +310,15 @@ class AgenticOptREPL:
 
 [bold]Inspection Commands:[/bold]
   /runs                      - List all optimization runs
-  /show <id>                 - Show detailed results for run
+  /show <id>                 - Show detailed results for run (with metrics)
+  /analyze <id> [focus]      - AI-powered strategic analysis (costs ~$0.02-0.05)
+                               Focus: convergence, efficiency, algorithm, overall (default)
   /plot <id>                 - Plot convergence for run
   /plot compare <id1> <id2>  - Overlay convergence curves for multiple runs
   /compare <id1> <id2>       - Side-by-side comparison of runs
   /best                      - Show best solution across all runs
+  /knowledge                 - List knowledge base (skeleton - not yet implemented)
+  /knowledge show <id>       - Show detailed insight (skeleton)
 
 [bold]Session Commands:[/bold]
   /help           - Show this help message

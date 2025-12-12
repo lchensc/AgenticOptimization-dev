@@ -8,7 +8,7 @@ from typing import Optional
 import time
 import logging
 
-from .react_agent import build_aopt_agent
+from .react_agent import build_optimization_agent
 from ..callbacks import (
     CallbackManager,
     CallbackFunction,
@@ -151,7 +151,7 @@ class Agent:
 
         # Build agent graph if not already done
         if self.graph is None:
-            self.graph = build_aopt_agent(
+            self.graph = build_optimization_agent(
                 tools=self.tools,
                 llm_model=self.llm_model,
                 callback_manager=self.callback_manager,

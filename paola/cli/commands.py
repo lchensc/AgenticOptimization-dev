@@ -1,28 +1,29 @@
-"""Command handlers for CLI - reads from storage and displays."""
+"""Command handlers for CLI - reads from platform and displays."""
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from rich.console import Console, Group
 from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
 import asciichartpy as asciichart
 
-from ..storage import StorageBackend
+from ..platform import OptimizationPlatform
+from ..analysis import compute_metrics, ai_analyze
 
 
 class CommandHandler:
     """
     Handles deterministic /commands.
-    Pure presentation logic - reads from storage.
+    Pure presentation logic - reads from platform storage.
     """
 
-    def __init__(self, storage: StorageBackend, console: Console):
-        self.storage = storage
+    def __init__(self, platform: OptimizationPlatform, console: Console):
+        self.platform = platform
         self.console = console
 
     def handle_runs(self):
         """Display all runs in table format."""
-        runs = self.storage.load_all_runs()
+        runs = self.platform.load_all_runs()
 
         if not runs:
             self.console.print("\n[dim]No optimization runs yet[/dim]\n")
@@ -56,16 +57,23 @@ class CommandHandler:
         self.console.print()
 
     def handle_show(self, run_id: int):
-        """Show detailed run information."""
-        run = self.storage.load_run(run_id)
+        """Show detailed run information with metrics."""
+        run = self.platform.load_run(run_id)
 
         if not run:
             self.console.print(f"\n[red]Run #{run_id} not found[/red]\n")
             return
 
+        # Compute metrics
+        metrics = compute_metrics(run)
+
         # Build detailed panel
         status_text = "✓ Complete" if run.success else "✗ Failed"
         status_style = "green" if run.success else "red"
+
+        # Convergence status
+        conv_status = "⚠ STALLED" if metrics["convergence"]["is_stalled"] else "✓ Converging"
+        conv_style = "yellow" if metrics["convergence"]["is_stalled"] else "green"
 
         info = f"""[bold]Run #{run.run_id}: {run.algorithm} on {run.problem_name}[/bold]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -75,6 +83,19 @@ class CommandHandler:
 [cyan]Evaluations:[/cyan]  {run.n_evaluations}
 [cyan]Time:[/cyan]         {run.duration:.2f}s
 [cyan]Message:[/cyan]      {run.result_data.get('message', 'N/A')}
+
+[bold]Metrics:[/bold]
+[cyan]Convergence:[/cyan]  [{conv_style}]{conv_status}[/{conv_style}]
+  - Rate: {metrics['convergence']['rate']:.4f}
+  - Improvement (last 10): {metrics['convergence']['improvement_last_10']:.6f}
+  - Total iterations: {metrics['convergence']['iterations_total']}
+
+[cyan]Efficiency:[/cyan]
+  - Improvement per eval: {metrics['efficiency']['improvement_per_eval']:.6f}
+
+[cyan]Gradient:[/cyan]      Quality: {metrics['gradient']['quality']}
+  - Norm: {metrics['gradient']['norm']:.6e}
+  - Variance: {metrics['gradient']['variance']:.6e}
 
 [bold]Final Solution (first 5 dimensions):[/bold]"""
 
@@ -92,7 +113,7 @@ class CommandHandler:
 
     def handle_plot(self, run_id: int):
         """Plot convergence history (ASCII in terminal)."""
-        run = self.storage.load_run(run_id)
+        run = self.platform.load_run(run_id)
 
         if not run:
             self.console.print(f"\n[red]Run #{run_id} not found[/red]\n")
@@ -189,7 +210,7 @@ Iteration"""
 
     def handle_best(self):
         """Show best solution across all runs."""
-        runs = self.storage.load_all_runs()
+        runs = self.platform.load_all_runs()
 
         if not runs:
             self.console.print("\n[dim]No optimization runs yet[/dim]\n")
@@ -221,7 +242,7 @@ Iteration"""
         # Load all runs
         runs = []
         for run_id in run_ids:
-            run = self.storage.load_run(run_id)
+            run = self.platform.load_run(run_id)
             if run is None:
                 self.console.print(f"\n[red]Run #{run_id} not found[/red]\n")
                 return
@@ -282,7 +303,7 @@ Iteration"""
         # Load all runs and extract convergence data
         runs_data = []
         for run_id in run_ids:
-            run = self.storage.load_run(run_id)
+            run = self.platform.load_run(run_id)
             if run is None:
                 self.console.print(f"\n[red]Run #{run_id} not found[/red]\n")
                 return
@@ -413,3 +434,128 @@ Iteration"""
         self.console.print()
         self.console.print(Panel(panel_content, border_style="cyan", padding=(1, 2)))
         self.console.print()
+
+
+    def handle_analyze(self, run_id: int, focus: str = 'overall'):
+        """AI-powered analysis of optimization run (costs money)."""
+        run = self.platform.load_run(run_id)
+
+        if not run:
+            self.console.print(f"\n[red]Run #{run_id} not found[/red]\n")
+            return
+
+        # Show deterministic metrics first (instant preview)
+        self.console.print("\n[cyan]Computing metrics...[/cyan]")
+        metrics = compute_metrics(run)
+
+        # Display summary
+        self.console.print(f"[dim]Convergence: {metrics['convergence']['rate']:.4f}, Stalled: {metrics['convergence']['is_stalled']}[/dim]")
+        self.console.print(f"[dim]Gradient quality: {metrics['gradient']['quality']}[/dim]")
+
+        # Check if AI insights already cached
+        if run.ai_insights:
+            from datetime import datetime
+            cached_time = datetime.fromisoformat(run.ai_insights.get('metadata', {}).get('timestamp', '2000-01-01'))
+            age_minutes = (datetime.now() - cached_time).total_seconds() / 60
+            self.console.print(f"\n[dim]Found cached AI analysis ({age_minutes:.1f} minutes old)[/dim]")
+            user_input = input("Use cached analysis? (y/n, default: y): ").strip().lower()
+            if user_input in ['', 'y', 'yes']:
+                self._display_ai_insights(run.ai_insights)
+                return
+
+        # Confirm cost
+        self.console.print(f"\n[yellow]⚠ AI analysis costs ~$0.02-0.05. Continue? (y/n)[/yellow]")
+        user_input = input("> ").strip().lower()
+        if user_input not in ['y', 'yes']:
+            self.console.print("[dim]Cancelled[/dim]\n")
+            return
+
+        # Run AI analysis
+        self.console.print("\n[dim]Analyzing with AI (this may take 5-10 seconds)...[/dim]")
+
+        try:
+            insights = ai_analyze(run, metrics, focus=focus)
+
+            # Display insights
+            self._display_ai_insights(insights)
+
+        except Exception as e:
+            self.console.print(f"\n[red]AI analysis failed: {e}[/red]\n")
+
+    def _display_ai_insights(self, insights: Dict[str, Any]):
+        """Display AI analysis results."""
+
+        # Diagnosis
+        self.console.print(f"\n[bold cyan]Diagnosis:[/bold cyan]")
+        self.console.print(f"{insights.get('diagnosis', 'N/A')}\n")
+
+        # Root cause
+        self.console.print(f"[bold cyan]Root Cause:[/bold cyan]")
+        self.console.print(f"{insights.get('root_cause', 'N/A')}\n")
+
+        # Confidence
+        confidence = insights.get('confidence', 'unknown')
+        conf_style = {'high': 'green', 'medium': 'yellow', 'low': 'red'}.get(confidence, 'dim')
+        self.console.print(f"[bold cyan]Confidence:[/bold cyan] [{conf_style}]{confidence.upper()}[/{conf_style}]\n")
+
+        # Evidence
+        evidence = insights.get('evidence', [])
+        if evidence:
+            self.console.print(f"[bold cyan]Evidence:[/bold cyan]")
+            for e in evidence:
+                self.console.print(f"  • {e}")
+            self.console.print()
+
+        # Recommendations
+        recommendations = insights.get('recommendations', [])
+        if recommendations:
+            self.console.print(f"[bold cyan]Recommendations:[/bold cyan]")
+            for i, rec in enumerate(recommendations, 1):
+                self.console.print(f"\n{i}. [yellow]{rec.get('action', 'unknown')}[/yellow]")
+                self.console.print(f"   {rec.get('rationale', 'No rationale provided')}")
+                if rec.get('args'):
+                    self.console.print(f"   [dim]Args: {rec['args']}[/dim]")
+                if rec.get('expected_impact'):
+                    self.console.print(f"   [dim]Expected: {rec['expected_impact']}[/dim]")
+
+        # Metadata
+        metadata = insights.get('metadata', {})
+        if metadata:
+            self.console.print(f"\n[dim]Model: {metadata.get('model', 'unknown')}, Cost: ~${metadata.get('cost_estimate', 0):.4f}[/dim]")
+
+        self.console.print()
+
+    def handle_knowledge_list(self):
+        """List all stored insights (SKELETON - not implemented)."""
+        self.console.print()
+        self.console.print(Panel(
+            Text.from_markup(
+                "[bold yellow]Knowledge Module: Skeleton Only[/bold yellow]\n\n"
+                "The knowledge module interfaces are defined but not yet implemented.\n\n"
+                "[dim]Why skeleton?[/dim]\n"
+                "Knowledge accumulation is highly data-driven and needs real optimization\n"
+                "runs to determine:\n"
+                "  • What problem signatures are discriminative\n"
+                "  • What insights are valuable to store\n"
+                "  • How the agent actually uses knowledge\n\n"
+                "[dim]Current status:[/dim]\n"
+                "  ✓ Interfaces defined (KnowledgeBase class)\n"
+                "  ✓ Storage backends (MemoryKnowledgeStorage)\n"
+                "  ✓ Agent tools created (placeholders)\n"
+                "  ⏳ Implementation pending real data\n\n"
+                "[cyan]See paola/knowledge/README.md for design intent[/cyan]"
+            ),
+            border_style="yellow",
+            padding=(1, 2)
+        ))
+        self.console.print()
+
+    def handle_knowledge_show(self, insight_id: str):
+        """Show detailed insight (SKELETON - not implemented)."""
+        self.console.print()
+        self.console.print(f"[yellow]Knowledge module not yet implemented[/yellow]")
+        self.console.print(f"[dim]Requested insight ID: {insight_id}[/dim]")
+        self.console.print()
+        self.console.print("[dim]This command will show detailed insight when implemented[/dim]")
+        self.console.print()
+

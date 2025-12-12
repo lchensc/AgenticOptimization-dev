@@ -4,14 +4,33 @@ import json
 from pathlib import Path
 from typing import List, Optional
 
-from .base import StorageBackend
-from .models import OptimizationRun, Problem
+from .backend import StorageBackend
+from ..run import RunRecord
+from ..problem import Problem
 
 
 class FileStorage(StorageBackend):
-    """File-based storage using JSON files."""
+    """
+    File-based storage using JSON files.
+
+    Directory structure:
+        .paola_runs/
+        ├── runs/
+        │   ├── run_001.json
+        │   ├── run_002.json
+        │   └── ...
+        ├── problems/
+        │   └── problem_id.json
+        └── metadata.json (tracks next_run_id)
+    """
 
     def __init__(self, base_dir: str = ".paola_runs"):
+        """
+        Initialize file storage.
+
+        Args:
+            base_dir: Base directory for storage (default: .paola_runs)
+        """
         self.base_dir = Path(base_dir)
         self.runs_dir = self.base_dir / "runs"
         self.problems_dir = self.base_dir / "problems"
@@ -25,27 +44,27 @@ class FileStorage(StorageBackend):
         if not self.metadata_file.exists():
             self._save_metadata({"next_run_id": 1})
 
-    def save_run(self, run: OptimizationRun) -> None:
+    def save_run(self, run: RunRecord) -> None:
         """Save run to JSON file."""
         file_path = self.runs_dir / f"run_{run.run_id:03d}.json"
         with open(file_path, 'w') as f:
             f.write(run.to_json())
 
-    def load_run(self, run_id: int) -> Optional[OptimizationRun]:
+    def load_run(self, run_id: int) -> Optional[RunRecord]:
         """Load run from JSON file."""
         file_path = self.runs_dir / f"run_{run_id:03d}.json"
         if not file_path.exists():
             return None
 
         with open(file_path, 'r') as f:
-            return OptimizationRun.from_json(f.read())
+            return RunRecord.from_json(f.read())
 
-    def load_all_runs(self) -> List[OptimizationRun]:
+    def load_all_runs(self) -> List[RunRecord]:
         """Load all runs, sorted by run_id."""
         runs = []
         for file_path in sorted(self.runs_dir.glob("run_*.json")):
             with open(file_path, 'r') as f:
-                runs.append(OptimizationRun.from_json(f.read()))
+                runs.append(RunRecord.from_json(f.read()))
         return runs
 
     def save_problem(self, problem: Problem) -> None:

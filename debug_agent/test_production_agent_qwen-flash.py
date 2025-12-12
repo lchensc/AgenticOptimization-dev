@@ -6,7 +6,7 @@ Same goal, same tools, same verbose output format.
 """
 
 import logging
-from paola.agent.react_agent import build_aopt_agent
+from paola.agent.react_agent import build_optimization_agent
 from paola.tools.optimizer_tools import run_scipy_optimization
 from paola.tools.evaluator_tools import create_benchmark_problem
 from paola.tools.observation_tools import analyze_convergence
@@ -53,7 +53,7 @@ def test_production_agent_full_run():
     print("-" * 70)
     print()
 
-    agent = build_aopt_agent(
+    agent = build_optimization_agent(
         tools=tools,
         llm_model="qwen-flash",
         callback_manager=callback_manager,
