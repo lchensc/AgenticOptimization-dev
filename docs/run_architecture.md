@@ -146,8 +146,8 @@ run_scipy_optimization(
 ### In CLI
 
 ```bash
-$ python aopt_cli.py
-aopt> optimize 10D Rosenbrock with SLSQP
+$ python paola_cli.py
+paola> optimize 10D Rosenbrock with SLSQP
 💭 Creating problem and run...
 🔧 create_benchmark_problem...
 ✓ create_benchmark_problem completed
@@ -156,14 +156,14 @@ aopt> optimize 10D Rosenbrock with SLSQP
 🔧 run_scipy_optimization...
 ✓ run_scipy_optimization completed
 
-aopt> /runs
+paola> /runs
 ┌────┬──────────────┬───────────┬────────┬─────────────┬────────┬───────┐
 │ ID │ Problem      │ Algorithm │ Status │ Best Value  │ Evals  │ Time  │
 ├────┼──────────────┼───────────┼────────┼─────────────┼────────┼───────┤
 │  1 │ Rosenbrock   │ SLSQP     │ ✓      │  0.023456   │ 142    │ 2.3s  │
 └────┴──────────────┴───────────┴────────┴─────────────┴────────┴───────┘
 
-aopt> /show 1
+paola> /show 1
 Run #1: SLSQP on Rosenbrock-10D
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Status:       ✓ Complete

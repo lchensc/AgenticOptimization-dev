@@ -1,8 +1,12 @@
-# AOpt - Agentic Optimization Platform
+# PAOLA
 
-**AI-Centric Optimization for Engineering and Science**
+**Platform for Agentic Optimization with Learning and Analysis**
 
-The first optimization platform where an autonomous AI agent controls the optimization process, composing strategies from tool primitives rather than following fixed loops.
+*The optimization platform that learns from every run*
+
+---
+
+The first optimization platform where an autonomous AI agent controls the optimization process, composing strategies from tool primitives, accumulating knowledge from past optimizations, and analyzing multiple runs to achieve reliable convergence on complex engineering problems.
 
 ## Status
 
@@ -23,12 +27,12 @@ cp .env.example .env
 ### 2. Run Optimization
 
 ```python
-from aopt import Agent
+from paola import Agent
 
 # Create agent (uses Qwen by default)
 agent = Agent(llm_model="qwen-plus", verbose=True)
 
-# Run optimization
+# Run optimization - PAOLA learns and analyzes automatically
 result = agent.run("""
     Minimize drag on transonic airfoil
     Maintain CL >= 0.8
@@ -51,7 +55,7 @@ result = agent.run("""
 
 ### ✅ Callback System (Real-time Streaming)
 ```python
-from aopt.callbacks import EventCapture, RichConsoleCallback, FileLogger
+from paola.callbacks import EventCapture, RichConsoleCallback, FileLogger
 
 # Built-in rich console
 agent = Agent(verbose=True)  # Beautiful terminal output
@@ -75,7 +79,7 @@ assert capture.count(EventType.CACHE_HIT) > 0
 
 ### ✅ Evaluation Cache
 ```python
-from aopt.tools.cache_tools import cache_get, cache_store
+from paola.tools.cache_tools import cache_get, cache_store
 
 # First evaluation - cache miss
 result = evaluate(design, problem_id)
@@ -95,7 +99,7 @@ assert cached["cost"] == 10.0  # Original cost, not re-incurred
 
 ### ✅ Run Database
 ```python
-from aopt.tools.cache_tools import run_db_log, run_db_query
+from paola.tools.cache_tools import run_db_log, run_db_query
 
 # Log every decision
 run_db_log(
@@ -107,20 +111,22 @@ run_db_log(
     reasoning="Proposed by SLSQP line search"
 )
 
-# Query history
+# Query history - PAOLA learns from this
 entries = run_db_query("opt_001", limit=10)
 ```
 
 ## Architecture
 
 ```
-aopt/
+paola/
 ├── agent/              # ReAct agent (TODO: Week 1)
 ├── callbacks/          # ✅ Event streaming system
 ├── formulation/        # ✅ Problem schemas
 ├── tools/              # ✅ Cache tools, optimizer tools (partial)
 ├── optimizers/         # TODO: Week 2
 ├── backends/           # TODO: Week 2
+├── knowledge/          # TODO: Phase 2 - Knowledge base with RAG
+├── analysis/           # TODO: Phase 2 - Run comparison and analysis
 └── utils/              # TODO
 ```
 
@@ -134,7 +140,7 @@ conda activate agent
 pytest tests/ -v
 
 # Run with coverage
-pytest tests/ --cov=aopt --cov-report=html
+pytest tests/ --cov=paola --cov-report=html
 ```
 
 **Current test results**: ✅ 30 passed in 0.32s
@@ -170,15 +176,15 @@ pytest tests/ --cov=aopt --cov-report=html
 
 ## Key Innovations
 
-1. **Intelligent Formulation**: Agent converts natural language → structured problems
-2. **Full Autonomy**: No fixed loops, agent decides everything
-3. **Compositional**: 18 tool primitives for strategy composition
-4. **Adaptive**: Observes, detects patterns, modifies strategy mid-run
-5. **Efficient**: Evaluation cache prevents expensive re-computation
-6. **Safe**: Optimizer restarts from best design with cache reuse
-7. **Observable**: Real-time event streaming via callbacks
-8. **Extensible**: Easy to add new problem types, optimizers, tools
-9. **Explainable**: Every decision logged with reasoning
+1. **Agentic Control**: No fixed loops, agent autonomously composes strategies
+2. **Organizational Learning**: Accumulates knowledge from every optimization via RAG-based retrieval
+3. **Multi-Run Analysis**: Compares strategies, selects best approaches automatically
+4. **Intelligent Warm-Starting**: Retrieves similar past problems to accelerate convergence
+5. **Adaptive Strategies**: Observes convergence, detects patterns, modifies strategy mid-run
+6. **Efficient Caching**: Prevents expensive re-computation of simulations
+7. **Safe Restarts**: Optimizer restarts from best design with cache reuse
+8. **Real-time Streaming**: Observable via event callbacks
+9. **Fully Explainable**: Every decision logged with reasoning
 
 ## Documentation
 
@@ -201,7 +207,7 @@ TBD
 
 ## Citation
 
-Paper in preparation: "Agentic Optimization for Engineering Design"
+Paper in preparation: "PAOLA: Platform for Agentic Optimization with Learning and Analysis"
 
 ---
 

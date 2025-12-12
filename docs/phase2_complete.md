@@ -123,27 +123,27 @@ only one is visible (terminal limitation).
 
 ### In CLI Session:
 ```bash
-$ python aopt_cli.py
-aopt> optimize 10D Rosenbrock with SLSQP
+$ python paola_cli.py
+paola> optimize 10D Rosenbrock with SLSQP
 [Agent optimizes...]
 
-aopt> /runs
+paola> /runs
 ┌────┬──────────────┬───────────┬────────┬─────────────┬────────┬───────┐
 │ ID │ Problem      │ Algorithm │ Status │ Best Value  │ Evals  │ Time  │
 ├────┼──────────────┼───────────┼────────┼─────────────┼────────┼───────┤
 │  1 │ Rosenbrock   │ SLSQP     │ ✓      │  0.023456   │ 142    │ 2.3s  │
 └────┴──────────────┴───────────┴────────┴─────────────┴────────┴───────┘
 
-aopt> /plot 1
+paola> /plot 1
 [ASCII convergence plot displayed]
 
-aopt> optimize same problem with BFGS
+paola> optimize same problem with BFGS
 [Agent optimizes...]
 
-aopt> /compare 1 2
+paola> /compare 1 2
 [Side-by-side comparison table displayed]
 
-aopt> /plot compare 1 2
+paola> /plot compare 1 2
 [Overlay convergence curves displayed]
 ```
 

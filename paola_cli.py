@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-"""AgenticOpt CLI entry point."""
+"""PAOLA CLI entry point."""
 
 import sys
 from dotenv import load_dotenv
-from aopt.cli import AgenticOptREPL
+from aopt.cli import AgenticOptREPL  # TODO: Rename package aopt -> paola
 
 # Load environment variables
 load_dotenv()

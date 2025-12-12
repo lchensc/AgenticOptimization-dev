@@ -4,24 +4,38 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This repository contains the design documentation for an **Agentic Optimization Platform** - a next-generation engineering optimization system where an autonomous AI agent controls the optimization process rather than following a fixed, prescribed loop.
+This repository contains **PAOLA (Platform for Agentic Optimization with Learning and Analysis)** - a next-generation engineering optimization system where an autonomous AI agent controls the optimization process, accumulates knowledge from past optimizations, and analyzes multiple runs to achieve reliable convergence.
 
 ### Core Innovation
 
-Unlike traditional optimization platforms (HEEDS, ModeFRONTIER, Dakota, pyOptSparse, FADO) that use fixed control loops with user-configured algorithms, this platform gives full autonomy to an AI agent:
+Unlike traditional optimization platforms (HEEDS, ModeFRONTIER, Dakota, pyOptSparse, FADO) that use fixed control loops with user-configured algorithms, PAOLA provides three key innovations:
 
-- **Traditional approach**: Platform prescribes the loop, user configures it
-- **Agentic approach**: Agent controls everything using tool primitives, composing novel strategies on the fly
+1. **Agentic Control**: Agent autonomously composes strategies using tool primitives (not fixed loops)
+2. **Organizational Learning**: Knowledge base with RAG-based retrieval for warm-starting similar problems
+3. **Multi-Run Analysis**: Compares multiple optimization strategies to select best approaches
 
-The agent continuously observes optimization progress, reasons about numerical health and feasibility patterns, and autonomously adapts the strategy (constraint bounds, gradient methods, exploration control) to achieve reliable convergence.
+**Traditional approach**: Platform prescribes the loop, user configures it, no memory between runs
+
+**PAOLA approach**: Agent controls everything, learns from past optimizations, analyzes multiple strategies
+
+The agent continuously observes optimization progress, reasons about numerical health and feasibility patterns, autonomously adapts the strategy (constraint bounds, gradient methods, exploration control), and accumulates knowledge that improves future optimizations.
 
 ## Repository Structure
 
 ```
 AgenticOptimization/
+├── paola/                                 # Main package (currently 'aopt', rename planned)
+│   ├── agent/                            # ReAct agent implementation
+│   ├── tools/                            # Tool primitives for agent
+│   ├── storage/                          # Run storage backend
+│   ├── cli/                              # Interactive CLI (Phase 2)
+│   ├── knowledge/                        # Knowledge base + RAG (TODO: Phase 3)
+│   └── analysis/                         # Multi-run analysis (TODO: Phase 3)
 ├── docs/
 │   ├── agent_controlled_optimization.md  # Detailed technical design
-│   └── agentic_optimization_vision.md    # Vision and value proposition
+│   ├── agentic_optimization_vision.md    # Vision and value proposition
+│   ├── cli_architecture.md               # CLI design (Phase 2)
+│   └── run_architecture.md               # Run-based architecture (Phase 2)
 └── CLAUDE.md                             # This file
 ```
 
@@ -69,6 +83,16 @@ The platform provides atomic tools that the agent composes into strategies:
 - `cache_get(design) / cache_store(design, results)` - Evaluation cache
 - `database_query(filter)` - Query optimization history
 - `database_find_similar(design)` - Find similar past designs
+
+**Learning Tools** (Phase 3):
+- `knowledge_store(problem_signature, successful_setup)` - Store expert knowledge
+- `knowledge_retrieve(problem_signature)` - RAG-based retrieval of similar problems
+- `knowledge_apply(retrieved_knowledge)` - Warm-start with proven strategies
+
+**Analysis Tools** (Phase 2/3):
+- `analyze_runs(run_ids)` - Compare multiple optimization strategies
+- `plot_convergence(run_ids)` - Visualize convergence history
+- `recommend_strategy(problem, past_results)` - Select best approach based on analysis
 
 **Utility Tools**:
 - `gradient_compute(design, method)` - Switch between adjoint/finite-difference
@@ -177,6 +201,11 @@ When implementing this platform:
 - **Gradient variance**: Metric for detecting numerical noise in gradients
 - **Constraint feasibility management**: Agent's ability to detect and fix repeated constraint violations
 - **Compositional strategy**: Agent-invented optimization approach combining multiple tools/algorithms
+- **Agentic Learning**: Autonomous accumulation of strategic knowledge through observation and experience across optimization runs (not machine learning)
+- **Knowledge base**: RAG-based storage of problem signatures, successful setups, and expert knowledge
+- **Multi-run analysis**: Comparing multiple optimization strategies to identify best practices
+- **Warm-starting**: Using retrieved knowledge from similar past problems to accelerate convergence
+- **Problem signature**: Characteristics that define a problem class (dimensions, constraints, physics, regime)
 
 ## Architectural Patterns
 
@@ -211,8 +240,24 @@ while not done:
 
 ## Value Proposition Summary
 
-"The first optimization platform where an AI agent continuously observes optimization progress, detects feasibility and convergence issues, and autonomously adapts strategy (constraint bounds, gradient methods, exploration control) to achieve reliable convergence."
+**PAOLA: The optimization platform that learns from every run**
 
-**For Engineers**: Natural language goals instead of algorithm configuration
-**For Companies**: 90% success rate (vs 50%), 2-3× faster convergence, knowledge accumulation
-**Technical Moat**: Agent autonomy, strategic adaptation, evaluation cache, proven patterns from AdjointFlow
+"The first optimization platform where an AI agent continuously observes optimization progress, detects feasibility and convergence issues, autonomously adapts strategy, accumulates knowledge from past optimizations, and analyzes multiple runs to achieve reliable convergence."
+
+**For Engineers**:
+- Natural language goals instead of algorithm configuration
+- Platform learns from your past optimizations
+- Automatic warm-starting from similar problems
+
+**For Companies**:
+- 90% success rate (vs 50%), 2-3× faster convergence
+- Organizational knowledge accumulation (expert knowledge persists)
+- Multi-run analysis reveals best practices
+
+**Technical Moat**:
+- Agent autonomy (no fixed loops)
+- Knowledge base with RAG retrieval
+- Multi-run analysis and comparison
+- Strategic adaptation within runs
+- Evaluation cache for efficiency
+- Proven patterns from AdjointFlow

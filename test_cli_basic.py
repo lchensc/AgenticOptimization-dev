@@ -13,4 +13,4 @@ print(f"✓ Agent model: {repl.llm_model}")
 print(f"✓ Tools available: {len(repl.tools)}")
 print(f"✓ Callback manager registered: {len(repl.callback_manager.callbacks)} callbacks")
 
-print("\nREPL is ready! Run with: python aopt_cli.py")
+print("\nREPL is ready! Run with: python paola_cli.py")

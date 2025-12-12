@@ -27,10 +27,10 @@ This means downsampling isn't needed - plots will never exceed 20 iterations any
 
 **Command syntax:**
 ```bash
-aopt> /plot 1 --export              # Save to default location
-aopt> /plot 1 --export png          # Specify format (png, pdf, svg)
-aopt> /plot 1 --export plots/run1.png  # Custom path
-aopt> /plot compare 1 2 3 --export  # Export comparison plot
+paola> /plot 1 --export              # Save to default location
+paola> /plot 1 --export png          # Specify format (png, pdf, svg)
+paola> /plot 1 --export plots/run1.png  # Custom path
+paola> /plot compare 1 2 3 --export  # Export comparison plot
 ```
 
 **Implementation:**
@@ -122,8 +122,8 @@ AgenticOptimization/
 
 **Command syntax:**
 ```bash
-aopt> /plot 1 --show     # Display in matplotlib window
-aopt> /plot 1 --show --block  # Block CLI until window closed
+paola> /plot 1 --show     # Display in matplotlib window
+paola> /plot 1 --show --block  # Block CLI until window closed
 ```
 
 **Implementation:**
@@ -159,16 +159,16 @@ def _plot_matplotlib_show(self, run_id: int, block: bool = False):
 
 ```bash
 # Quick preview in terminal (immediate)
-aopt> /plot 1
+paola> /plot 1
 [ASCII chart displayed immediately]
 
 # High-quality export when needed
-aopt> /plot 1 --export
+paola> /plot 1 --export
 ✓ Plot saved to: plots/run_1.png
 
 # Comparison still works in both modes
-aopt> /plot compare 1 2 3          # ASCII overlay
-aopt> /plot compare 1 2 3 --export # Matplotlib multi-line plot
+paola> /plot compare 1 2 3          # ASCII overlay
+paola> /plot compare 1 2 3 --export # Matplotlib multi-line plot
 ```
 
 **Implementation:**
@@ -192,9 +192,9 @@ aopt> /plot compare 1 2 3 --export # Matplotlib multi-line plot
 
 **Command syntax:**
 ```bash
-aopt> /report              # Generate HTML report for current session
-aopt> /report --all        # Include all historical runs
-aopt> /report --runs 1 2 3 # Specific runs only
+paola> /report              # Generate HTML report for current session
+paola> /report --all        # Include all historical runs
+paola> /report --runs 1 2 3 # Specific runs only
 ```
 
 **Generates:**
@@ -366,30 +366,30 @@ plotly>=5.14.0    # Interactive HTML plots (optional, for Phase 2)
 ## Example Usage Workflow
 
 ```bash
-$ python aopt_cli.py
+$ python paola_cli.py
 
-aopt> optimize 10D Rosenbrock with SLSQP
+paola> optimize 10D Rosenbrock with SLSQP
 ✓ Run #1 complete: objective=0.023456
 
-aopt> /plot 1
+paola> /plot 1
 [ASCII chart displayed for quick feedback]
 
-aopt> /plot 1 --export
+paola> /plot 1 --export
 ✓ Plot saved to: plots/run_1.png
 
-aopt> optimize same problem with BFGS
+paola> optimize same problem with BFGS
 ✓ Run #2 complete: objective=0.018234
 
-aopt> /plot compare 1 2
+paola> /plot compare 1 2
 [ASCII overlay displayed]
 
-aopt> /plot compare 1 2 --export
+paola> /plot compare 1 2 --export
 ✓ Plot saved to: plots/compare_1_2.png
 
-aopt> optimize same problem with L-BFGS-B
+paola> optimize same problem with L-BFGS-B
 ✓ Run #3 complete: objective=0.015678
 
-aopt> /plot compare 1 2 3 --export pdf
+paola> /plot compare 1 2 3 --export pdf
 ✓ Plot saved to: plots/compare_1_2_3.pdf
 ```
 

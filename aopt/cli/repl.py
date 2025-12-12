@@ -1,4 +1,4 @@
-"""Main REPL for AgenticOpt CLI."""
+"""Main REPL for PAOLA CLI."""
 
 from functools import partial
 from prompt_toolkit import PromptSession
@@ -83,7 +83,7 @@ class AgenticOptREPL:
         while self.running:
             try:
                 # Get user input
-                user_input = self.session.prompt('aopt> ').strip()
+                user_input = self.session.prompt('paola> ').strip()
 
                 if not user_input:
                     continue
@@ -112,7 +112,8 @@ class AgenticOptREPL:
         """Display welcome message."""
         welcome = Panel(
             Text.from_markup(
-                "[bold cyan]AgenticOpt[/bold cyan] - AI Optimization Assistant\n"
+                "[bold cyan]PAOLA[/bold cyan] - Platform for Agentic Optimization with Learning and Analysis\n"
+                "[dim]The optimization platform that learns from every run[/dim]\n\n"
                 "Version 0.1.0\n\n"
                 "Type your optimization goals in natural language.\n"
                 "Type '/help' for commands, '/exit' to quit."
