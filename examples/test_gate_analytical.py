@@ -16,9 +16,9 @@ from scipy.optimize import minimize
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from aopt.backends import Rosenbrock
-from aopt.optimizers.gate import OptimizationGate
-from aopt.callbacks import CallbackManager, EventCapture
+from paola.backends import Rosenbrock
+from paola.optimizers.gate import OptimizationGate
+from paola.callbacks import CallbackManager, EventCapture
 
 
 def test_gate_non_blocking():

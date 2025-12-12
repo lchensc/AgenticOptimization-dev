@@ -13,8 +13,8 @@ import numpy as np
 from langchain_core.tools import tool
 import json
 
-from aopt.optimizers.base import BaseOptimizer
-from aopt.optimizers.scipy_optimizer import create_scipy_optimizer
+from paola.optimizers.base import BaseOptimizer
+from paola.optimizers.scipy_optimizer import create_scipy_optimizer
 
 
 # Global optimizer registry
@@ -494,7 +494,7 @@ def run_scipy_optimization(
         )
     """
     from scipy.optimize import minimize
-    from aopt.tools.evaluator_tools import _get_problem
+    from paola.tools.evaluator_tools import _get_problem
 
     try:
         # Get problem
@@ -606,7 +606,7 @@ def run_scipy_optimization(
 
         # Record to run if run_id provided
         if run_id is not None:
-            from aopt.runs import RunManager
+            from paola.runs import RunManager
 
             manager = RunManager()
             run = manager.get_run(run_id)

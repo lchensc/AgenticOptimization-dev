@@ -6,7 +6,7 @@ Provides:
 - Future: CFD/FEA workflow integration
 """
 
-from aopt.backends.analytical import (
+from paola.backends.analytical import (
     AnalyticalFunction,
     Rosenbrock,
     Sphere,

@@ -27,7 +27,7 @@ load_dotenv()
 
 import numpy as np
 
-from aopt.tools import (
+from paola.tools import (
     clear_problem_registry,
     clear_optimizer_registry,
     cache_clear,
@@ -52,7 +52,7 @@ def run_with_llm():
     print("=" * 70)
 
     from debug_agent.minimal_react_agent import create_minimal_react_agent
-    from aopt.agent.react_agent import initialize_llm
+    from paola.agent.react_agent import initialize_llm
 
     # Setup - clear registries but DON'T pre-register problem
     # The agent must formulate the problem autonomously

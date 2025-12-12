@@ -3,7 +3,7 @@ Tests for cache tools.
 """
 
 import pytest
-from aopt.tools.cache_tools import (
+from paola.tools.cache_tools import (
     cache_get,
     cache_store,
     cache_clear,

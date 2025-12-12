@@ -3,7 +3,7 @@
 import pytest
 import numpy as np
 
-from aopt.tools.gate_control_tools import (
+from paola.tools.gate_control_tools import (
     gate_continue,
     gate_stop,
     gate_restart_from,
@@ -13,7 +13,7 @@ from aopt.tools.gate_control_tools import (
     clear_gate_registry,
     get_gate_by_id,
 )
-from aopt.optimizers.gate import OptimizationGate
+from paola.optimizers.gate import OptimizationGate
 
 
 class TestGateControlTools:
@@ -166,7 +166,7 @@ class TestGateIntegration:
         """Test gate tools with actual scipy optimization."""
         import numpy as np
         from scipy.optimize import minimize
-        from aopt.backends.analytical import Sphere
+        from paola.backends.analytical import Sphere
 
         # Setup
         problem = Sphere(dimension=2)

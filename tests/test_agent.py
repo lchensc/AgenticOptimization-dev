@@ -3,7 +3,7 @@ Tests for agent implementation.
 """
 
 import pytest
-from aopt import Agent, EventCapture, EventType
+from paola import Agent, EventCapture, EventType
 
 
 def test_agent_creation():
@@ -100,7 +100,7 @@ def test_agent_callback_events():
     agent.register_callback(capture)
 
     # Manually emit event through callback manager
-    from aopt.callbacks import create_event
+    from paola.callbacks import create_event
 
     agent.callback_manager.emit(create_event(
         event_type=EventType.AGENT_START,

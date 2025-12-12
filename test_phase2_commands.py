@@ -4,11 +4,11 @@ Test Phase 2 commands: /compare, /plot, /plot compare.
 Creates multiple test runs and verifies command handlers work correctly.
 """
 
-from aopt.runs import RunManager
-from aopt.storage import FileStorage
-from aopt.cli.commands import CommandHandler
-from aopt.tools.evaluator_tools import register_problem
-from aopt.backends.analytical import get_analytical_function
+from paola.runs import RunManager
+from paola.storage import FileStorage
+from paola.cli.commands import CommandHandler
+from paola.tools.evaluator_tools import register_problem
+from paola.backends.analytical import get_analytical_function
 from rich.console import Console
 import numpy as np
 from scipy.optimize import OptimizeResult

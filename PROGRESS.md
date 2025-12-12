@@ -87,7 +87,7 @@ aopt/
 #### E. **Agent Class** (`aopt/agent/agent.py`)
 User-facing API:
 ```python
-from aopt import Agent
+from paola import Agent
 
 agent = Agent(llm_model="claude-sonnet-4-5", verbose=True)
 result = agent.run("Minimize drag, maintain CL >= 0.8")
@@ -136,7 +136,7 @@ Coverage:
 
 ### 1. Define Optimization Problems
 ```python
-from aopt.formulation.schema import OptimizationProblem, Objective, Variable
+from paola.formulation.schema import OptimizationProblem, Objective, Variable
 
 problem = OptimizationProblem(
     problem_type="nonlinear_single",
@@ -151,7 +151,7 @@ lower, upper = problem.get_bounds()
 
 ### 2. Use Evaluation Cache
 ```python
-from aopt.tools.cache_tools import cache_get, cache_store
+from paola.tools.cache_tools import cache_get, cache_store
 
 # First evaluation (cache miss)
 cache_store([1.0, 2.0], "prob_1", objectives=[0.5], cost=10.0)
@@ -164,7 +164,7 @@ assert cached["cost"] == 10.0
 
 ### 3. Capture Events for Testing
 ```python
-from aopt.callbacks import EventCapture, EventType, create_event
+from paola.callbacks import EventCapture, EventType, create_event
 
 capture = EventCapture()
 capture(create_event(EventType.CACHE_HIT, data={"saved": 5.0}))
@@ -177,7 +177,7 @@ print(summary)  # {EventType.CACHE_HIT: 1}
 
 ### 4. Create Agent with Callbacks
 ```python
-from aopt import Agent, EventCapture
+from paola import Agent, EventCapture
 
 # With verbose output
 agent = Agent(verbose=True)  # Auto-registers RichConsoleCallback
@@ -188,7 +188,7 @@ capture = EventCapture()
 agent.register_callback(capture)
 
 # Multiple callbacks
-from aopt import FileLogger
+from paola import FileLogger
 agent.register_callback(FileLogger("run.log"))
 ```
 
@@ -259,7 +259,7 @@ These will be implemented next but are not blocking for Week 2 optimizer integra
 1. **Full message history retention** - Critical fix from architecture review implemented
 2. **Real-time event streaming** - 15+ event types, error isolation, multiple callbacks
 3. **Evaluation cache** - Prevents re-computation (critical for expensive simulations)
-4. **Clean user API** - `from aopt import Agent; agent.run("goal")`
+4. **Clean user API** - `from paola import Agent; agent.run("goal")`
 5. **Comprehensive tests** - 37 tests, all passing
 6. **Beautiful console output** - Rich library integration
 7. **Testing framework** - EventCapture for assertions

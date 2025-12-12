@@ -23,10 +23,10 @@ sys.path.insert(0, str(project_root))
 from dotenv import load_dotenv
 load_dotenv()
 
-from aopt import Agent
-from aopt.backends.analytical import Rosenbrock
-from aopt.tools import register_problem, clear_problem_registry, clear_optimizer_registry
-from aopt.tools.cache_tools import cache_clear
+from paola import Agent
+from paola.backends.analytical import Rosenbrock
+from paola.tools import register_problem, clear_problem_registry, clear_optimizer_registry
+from paola.tools.cache_tools import cache_clear
 
 
 def run_agent_optimization():
@@ -131,9 +131,9 @@ def run_simple_optimization_loop():
     """
     import numpy as np
     from scipy.optimize import minimize
-    from aopt.backends.analytical import Rosenbrock
-    from aopt.optimizers.gate import OptimizationGate
-    from aopt.tools import analyze_convergence
+    from paola.backends.analytical import Rosenbrock
+    from paola.optimizers.gate import OptimizationGate
+    from paola.tools import analyze_convergence
 
     print("=" * 60)
     print("GATE-BASED OPTIMIZATION (No LLM)")

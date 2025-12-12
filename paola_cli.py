@@ -3,7 +3,7 @@
 
 import sys
 from dotenv import load_dotenv
-from aopt.cli import AgenticOptREPL  # TODO: Rename package aopt -> paola
+from paola.cli import AgenticOptREPL
 
 # Load environment variables
 load_dotenv()

@@ -1,6 +1,6 @@
 """Quick test of CLI basic functionality."""
 
-from aopt.cli import AgenticOptREPL
+from paola.cli import AgenticOptREPL
 import sys
 
 # Create REPL

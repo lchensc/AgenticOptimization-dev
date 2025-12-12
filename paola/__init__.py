@@ -1,7 +1,7 @@
 """
-AOpt - Agentic Optimization Platform
+PAOLA - Platform for Agentic Optimization with Learning and Analysis
 
-AI-Centric Optimization for Engineering and Science.
+The optimization platform that learns from every run.
 """
 
 __version__ = "0.1.0"

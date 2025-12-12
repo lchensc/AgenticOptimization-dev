@@ -11,7 +11,7 @@ from .models import OptimizationRun, Problem
 class FileStorage(StorageBackend):
     """File-based storage using JSON files."""
 
-    def __init__(self, base_dir: str = ".aopt_runs"):
+    def __init__(self, base_dir: str = ".paola_runs"):
         self.base_dir = Path(base_dir)
         self.runs_dir = self.base_dir / "runs"
         self.problems_dir = self.base_dir / "problems"

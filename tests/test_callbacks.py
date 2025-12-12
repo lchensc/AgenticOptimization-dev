@@ -7,7 +7,7 @@ import time
 import tempfile
 from pathlib import Path
 
-from aopt.callbacks import (
+from paola.callbacks import (
     AgentEvent,
     EventType,
     CallbackManager,

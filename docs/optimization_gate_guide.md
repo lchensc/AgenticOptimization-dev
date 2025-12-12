@@ -314,8 +314,8 @@ def optimization_worker():
 ### Example 1: Analytical Problem
 
 ```python
-from aopt.optimizers import OptimizationGate
-from aopt.backends import Rosenbrock
+from paola.optimizers import OptimizationGate
+from paola.backends import Rosenbrock
 
 problem = Rosenbrock(dimension=2)
 gate = OptimizationGate(problem_id="rosenbrock", blocking=False)
@@ -336,7 +336,7 @@ print(f"Final objective: {result.fun}")
 ### Example 2: Engineering Problem
 
 ```python
-from aopt.optimizers import OptimizationGate
+from paola.optimizers import OptimizationGate
 
 gate = OptimizationGate(problem_id="airfoil_cfd", blocking=True)
 

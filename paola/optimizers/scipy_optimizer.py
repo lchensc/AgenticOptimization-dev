@@ -10,7 +10,7 @@ import numpy as np
 from scipy.optimize import minimize, OptimizeResult
 import copy
 
-from aopt.optimizers.base import BaseOptimizer, OptimizerState
+from paola.optimizers.base import BaseOptimizer, OptimizerState
 
 
 class ScipyOptimizer(BaseOptimizer):

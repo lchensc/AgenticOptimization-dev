@@ -14,7 +14,7 @@ from typing import Optional, Dict, Any, List
 import numpy as np
 from langchain_core.tools import tool
 
-from aopt.optimizers.gate import OptimizationGate, GateAction
+from paola.optimizers.gate import OptimizationGate, GateAction
 
 
 # Global gate registry

@@ -10,7 +10,7 @@ Week 3 focused on completing the agent's observation and control capabilities, c
 
 ### 1. Gate Control Tools (5 tools)
 
-New file: `aopt/tools/gate_control_tools.py`
+New file: `paola/tools/gate_control_tools.py`
 
 | Tool | Purpose |
 |------|---------|
@@ -24,7 +24,7 @@ These tools enable the agent to control optimization execution in blocking mode,
 
 ### 2. Observation/Analysis Tools (5 tools)
 
-New file: `aopt/tools/observation_tools.py`
+New file: `paola/tools/observation_tools.py`
 
 | Tool | Purpose |
 |------|---------|
@@ -122,17 +122,17 @@ stats_result = compute_improvement_statistics.invoke({
 ## Files Changed/Added
 
 ### New Files
-- `aopt/tools/gate_control_tools.py` - Gate control tools (250 lines)
-- `aopt/tools/observation_tools.py` - Observation tools (400 lines)
+- `paola/tools/gate_control_tools.py` - Gate control tools (250 lines)
+- `paola/tools/observation_tools.py` - Observation tools (400 lines)
 - `tests/test_gate_control_tools.py` - Gate tool tests (180 lines)
 - `tests/test_observation_tools.py` - Observation tool tests (280 lines)
 - `tests/test_integration.py` - Integration tests (400 lines)
 - `examples/agent_rosenbrock_optimization.py` - Agent example (220 lines)
 
 ### Modified Files
-- `aopt/tools/__init__.py` - Export new tools
-- `aopt/agent/agent.py` - Register new tools with agent
-- `aopt/agent/react_agent.py` - Update tool documentation in prompt
+- `paola/tools/__init__.py` - Export new tools
+- `paola/agent/agent.py` - Register new tools with agent
+- `paola/agent/react_agent.py` - Update tool documentation in prompt
 
 ## Architecture Summary
 

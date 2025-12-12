@@ -11,8 +11,8 @@ import numpy as np
 from langchain_core.tools import tool
 import time
 
-from aopt.tools.cache_tools import cache_get, cache_store
-from aopt.backends.analytical import get_analytical_function
+from paola.tools.cache_tools import cache_get, cache_store
+from paola.backends.analytical import get_analytical_function
 
 
 # Global problem registry

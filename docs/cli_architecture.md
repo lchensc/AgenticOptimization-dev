@@ -315,7 +315,7 @@ bin/
 """AgenticOpt CLI entry point."""
 
 import sys
-from aopt.cli import AgenticOptREPL
+from paola.cli import AgenticOptREPL
 
 def main():
     repl = AgenticOptREPL()

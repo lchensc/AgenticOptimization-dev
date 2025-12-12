@@ -644,7 +644,7 @@ Think step-by-step, then use a tool or respond "DONE".
 ## 6. Example: Agent Workflow (Nonlinear Single-Objective)
 
 ```python
-import aopt
+import paola
 
 agent = aopt.Agent(llm_model="claude-sonnet-4-5")
 
@@ -847,7 +847,7 @@ result = {
 
 **Primary interface**: Python API
 ```python
-from aopt import Agent
+from paola import Agent
 
 agent = Agent(llm_model="claude-sonnet-4-5", verbose=True)
 result = agent.run("Minimize drag, maintain CL >= 0.8")

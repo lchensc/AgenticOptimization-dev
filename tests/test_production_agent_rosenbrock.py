@@ -6,11 +6,11 @@ showing the full agent reasoning and tool usage patterns.
 """
 
 import logging
-from aopt.agent.agent import Agent
-from aopt.agent.react_agent import build_aopt_agent
-from aopt.tools.optimizer_tools import run_scipy_optimization
-from aopt.tools.observation_tools import analyze_convergence
-from aopt.callbacks import EventCapture, EventType
+from paola.agent.agent import Agent
+from paola.agent.react_agent import build_aopt_agent
+from paola.tools.optimizer_tools import run_scipy_optimization
+from paola.tools.observation_tools import analyze_convergence
+from paola.callbacks import EventCapture, EventType
 from langchain_core.messages import HumanMessage
 
 logging.basicConfig(level=logging.INFO)

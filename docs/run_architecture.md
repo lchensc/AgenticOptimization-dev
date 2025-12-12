@@ -175,10 +175,10 @@ Evaluations:  142
 ### In Jupyter Notebook
 
 ```python
-from aopt.storage import FileStorage
+from paola.storage import FileStorage
 
 # Read same data as CLI
-storage = FileStorage('.aopt_runs')
+storage = FileStorage('.paola_runs')
 runs = storage.load_all_runs()
 
 for run in runs:
@@ -194,7 +194,7 @@ Tools don't know about CLI - they just accept `run_id`.
 Can use tools in notebooks, scripts, API without CLI.
 
 ### ✅ Storage Independent of Execution
-Storage persists to `.aopt_runs/` directory.
+Storage persists to `.paola_runs/` directory.
 Survives CLI restarts, accessible from anywhere.
 
 ### ✅ Agent Has Explicit Control
@@ -297,11 +297,11 @@ class SQLiteStorage(StorageBackend):
 # Web API
 @app.get("/runs")
 def get_runs():
-    storage = FileStorage('.aopt_runs')
+    storage = FileStorage('.paola_runs')
     return storage.load_all_runs()
 
 # Jupyter widget
-from aopt.storage import FileStorage
+from paola.storage import FileStorage
 from ipywidgets import Table
 
 storage = FileStorage()

@@ -17,8 +17,8 @@ from pathlib import Path
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from aopt.backends import Rosenbrock
-from aopt.tools import (
+from paola.backends import Rosenbrock
+from paola.tools import (
     register_problem,
     optimizer_create,
     optimizer_propose,

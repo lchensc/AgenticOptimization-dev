@@ -139,7 +139,7 @@ cp .env.example .env
 ## Usage Example
 
 ```python
-from aopt import Agent
+from paola import Agent
 
 # Qwen (default)
 agent = Agent(llm_model="qwen-plus", temperature=0.0)

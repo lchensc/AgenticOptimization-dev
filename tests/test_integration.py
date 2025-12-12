@@ -14,10 +14,10 @@ import pytest
 import numpy as np
 from scipy.optimize import minimize
 
-from aopt.backends.analytical import Rosenbrock, Sphere, ConstrainedRosenbrock
-from aopt.optimizers.gate import OptimizationGate
-from aopt.callbacks import CallbackManager, EventCapture, EventType
-from aopt.tools import (
+from paola.backends.analytical import Rosenbrock, Sphere, ConstrainedRosenbrock
+from paola.optimizers.gate import OptimizationGate
+from paola.callbacks import CallbackManager, EventCapture, EventType
+from paola.tools import (
     # Evaluator tools
     evaluate_function,
     compute_gradient,

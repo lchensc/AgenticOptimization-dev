@@ -6,11 +6,11 @@ Same goal, same tools, same verbose output format.
 """
 
 import logging
-from aopt.agent.react_agent import build_aopt_agent
-from aopt.tools.optimizer_tools import run_scipy_optimization
-from aopt.tools.evaluator_tools import create_benchmark_problem
-from aopt.tools.observation_tools import analyze_convergence
-from aopt.callbacks import CallbackManager, RichConsoleCallback
+from paola.agent.react_agent import build_aopt_agent
+from paola.tools.optimizer_tools import run_scipy_optimization
+from paola.tools.evaluator_tools import create_benchmark_problem
+from paola.tools.observation_tools import analyze_convergence
+from paola.callbacks import CallbackManager, RichConsoleCallback
 from langchain_core.messages import HumanMessage
 
 logging.basicConfig(level=logging.WARNING)  # Reduce logging noise

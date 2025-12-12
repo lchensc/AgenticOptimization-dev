@@ -8,11 +8,11 @@ Verifies that:
 4. CLI can read runs from storage
 """
 
-from aopt.runs import RunManager, OptimizationRun as ActiveRun
-from aopt.storage import FileStorage
-from aopt.tools.evaluator_tools import create_benchmark_problem, register_problem
-from aopt.tools.run_tools import start_optimization_run
-from aopt.backends.analytical import get_analytical_function
+from paola.runs import RunManager, OptimizationRun as ActiveRun
+from paola.storage import FileStorage
+from paola.tools.evaluator_tools import create_benchmark_problem, register_problem
+from paola.tools.run_tools import start_optimization_run
+from paola.backends.analytical import get_analytical_function
 import numpy as np
 from scipy.optimize import OptimizeResult
 import tempfile
@@ -35,7 +35,7 @@ def test_run_architecture():
 
         # Create a problem
         problem = get_analytical_function("rosenbrock", 2)
-        from aopt.tools.evaluator_tools import register_problem
+        from paola.tools.evaluator_tools import register_problem
         register_problem("rosenbrock_2d", problem)
         print("✓ Problem registered")
 

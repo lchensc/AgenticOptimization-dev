@@ -3,7 +3,7 @@
 import pytest
 import numpy as np
 
-from aopt.tools.observation_tools import (
+from paola.tools.observation_tools import (
     analyze_convergence,
     detect_pattern,
     check_feasibility,

@@ -3,7 +3,7 @@ Tests for optimization problem schema.
 """
 
 import pytest
-from aopt.formulation.schema import (
+from paola.formulation.schema import (
     OptimizationProblem,
     Objective,
     Variable,

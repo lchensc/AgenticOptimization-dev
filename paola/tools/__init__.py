@@ -10,7 +10,7 @@ Provides LangChain @tool decorated functions for:
 - Observation operations (analyze_convergence, detect_pattern, check_feasibility, get_gradient_quality)
 """
 
-from aopt.tools.cache_tools import (
+from paola.tools.cache_tools import (
     cache_get,
     cache_store,
     cache_clear,
@@ -19,7 +19,7 @@ from aopt.tools.cache_tools import (
     run_db_query,
 )
 
-from aopt.tools.optimizer_tools import (
+from paola.tools.optimizer_tools import (
     optimizer_create,
     optimizer_propose,
     optimizer_update,
@@ -29,7 +29,7 @@ from aopt.tools.optimizer_tools import (
     get_optimizer_by_id,
 )
 
-from aopt.tools.evaluator_tools import (
+from paola.tools.evaluator_tools import (
     evaluate_function,
     compute_gradient,
     create_benchmark_problem,
@@ -38,7 +38,7 @@ from aopt.tools.evaluator_tools import (
     get_problem_by_id,
 )
 
-from aopt.tools.gate_control_tools import (
+from paola.tools.gate_control_tools import (
     gate_continue,
     gate_stop,
     gate_restart_from,
@@ -49,7 +49,7 @@ from aopt.tools.gate_control_tools import (
     get_gate_by_id,
 )
 
-from aopt.tools.observation_tools import (
+from paola.tools.observation_tools import (
     analyze_convergence,
     detect_pattern,
     check_feasibility,

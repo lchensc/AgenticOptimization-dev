@@ -38,7 +38,7 @@ class AgenticOptREPL:
         """
         self.console = Console()
         self.session = PromptSession(
-            history=FileHistory('.aopt_history'),
+            history=FileHistory('.paola_history'),
             auto_suggest=AutoSuggestFromHistory(),
             mouse_support=False,  # Allow terminal native scrollback
         )

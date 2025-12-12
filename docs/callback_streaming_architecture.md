@@ -489,8 +489,8 @@ def emit_tool_specific_events(
 ### 5.1 Agent Class with Callback Support
 
 ```python
-from aopt import Agent
-from aopt.callbacks import RichConsoleCallback, FileLogger
+from paola import Agent
+from paola.callbacks import RichConsoleCallback, FileLogger
 
 # Option 1: Use built-in rich console (default)
 agent = Agent(llm_model="claude-sonnet-4-5", verbose=True)
@@ -534,15 +534,15 @@ class Agent:
 
         # Auto-register default callbacks
         if verbose:
-            from aopt.callbacks import RichConsoleCallback
+            from paola.callbacks import RichConsoleCallback
             self.callback_manager.register(RichConsoleCallback())
 
         if log_file:
-            from aopt.callbacks import FileLogger
+            from paola.callbacks import FileLogger
             self.callback_manager.register(FileLogger(log_file))
 
         # Build agent with tools
-        from aopt.tools import get_all_tools
+        from paola.tools import get_all_tools
         self.tools = get_all_tools()
         self.graph = build_aopt_agent(self.tools)
 
