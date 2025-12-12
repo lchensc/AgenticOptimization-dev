@@ -67,15 +67,15 @@ class AgenticOptREPL:
                     continue
 
                 # Handle commands
-                if user_input.startswith('\\'):
+                if user_input.startswith('/'):
                     if not self._handle_command(user_input):
-                        break  # \exit was called
+                        break  # /exit was called
                 else:
                     # Send to agent
                     self._process_with_agent(user_input)
 
             except KeyboardInterrupt:
-                self.console.print("\nUse '\\exit' or Ctrl+D to quit.", style="dim")
+                self.console.print("\nUse '/exit' or Ctrl+D to quit.", style="dim")
                 continue
             except EOFError:
                 break
@@ -93,7 +93,7 @@ class AgenticOptREPL:
                 "[bold cyan]AgenticOpt[/bold cyan] - AI Optimization Assistant\n"
                 "Version 0.1.0\n\n"
                 "Type your optimization goals in natural language.\n"
-                "Type '\\help' for commands, '\\exit' to quit."
+                "Type '/help' for commands, '/exit' to quit."
             ),
             border_style="cyan",
             padding=(1, 2)
@@ -168,30 +168,28 @@ class AgenticOptREPL:
 
     def _handle_command(self, command: str) -> bool:
         """
-        Handle backslash commands.
+        Handle slash commands.
 
         Args:
-            command: Command string starting with \
+            command: Command string starting with /
 
         Returns:
             True to continue REPL, False to exit
         """
         cmd = command.lower().split()[0]
 
-        if cmd == '\\help':
+        if cmd == '/help':
             self._show_help()
-        elif cmd == '\\exit':
+        elif cmd == '/exit':
             return False  # Signal to exit
-        elif cmd == '\\clear':
-            self.console.clear()
-        elif cmd == '\\reset':
-            self._reset_conversation()
-        elif cmd == '\\model':
+        elif cmd == '/clear':
+            self._clear_conversation()
+        elif cmd == '/model':
             self._show_model_info()
-        elif cmd == '\\models':
+        elif cmd == '/models':
             self._select_model()
         else:
-            self.console.print(f"Unknown command: {cmd}. Type \\help for available commands.", style="yellow")
+            self.console.print(f"Unknown command: {cmd}. Type /help for available commands.", style="yellow")
 
         return True  # Continue REPL
 
@@ -206,23 +204,22 @@ class AgenticOptREPL:
   - "compare SLSQP and BFGS on this problem"
   - "analyze the convergence behavior"
 
-[bold]Backslash Commands:[/bold]
-  \\help    - Show this help message
-  \\exit    - Exit the CLI
-  \\clear   - Clear the screen
-  \\reset   - Reset conversation history
-  \\model   - Show current LLM model
-  \\models  - Select a different LLM model
+[bold]Slash Commands:[/bold]
+  /help    - Show this help message
+  /exit    - Exit the CLI
+  /clear   - Clear conversation history
+  /model   - Show current LLM model
+  /models  - Select a different LLM model
 
 [bold]Exit:[/bold]
-  \\exit or Ctrl+D
+  /exit or Ctrl+D
         """
         self.console.print(Panel(help_text, border_style="cyan", padding=(1, 2)))
 
-    def _reset_conversation(self):
-        """Reset conversation history."""
+    def _clear_conversation(self):
+        """Clear conversation history (like Claude Code /clear)."""
         self.conversation_history = []
-        self.console.print("[dim]✓ Conversation reset[/dim]\n")
+        self.console.print("[dim]✓ Conversation cleared[/dim]\n")
 
     def _show_model_info(self):
         """Show current model information."""
