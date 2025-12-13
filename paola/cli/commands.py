@@ -1,4 +1,4 @@
-"""Command handlers for CLI - reads from platform and displays."""
+"""Command handlers for CLI - reads from foundry and displays."""
 
 from typing import List, Optional, Dict, Any
 from rich.console import Console, Group
@@ -7,23 +7,23 @@ from rich.panel import Panel
 from rich.text import Text
 import asciichartpy as asciichart
 
-from ..platform import OptimizationPlatform
+from ..foundry import OptimizationFoundry
 from ..analysis import compute_metrics, ai_analyze
 
 
 class CommandHandler:
     """
     Handles deterministic /commands.
-    Pure presentation logic - reads from platform storage.
+    Pure presentation logic - reads from foundry storage.
     """
 
-    def __init__(self, platform: OptimizationPlatform, console: Console):
-        self.platform = platform
+    def __init__(self, foundry: OptimizationFoundry, console: Console):
+        self.foundry = foundry
         self.console = console
 
     def handle_runs(self):
         """Display all runs in table format."""
-        runs = self.platform.load_all_runs()
+        runs = self.foundry.load_all_runs()
 
         if not runs:
             self.console.print("\n[dim]No optimization runs yet[/dim]\n")
@@ -58,7 +58,7 @@ class CommandHandler:
 
     def handle_show(self, run_id: int):
         """Show detailed run information with metrics."""
-        run = self.platform.load_run(run_id)
+        run = self.foundry.load_run(run_id)
 
         if not run:
             self.console.print(f"\n[red]Run #{run_id} not found[/red]\n")
@@ -113,7 +113,7 @@ class CommandHandler:
 
     def handle_plot(self, run_id: int):
         """Plot convergence history (ASCII in terminal)."""
-        run = self.platform.load_run(run_id)
+        run = self.foundry.load_run(run_id)
 
         if not run:
             self.console.print(f"\n[red]Run #{run_id} not found[/red]\n")
@@ -210,7 +210,7 @@ Iteration"""
 
     def handle_best(self):
         """Show best solution across all runs."""
-        runs = self.platform.load_all_runs()
+        runs = self.foundry.load_all_runs()
 
         if not runs:
             self.console.print("\n[dim]No optimization runs yet[/dim]\n")
@@ -242,7 +242,7 @@ Iteration"""
         # Load all runs
         runs = []
         for run_id in run_ids:
-            run = self.platform.load_run(run_id)
+            run = self.foundry.load_run(run_id)
             if run is None:
                 self.console.print(f"\n[red]Run #{run_id} not found[/red]\n")
                 return
@@ -303,7 +303,7 @@ Iteration"""
         # Load all runs and extract convergence data
         runs_data = []
         for run_id in run_ids:
-            run = self.platform.load_run(run_id)
+            run = self.foundry.load_run(run_id)
             if run is None:
                 self.console.print(f"\n[red]Run #{run_id} not found[/red]\n")
                 return
@@ -438,7 +438,7 @@ Iteration"""
 
     def handle_analyze(self, run_id: int, focus: str = 'overall'):
         """AI-powered analysis of optimization run (costs money)."""
-        run = self.platform.load_run(run_id)
+        run = self.foundry.load_run(run_id)
 
         if not run:
             self.console.print(f"\n[red]Run #{run_id} not found[/red]\n")

@@ -13,11 +13,11 @@ from ..agent.react_agent import build_optimization_agent
 from ..tools.optimizer_tools import run_scipy_optimization
 from ..tools.evaluator_tools import create_benchmark_problem
 from ..tools.observation_tools import analyze_convergence
-from ..tools.run_tools import start_optimization_run, finalize_optimization_run, get_active_runs, set_platform
+from ..tools.run_tools import start_optimization_run, finalize_optimization_run, get_active_runs, set_foundry
 from ..tools.analysis import analyze_convergence as analyze_convergence_new, analyze_efficiency, get_all_metrics, analyze_run_with_ai
 from ..tools.knowledge_tools import store_optimization_insight, retrieve_optimization_knowledge, list_all_knowledge
 from ..callbacks import CallbackManager
-from ..platform import FileStorage, StorageBackend, OptimizationPlatform
+from ..foundry import FileStorage, StorageBackend, OptimizationFoundry
 from ..llm import TokenTracker, LangChainTokenCallback, format_session_stats
 from .callback import CLICallback
 from .commands import CommandHandler
@@ -48,14 +48,14 @@ class AgenticOptREPL:
         # Storage layer (persists independently)
         storage_backend = storage or FileStorage()
 
-        # Initialize OptimizationPlatform (replaces RunManager)
-        self.platform = OptimizationPlatform(storage=storage_backend)
+        # Initialize OptimizationFoundry (data foundation)
+        self.foundry = OptimizationFoundry(storage=storage_backend)
 
-        # Set global platform for tools
-        set_platform(self.platform)
+        # Set global foundry for tools
+        set_foundry(self.foundry)
 
-        # Command handler (reads from platform)
-        self.command_handler = CommandHandler(self.platform, self.console)
+        # Command handler (reads from foundry)
+        self.command_handler = CommandHandler(self.foundry, self.console)
 
         # Agent state
         self.llm_model = llm_model

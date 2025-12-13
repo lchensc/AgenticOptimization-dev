@@ -1,14 +1,14 @@
 # PAOLA
 
-**Platform for Agentic Optimization with Learning and Analysis**
+**Package for Agentic Optimization with Learning and Analysis**
 
-*The optimization platform that learns from every run*
+*The optimization package that learns from every run*
 
-Version 0.1.0 - **Phases 1-4 Complete ✅**
+Version 0.1.0 - **Phases 1-5 Complete ✅**
 
 ---
 
-The first optimization platform where an autonomous AI agent controls the optimization process, composing strategies from tool primitives, accumulating knowledge from past optimizations, and analyzing multiple runs to achieve reliable convergence.
+A Python package for autonomous engineering optimization where an AI agent controls the optimization process, composing strategies from tool primitives, accumulating knowledge from past optimizations, and analyzing multiple runs to achieve reliable convergence.
 
 ## Status
 
@@ -75,11 +75,11 @@ PAOLA gives an **AI agent full autonomy** to control optimization:
 
 ## What's Implemented (Phases 1-4)
 
-### ✅ Phase 1: Data Platform
-**Professional run management and storage**
-- OptimizationPlatform - Dependency injection, no singletons
+### ✅ Phase 1: Data Foundry
+**Data foundation for optimization runs**
+- OptimizationFoundry - Single source of truth with dependency injection
 - Run/RunRecord - Active vs storage separation
-- FileStorage - JSON-based persistence
+- FileStorage - JSON-based persistence with lineage
 - All tests passing ✅
 
 ### ✅ Phase 2: Analysis Module
@@ -172,15 +172,15 @@ paola> analyze why the optimization stalled
 ## Example: Programmatic Usage
 
 ```python
-from paola.platform import OptimizationPlatform, FileStorage
+from paola.foundry import OptimizationFoundry, FileStorage
 from paola.tools.evaluator_tools import create_benchmark_problem
-from paola.tools.run_tools import start_optimization_run, set_platform
+from paola.tools.run_tools import start_optimization_run, set_foundry
 from paola.tools.optimizer_tools import run_scipy_optimization
 from paola.analysis import compute_metrics
 
-# Initialize platform
-platform = OptimizationPlatform(storage=FileStorage())
-set_platform(platform)
+# Initialize foundry (data foundation)
+foundry = OptimizationFoundry(storage=FileStorage())
+set_foundry(foundry)
 
 # Create problem
 problem = create_benchmark_problem.invoke({
@@ -205,7 +205,7 @@ result = run_scipy_optimization.invoke({
 })
 
 # Analyze
-run_record = platform.load_run(run["run_id"])
+run_record = foundry.load_run(run["run_id"])
 metrics = compute_metrics(run_record)
 
 print(f"Success: {result['success']}")
@@ -217,11 +217,11 @@ print(f"Convergence rate: {metrics['convergence']['rate']:.4f}")
 
 ```
 paola/
-├── platform/          # Phase 1: Run management & storage
-│   ├── platform.py    # OptimizationPlatform (DI)
+├── foundry/           # Phase 1: Data foundation layer
+│   ├── foundry.py     # OptimizationFoundry (single source of truth)
 │   ├── run.py         # Run/RunRecord (active vs storage)
-│   ├── problem.py     # Problem definition
-│   └── storage/       # FileStorage (JSON)
+│   ├── problem.py     # Problem definitions
+│   └── storage/       # FileStorage (JSON with lineage)
 ├── analysis/          # Phase 2: Metrics & AI
 │   ├── metrics.py     # Deterministic computation
 │   └── ai_analysis.py # LLM-powered reasoning
@@ -236,10 +236,13 @@ paola/
 │   ├── repl.py        # Main REPL
 │   ├── commands.py    # Command handlers
 │   └── callback.py    # Display callback
-├── tools/             # Agent tools (12 total)
+├── tools/             # Agent tools (20+ total)
 ├── callbacks/         # Event system
 └── backends/          # Analytical functions
 ```
+
+The **foundry** provides a single source of truth for optimization data,
+while the **agent** provides autonomous intelligence on top.
 
 ## Testing
 

@@ -8,11 +8,11 @@ Exposes both deterministic and AI-powered analysis to agent.
 from typing import Dict, Any
 from langchain_core.tools import tool
 
-from ..platform import OptimizationPlatform
+from ..foundry import OptimizationFoundry
 from ..analysis import compute_metrics, ai_analyze
 
-# Global platform reference (set by build_tools)
-from .run_tools import get_platform
+# Global foundry reference (set by build_tools)
+from .run_tools import get_foundry
 
 
 @tool
@@ -44,11 +44,11 @@ def analyze_convergence(run_id: int) -> Dict[str, Any]:
             # Optimization stalled, need strategy change
             pass
     """
-    platform = get_platform()
-    if platform is None:
-        return {"error": "Platform not initialized"}
+    foundry = get_foundry()
+    if foundry is None:
+        return {"error": "Foundry not initialized"}
 
-    run = platform.load_run(run_id)
+    run = foundry.load_run(run_id)
     if run is None:
         return {"error": f"Run {run_id} not found"}
 
@@ -72,11 +72,11 @@ def analyze_efficiency(run_id: int) -> Dict[str, Any]:
             "improvement_per_eval": float,
         }
     """
-    platform = get_platform()
-    if platform is None:
-        return {"error": "Platform not initialized"}
+    foundry = get_foundry()
+    if foundry is None:
+        return {"error": "Foundry not initialized"}
 
-    run = platform.load_run(run_id)
+    run = foundry.load_run(run_id)
     if run is None:
         return {"error": f"Run {run_id} not found"}
 
@@ -108,11 +108,11 @@ def get_all_metrics(run_id: int) -> Dict[str, Any]:
         print(f"Gradient quality: {metrics['gradient']['quality']}")
         print(f"Evaluations: {metrics['efficiency']['evaluations']}")
     """
-    platform = get_platform()
-    if platform is None:
-        return {"error": "Platform not initialized"}
+    foundry = get_foundry()
+    if foundry is None:
+        return {"error": "Foundry not initialized"}
 
-    run = platform.load_run(run_id)
+    run = foundry.load_run(run_id)
     if run is None:
         return {"error": f"Run {run_id} not found"}
 
@@ -179,11 +179,11 @@ def analyze_run_with_ai(
                 if rec["action"] == "optimizer_restart":
                     optimizer_restart(**rec["args"])
     """
-    platform = get_platform()
-    if platform is None:
-        return {"error": "Platform not initialized"}
+    foundry = get_foundry()
+    if foundry is None:
+        return {"error": "Foundry not initialized"}
 
-    run = platform.load_run(run_id)
+    run = foundry.load_run(run_id)
     if run is None:
         return {"error": f"Run {run_id} not found"}
 

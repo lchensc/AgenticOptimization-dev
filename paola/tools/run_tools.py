@@ -3,41 +3,40 @@ Tools for agent to manage optimization runs.
 
 Provides explicit run creation and finalization.
 
-REFACTORED: Now uses OptimizationPlatform with dependency injection
-instead of RunManager singleton.
+Uses OptimizationFoundry with dependency injection for data foundation.
 """
 
 from typing import Dict, Any, Optional
 from langchain_core.tools import tool
 
-from ..platform import OptimizationPlatform
+from ..foundry import OptimizationFoundry
 from .evaluator_tools import _get_problem
 
-# Global platform reference (set by build_tools)
-_PLATFORM: Optional[OptimizationPlatform] = None
+# Global foundry reference (set by build_tools)
+_FOUNDRY: Optional[OptimizationFoundry] = None
 
 
-def set_platform(platform: OptimizationPlatform) -> None:
+def set_foundry(foundry: OptimizationFoundry) -> None:
     """
-    Set global platform reference for tools.
+    Set global foundry reference for tools.
 
     This is called by build_tools() during initialization.
 
     Args:
-        platform: OptimizationPlatform instance
+        foundry: OptimizationFoundry instance
     """
-    global _PLATFORM
-    _PLATFORM = platform
+    global _FOUNDRY
+    _FOUNDRY = foundry
 
 
-def get_platform() -> Optional[OptimizationPlatform]:
+def get_foundry() -> Optional[OptimizationFoundry]:
     """
-    Get current platform reference.
+    Get current foundry reference.
 
     Returns:
-        Current platform instance or None if not set
+        Current foundry instance or None if not set
     """
-    return _PLATFORM
+    return _FOUNDRY
 
 
 @tool
@@ -93,10 +92,10 @@ def start_optimization_run(
     """
     try:
         # Get platform
-        if _PLATFORM is None:
+        if _FOUNDRY is None:
             return {
                 "success": False,
-                "message": "Platform not initialized. Call set_platform() first."
+                "message": "Foundry not initialized. Call set_foundry() first."
             }
 
         # Get problem to extract name
@@ -108,7 +107,7 @@ def start_optimization_run(
             problem_name = problem_id
 
         # Create run
-        run = _PLATFORM.create_run(
+        run = _FOUNDRY.create_run(
             problem_id=problem_id,
             problem_name=problem_name,
             algorithm=algorithm,
@@ -160,13 +159,13 @@ def finalize_optimization_run(
         )
     """
     try:
-        if _PLATFORM is None:
+        if _FOUNDRY is None:
             return {
                 "success": False,
-                "message": "Platform not initialized. Call set_platform() first."
+                "message": "Foundry not initialized. Call set_foundry() first."
             }
 
-        run = _PLATFORM.get_run(run_id)
+        run = _FOUNDRY.get_run(run_id)
 
         if run is None:
             return {
@@ -179,7 +178,7 @@ def finalize_optimization_run(
             run.metadata["final_notes"] = notes
 
         # Remove from active registry
-        _PLATFORM.finalize_run(run_id)
+        _FOUNDRY.finalize_run(run_id)
 
         return {
             "success": True,
@@ -211,13 +210,13 @@ def get_active_runs() -> Dict[str, Any]:
         # Returns: {"success": True, "active_runs": [...], "count": 2}
     """
     try:
-        if _PLATFORM is None:
+        if _FOUNDRY is None:
             return {
                 "success": False,
-                "message": "Platform not initialized. Call set_platform() first."
+                "message": "Foundry not initialized. Call set_foundry() first."
             }
 
-        active_runs = _PLATFORM.get_active_runs()
+        active_runs = _FOUNDRY.get_active_runs()
 
         runs_info = []
         for run_id, run in active_runs.items():

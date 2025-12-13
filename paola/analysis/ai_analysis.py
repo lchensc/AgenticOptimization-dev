@@ -15,7 +15,7 @@ from datetime import datetime
 import json
 import re
 
-from ..platform import RunRecord
+from ..foundry import RunRecord
 from ..agent.react_agent import initialize_llm
 from langchain_core.messages import HumanMessage
 

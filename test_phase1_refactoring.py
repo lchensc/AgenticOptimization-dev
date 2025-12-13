@@ -10,7 +10,7 @@ def test_platform_basics():
     """Test basic platform operations."""
     print("Testing platform basics...")
 
-    from paola.platform import OptimizationPlatform, FileStorage, Run, RunRecord, Problem
+    from paola.foundry import OptimizationFoundry, FileStorage, Run, RunRecord, Problem
     import numpy as np
 
     # Create temp directory for testing
@@ -19,7 +19,7 @@ def test_platform_basics():
     try:
         # Initialize platform
         storage = FileStorage(base_dir=temp_dir)
-        platform = OptimizationPlatform(storage=storage)
+        platform = OptimizationFoundry(storage=storage)
         print(f"✓ Platform initialized: {platform}")
 
         # Create a run
@@ -96,8 +96,8 @@ def test_tools_integration():
     """Test that tools can use the platform."""
     print("\nTesting tools integration...")
 
-    from paola.platform import OptimizationPlatform, FileStorage
-    from paola.tools.run_tools import set_platform, start_optimization_run, get_active_runs
+    from paola.foundry import OptimizationFoundry, FileStorage
+    from paola.tools.run_tools import set_foundry, start_optimization_run, get_active_runs
     import tempfile
     import shutil
 
@@ -106,10 +106,10 @@ def test_tools_integration():
     try:
         # Initialize platform
         storage = FileStorage(base_dir=temp_dir)
-        platform = OptimizationPlatform(storage=storage)
+        platform = OptimizationFoundry(storage=storage)
 
         # Set global platform for tools
-        set_platform(platform)
+        set_foundry(platform)
         print("✓ Platform set for tools")
 
         # Call tool (use .invoke() for LangChain tools)
@@ -148,7 +148,7 @@ def test_cli_initialization():
 
     try:
         from paola.cli import AgenticOptREPL
-        from paola.platform import FileStorage
+        from paola.foundry import FileStorage
         import tempfile
         import shutil
 
@@ -159,7 +159,7 @@ def test_cli_initialization():
             storage = FileStorage(base_dir=temp_dir)
             repl = AgenticOptREPL(llm_model="qwen-flash", storage=storage)
 
-            assert repl.platform is not None, "REPL should have platform"
+            assert repl.foundry is not None, "REPL should have platform"
             assert repl.command_handler is not None, "REPL should have command handler"
             print("✓ REPL initialized with platform")
 

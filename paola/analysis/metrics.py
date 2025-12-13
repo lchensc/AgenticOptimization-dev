@@ -10,7 +10,7 @@ These metrics serve as:
 
 from typing import Dict, Any, List
 import numpy as np
-from ..platform import RunRecord
+from ..foundry import RunRecord
 
 
 def compute_metrics(run: RunRecord) -> Dict[str, Any]:

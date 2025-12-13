@@ -193,7 +193,7 @@ def test_cli_commands():
     """Test CLI knowledge commands."""
     print("Testing CLI knowledge commands...")
 
-    from paola.platform import OptimizationPlatform, FileStorage
+    from paola.foundry import OptimizationFoundry, FileStorage
     from paola.cli.commands import CommandHandler
     from rich.console import Console
     import io
@@ -205,7 +205,7 @@ def test_cli_commands():
     try:
         # Create platform
         storage = FileStorage(base_dir=temp_dir)
-        platform = OptimizationPlatform(storage=storage)
+        platform = OptimizationFoundry(storage=storage)
 
         # Create command handler with captured output
         console = Console(file=io.StringIO())
@@ -280,7 +280,7 @@ def test_integration():
     print("Testing knowledge module integration...")
 
     from paola.knowledge import KnowledgeBase, MemoryKnowledgeStorage
-    from paola.platform import OptimizationPlatform, FileStorage
+    from paola.foundry import OptimizationFoundry, FileStorage
     import tempfile
     import shutil
     import numpy as np
@@ -290,7 +290,7 @@ def test_integration():
     try:
         # Create platform and run optimization
         storage = FileStorage(base_dir=temp_dir)
-        platform = OptimizationPlatform(storage=storage)
+        platform = OptimizationFoundry(storage=storage)
 
         run = platform.create_run(
             problem_id="test_rosenbrock",

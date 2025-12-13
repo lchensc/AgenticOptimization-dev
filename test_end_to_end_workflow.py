@@ -14,9 +14,9 @@ def test_complete_workflow():
     print("=" * 70)
     print()
 
-    from paola.platform import OptimizationPlatform, FileStorage
+    from paola.foundry import OptimizationFoundry, FileStorage
     from paola.tools.evaluator_tools import create_benchmark_problem
-    from paola.tools.run_tools import start_optimization_run, finalize_optimization_run, set_platform
+    from paola.tools.run_tools import start_optimization_run, finalize_optimization_run, set_foundry
     from paola.tools.optimizer_tools import run_scipy_optimization
     from paola.analysis import compute_metrics, ai_analyze
     from paola.cli.commands import CommandHandler
@@ -28,8 +28,8 @@ def test_complete_workflow():
         print("Step 1: Initialize Platform")
         print("-" * 70)
         storage = FileStorage(base_dir=temp_dir)
-        platform = OptimizationPlatform(storage=storage)
-        set_platform(platform)
+        platform = OptimizationFoundry(storage=storage)
+        set_foundry(platform)
         print(f"✓ Platform initialized with storage: {temp_dir}")
         print()
 
@@ -264,9 +264,9 @@ def test_storage_persistence():
     print("=" * 70)
     print()
 
-    from paola.platform import OptimizationPlatform, FileStorage
+    from paola.foundry import OptimizationFoundry, FileStorage
     from paola.tools.evaluator_tools import create_benchmark_problem
-    from paola.tools.run_tools import start_optimization_run, finalize_optimization_run, set_platform
+    from paola.tools.run_tools import start_optimization_run, finalize_optimization_run, set_foundry
     from paola.tools.optimizer_tools import run_scipy_optimization
 
     temp_dir = tempfile.mkdtemp(prefix="paola_persist_")
@@ -275,8 +275,8 @@ def test_storage_persistence():
         # Session 1: Create and run optimization
         print("Session 1: Create and store run...")
         storage1 = FileStorage(base_dir=temp_dir)
-        platform1 = OptimizationPlatform(storage=storage1)
-        set_platform(platform1)
+        platform1 = OptimizationFoundry(storage=storage1)
+        set_foundry(platform1)
 
         problem = create_benchmark_problem.invoke({
             "problem_id": "sphere_2d",
@@ -308,7 +308,7 @@ def test_storage_persistence():
         # Session 2: Load from storage
         print("Session 2: Load from persisted storage...")
         storage2 = FileStorage(base_dir=temp_dir)
-        platform2 = OptimizationPlatform(storage=storage2)
+        platform2 = OptimizationFoundry(storage=storage2)
 
         run2 = platform2.load_run(run_id)
         assert run2 is not None

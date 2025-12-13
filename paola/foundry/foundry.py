@@ -1,7 +1,9 @@
 """
-OptimizationPlatform - Central API for run management.
+OptimizationFoundry - Data foundation for optimization runs.
 
-Replaces: runs.manager.RunManager singleton
+The foundry provides a single source of truth for optimization data,
+managing problems, runs, results with versioning and lineage.
+
 Pattern: Dependency injection (testable, explicit)
 """
 
@@ -13,13 +15,15 @@ from .run import Run, RunRecord
 from .problem import Problem
 
 
-class OptimizationPlatform:
+class OptimizationFoundry:
     """
-    Central platform for optimization run management.
+    Data foundation for optimization runs.
 
-    This class is the foundation of PAOLA's data platform.
-    It manages the lifecycle of optimization runs and provides
-    query interfaces for analysis and knowledge extraction.
+    The foundry provides a single source of truth for optimization data,
+    managing problems, runs, results with versioning and lineage.
+
+    Inspired by Palantir Foundry's ontology layer: creates organized,
+    trustworthy data that the agent and knowledge base can build upon.
 
     Design:
     - Uses dependency injection (pass storage backend)
@@ -28,12 +32,12 @@ class OptimizationPlatform:
     - Delegates persistence to storage backend
 
     Example:
-        # Initialize platform
+        # Initialize foundry
         storage = FileStorage(base_dir=".paola_runs")
-        platform = OptimizationPlatform(storage=storage)
+        foundry = OptimizationFoundry(storage=storage)
 
         # Create and track run
-        run = platform.create_run(
+        run = foundry.create_run(
             problem_id="rosenbrock_10d",
             problem_name="Rosenbrock 10D",
             algorithm="SLSQP"
@@ -46,12 +50,12 @@ class OptimizationPlatform:
         run.finalize(result)
 
         # Query
-        all_runs = platform.load_all_runs()
+        all_runs = foundry.load_all_runs()
     """
 
     def __init__(self, storage: StorageBackend):
         """
-        Initialize platform with storage backend.
+        Initialize foundry with storage backend.
 
         Args:
             storage: Storage backend (FileStorage, SQLiteStorage, etc.)
@@ -85,7 +89,7 @@ class OptimizationPlatform:
             Run: Active run handle
 
         Example:
-            run = platform.create_run(
+            run = foundry.create_run(
                 problem_id="rosenbrock_10d",
                 problem_name="Rosenbrock 10D",
                 algorithm="SLSQP",
@@ -193,7 +197,7 @@ class OptimizationPlatform:
 
         Example:
             # Get all successful SLSQP runs on Rosenbrock
-            runs = platform.query_runs(
+            runs = foundry.query_runs(
                 algorithm="SLSQP",
                 problem_id="rosenbrock*",
                 success=True,
@@ -269,4 +273,4 @@ class OptimizationPlatform:
 
     def __repr__(self) -> str:
         """String representation."""
-        return f"OptimizationPlatform(active_runs={len(self._active_runs)}, storage={type(self.storage).__name__})"
+        return f"OptimizationFoundry(active_runs={len(self._active_runs)}, storage={type(self.storage).__name__})"

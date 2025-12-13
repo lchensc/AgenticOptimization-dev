@@ -11,7 +11,7 @@ def test_cli_initialization():
     print("Testing CLI initialization...")
 
     from paola.cli.repl import AgenticOptREPL
-    from paola.platform import FileStorage
+    from paola.foundry import FileStorage
 
     temp_dir = tempfile.mkdtemp(prefix="paola_test_")
 
@@ -168,7 +168,7 @@ def test_command_handlers():
     """Test command handlers work."""
     print("Testing command handlers...")
 
-    from paola.platform import OptimizationPlatform, FileStorage
+    from paola.foundry import OptimizationFoundry, FileStorage
     from paola.cli.commands import CommandHandler
     from rich.console import Console
     import io
@@ -178,7 +178,7 @@ def test_command_handlers():
     try:
         # Create platform
         storage = FileStorage(base_dir=temp_dir)
-        platform = OptimizationPlatform(storage=storage)
+        platform = OptimizationFoundry(storage=storage)
 
         # Create command handler
         console = Console(file=io.StringIO())
@@ -278,7 +278,7 @@ def test_imports():
     print("✓ Tool imports work")
 
     # Platform imports
-    from paola.platform import OptimizationPlatform, FileStorage
+    from paola.foundry import OptimizationFoundry, FileStorage
     print("✓ Platform imports work")
 
     # Analysis imports

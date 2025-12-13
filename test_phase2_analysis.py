@@ -10,7 +10,7 @@ def test_deterministic_metrics():
     """Test deterministic metrics computation."""
     print("Testing deterministic metrics...")
 
-    from paola.platform import OptimizationPlatform, FileStorage, Run
+    from paola.foundry import OptimizationFoundry, FileStorage, Run
     from paola.analysis import compute_metrics
 
     temp_dir = tempfile.mkdtemp(prefix="paola_test_")
@@ -18,7 +18,7 @@ def test_deterministic_metrics():
     try:
         # Create platform and run
         storage = FileStorage(base_dir=temp_dir)
-        platform = OptimizationPlatform(storage=storage)
+        platform = OptimizationFoundry(storage=storage)
 
         run = platform.create_run(
             problem_id="test_rosenbrock",
@@ -98,7 +98,7 @@ def test_ai_analysis_structure():
     """Test AI analysis returns correct structure (even if LLM fails)."""
     print("\nTesting AI analysis structure...")
 
-    from paola.platform import OptimizationPlatform, FileStorage, Run
+    from paola.foundry import OptimizationFoundry, FileStorage, Run
     from paola.analysis import compute_metrics, ai_analyze
     import os
 
@@ -108,7 +108,7 @@ def test_ai_analysis_structure():
     try:
         # Create platform and run
         storage = FileStorage(base_dir=temp_dir)
-        platform = OptimizationPlatform(storage=storage)
+        platform = OptimizationFoundry(storage=storage)
 
         run = platform.create_run(
             problem_id="test_problem",
@@ -174,9 +174,9 @@ def test_analysis_tools():
     """Test that analysis tools can be imported and used."""
     print("\nTesting analysis tools...")
 
-    from paola.platform import OptimizationPlatform, FileStorage
+    from paola.foundry import OptimizationFoundry, FileStorage
     from paola.tools.analysis import analyze_convergence, get_all_metrics, analyze_efficiency
-    from paola.tools.run_tools import set_platform
+    from paola.tools.run_tools import set_foundry
     import tempfile
     import shutil
 
@@ -185,8 +185,8 @@ def test_analysis_tools():
     try:
         # Initialize platform
         storage = FileStorage(base_dir=temp_dir)
-        platform = OptimizationPlatform(storage=storage)
-        set_platform(platform)
+        platform = OptimizationFoundry(storage=storage)
+        set_foundry(platform)
 
         # Create a run
         run = platform.create_run(
@@ -249,7 +249,7 @@ def test_cli_show_with_metrics():
     """Test that CLI /show command includes metrics."""
     print("\nTesting CLI /show with metrics...")
 
-    from paola.platform import OptimizationPlatform, FileStorage
+    from paola.foundry import OptimizationFoundry, FileStorage
     from paola.cli.commands import CommandHandler
     from rich.console import Console
     import io
@@ -259,7 +259,7 @@ def test_cli_show_with_metrics():
     try:
         # Create platform with run
         storage = FileStorage(base_dir=temp_dir)
-        platform = OptimizationPlatform(storage=storage)
+        platform = OptimizationFoundry(storage=storage)
 
         run = platform.create_run(
             problem_id="test",
