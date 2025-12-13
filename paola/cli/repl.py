@@ -18,6 +18,7 @@ from ..tools.analysis import analyze_convergence as analyze_convergence_new, ana
 from ..tools.knowledge_tools import store_optimization_insight, retrieve_optimization_knowledge, list_all_knowledge
 from ..callbacks import CallbackManager
 from ..platform import FileStorage, StorageBackend, OptimizationPlatform
+from ..llm import TokenTracker, LangChainTokenCallback, format_session_stats
 from .callback import CLICallback
 from .commands import CommandHandler
 
@@ -61,7 +62,11 @@ class AgenticOptREPL:
         self.agent = None
         self.conversation_history = []
 
-        # Callback manager with display callback only
+        # Token tracking
+        self.token_tracker = TokenTracker()
+        self.token_callback = LangChainTokenCallback(self.token_tracker, verbose=True)
+
+        # Callback manager with display callback
         self.callback_manager = CallbackManager()
         self.callback_manager.register(CLICallback())  # Display events
 
@@ -190,7 +195,9 @@ class AgenticOptREPL:
 
         # Invoke agent (streaming via callback)
         try:
-            final_state = self.agent.invoke(state)
+            # Pass token callback to LangGraph
+            config = {"callbacks": [self.token_callback]}
+            final_state = self.agent.invoke(state, config=config)
 
             # Update conversation history
             self.conversation_history = final_state["messages"]
@@ -292,6 +299,8 @@ class AgenticOptREPL:
                 self.command_handler.handle_knowledge_show(cmd_parts[2])
             else:
                 self.console.print("[red]Usage: /knowledge OR /knowledge show <id>[/red]")
+        elif cmd == '/tokens':
+            self._show_token_stats()
         else:
             self.console.print(f"Unknown command: {cmd}. Type /help for available commands.", style="yellow")
 
@@ -326,6 +335,7 @@ class AgenticOptREPL:
   /clear          - Clear conversation history
   /model          - Show current LLM model
   /models         - Select a different LLM model
+  /tokens         - Show token usage and cost statistics
 
 [bold]Exit:[/bold]
   /exit or Ctrl+D
@@ -397,3 +407,15 @@ class AgenticOptREPL:
             self.console.print("\n[dim]Cancelled[/dim]\n")
         except EOFError:
             self.console.print("\n[dim]Cancelled[/dim]\n")
+
+    def _show_token_stats(self):
+        """Display token usage statistics for current session."""
+        stats = self.token_tracker.get_session_stats()
+
+        if stats.call_count == 0:
+            self.console.print("\n[dim]No LLM calls yet in this session[/dim]\n")
+            return
+
+        # Use the formatted output from token_tracker module
+        formatted_stats = format_session_stats(stats)
+        self.console.print(formatted_stats)

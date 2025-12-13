@@ -13,9 +13,13 @@ Provides LangChain @tool decorated functions for:
 from paola.tools.cache_tools import (
     cache_get,
     cache_store,
+    run_db_log,
+)
+
+# LangChain-wrapped cache tools for agent use
+from paola.tools.cache_agent_tools import (
     cache_clear,
     cache_stats,
-    run_db_log,
     run_db_query,
 )
 

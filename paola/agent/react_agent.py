@@ -194,6 +194,11 @@ def create_react_node(tools: list, llm_model: str, temperature: float = 0.0):
     llm = initialize_llm(llm_model, temperature)
     llm_with_tools = llm.bind_tools(tools)
 
+    # Detect provider for caching support
+    is_anthropic = "claude" in llm_model.lower()
+    is_qwen = any(m in llm_model.lower() for m in ["qwen", "qwq"])
+    supports_cache_control = is_anthropic or is_qwen  # Both support explicit caching!
+
     def react_step(state: AgentState) -> dict:
         """
         Execute one ReAct cycle with full history retention.
@@ -226,7 +231,26 @@ def create_react_node(tools: list, llm_model: str, temperature: float = 0.0):
         # For subsequent iterations, we continue from where we left off
         if iteration == 1:
             # First iteration: start with system context + user goal
-            messages = [HumanMessage(content=prompt)]
+            # Use cache_control if provider supports it (Anthropic, Qwen)
+            if supports_cache_control:
+                # Explicit caching format (works for both Anthropic and Qwen)
+                messages = [
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": prompt,
+                                "cache_control": {"type": "ephemeral"}
+                            }
+                        ]
+                    }
+                ]
+                provider_name = "Anthropic" if is_anthropic else "Qwen"
+                logger.info(f"First message with {provider_name} cache_control enabled")
+            else:
+                # Standard format for OpenAI, etc.
+                messages = [HumanMessage(content=prompt)]
         else:
             # Subsequent iterations: use existing history
             # Don't add another HumanMessage - let the agent continue
@@ -253,6 +277,8 @@ def create_react_node(tools: list, llm_model: str, temperature: float = 0.0):
         # Collect all new messages from this turn
         # Start with the prompt we added (if first iteration)
         if iteration == 1:
+            # For first iteration, add the user message to history
+            # Convert dict format back to HumanMessage for consistency
             new_messages = [HumanMessage(content=prompt), response]
         else:
             # Check if we added a follow-up prompt
