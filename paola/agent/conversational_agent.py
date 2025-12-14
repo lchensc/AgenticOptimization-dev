@@ -51,9 +51,8 @@ class ConversationalAgentExecutor:
         Returns:
             Updated state dict
         """
-        # Note: config contains callbacks for token tracking, but we ignore it here
-        # because the agent_func already has callback_manager in closure
-        return self.agent_func(state)
+        # Pass config through to agent function for token tracking
+        return self.agent_func(state, config)
 
 
 def build_conversational_agent(
@@ -84,7 +83,7 @@ def build_conversational_agent(
     llm = initialize_llm(llm_model, temperature)
     llm_with_tools = llm.bind_tools(tools)
 
-    def invoke_agent(state: dict) -> dict:
+    def invoke_agent(state: dict, config: dict = None) -> dict:
         """
         Process one user message with ReAct cycles.
 
@@ -104,6 +103,7 @@ def build_conversational_agent(
                 "callback_manager": optional,
                 "iteration": current iteration (for continuing)
             }
+            config: Optional config with callbacks for token tracking
 
         Returns:
             Updated state with new messages
@@ -111,6 +111,9 @@ def build_conversational_agent(
         messages = list(state.get("messages", []))  # Copy to avoid mutation
         context = state.get("context", {})
         callback_mgr = state.get("callback_manager", callback_manager)
+
+        # Extract token tracking callbacks from config
+        llm_callbacks = config.get("callbacks", []) if config else []
 
         # Count how many messages are already in history to detect first call
         # First call: just user message. Subsequent: user + AI + tools + ...
@@ -142,7 +145,8 @@ def build_conversational_agent(
 
             # LLM responds (Reasoning + Action decision)
             try:
-                response = llm_with_tools.invoke(messages)
+                # Pass token tracking callbacks to LLM
+                response = llm_with_tools.invoke(messages, config={"callbacks": llm_callbacks})
             except Exception as e:
                 logger.error(f"LLM invocation failed: {e}")
                 # Return error message
@@ -160,6 +164,15 @@ def build_conversational_agent(
             # Check if response has tool calls
             if not response.tool_calls:
                 # No tool calls → final text response → STOP
+
+                # Emit reasoning event if response has content (thinking process)
+                if callback_mgr and response.content:
+                    callback_mgr.emit(create_event(
+                        event_type=EventType.REASONING,
+                        iteration=iteration,
+                        data={"reasoning": response.content}
+                    ))
+
                 logger.info(f"Agent completed request in {iteration} ReAct cycles")
                 return {
                     "messages": messages,
@@ -167,6 +180,14 @@ def build_conversational_agent(
                     "done": True,  # Always done after giving final response
                     "iteration": iteration
                 }
+
+            # Has tool calls - emit reasoning if there's content before tool calls
+            if callback_mgr and response.content:
+                callback_mgr.emit(create_event(
+                    event_type=EventType.REASONING,
+                    iteration=iteration,
+                    data={"reasoning": response.content}
+                ))
 
             # Execute tool calls (Acting phase)
             for tool_call in response.tool_calls:

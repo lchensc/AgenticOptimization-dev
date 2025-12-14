@@ -162,14 +162,15 @@ class AgenticOptREPL:
         """Display welcome message."""
         welcome = Panel(
             Text.from_markup(
-                "[bold cyan]PAOLA[/bold cyan] - Platform for Agentic Optimization with Learning and Analysis\n"
-                "[dim]The optimization platform that learns from every run[/dim]\n\n"
-                "Version 0.1.0\n\n"
-                "Type your optimization goals in natural language.\n"
-                "Type '/help' for commands, '/exit' to quit."
+                "[bold cyan]PAOLA[/bold cyan] v0.1.0 - Agentic Optimization Platform\n\n"
+                "[dim]AI-powered optimization with conversational interface[/dim]\n\n"
+                "Commands: /help | /evals | /runs | /exit\n"
+                "Or just type your goal in natural language"
             ),
             border_style="cyan",
-            padding=(1, 2)
+            padding=(1, 2),
+            title="[bold cyan]Welcome[/bold cyan]",
+            title_align="left"
         )
         self.console.print()
         self.console.print(welcome)
@@ -339,11 +340,11 @@ class AgenticOptREPL:
                 self.console.print("[red]Usage: /register <file.py>[/red]")
             else:
                 self.command_handler.handle_register(cmd_parts[1])
-        elif cmd == '/evaluators':
+        elif cmd == '/evals':
             self.command_handler.handle_evaluators()
-        elif cmd == '/evaluator':
+        elif cmd == '/eval':
             if len(cmd_parts) < 2:
-                self.console.print("[red]Usage: /evaluator <evaluator_id>[/red]")
+                self.console.print("[red]Usage: /eval <evaluator_id>[/red]")
             else:
                 self.command_handler.handle_evaluator_show(cmd_parts[1])
         else:
@@ -364,8 +365,8 @@ class AgenticOptREPL:
 
 [bold]Evaluator Registration:[/bold]
   /register <file.py>        - Register an evaluator function
-  /evaluators                - List all registered evaluators
-  /evaluator <id>            - Show detailed evaluator configuration
+  /evals                     - List all registered evaluators
+  /eval <id>                 - Show detailed evaluator configuration
 
 [bold]Inspection Commands:[/bold]
   /runs                      - List all optimization runs
