@@ -304,6 +304,10 @@ def create_benchmark_problem(
     """
     Create and register a built-in analytical benchmark problem.
 
+    IMPORTANT: Only use this if no suitable evaluator is registered in Foundry.
+    Always check foundry_list_evaluators first and prefer create_nlp_problem
+    with registered evaluators.
+
     Available benchmark functions:
     - "rosenbrock": Classic Rosenbrock function with narrow curved valley
       Global minimum: f(1,1,...,1) = 0

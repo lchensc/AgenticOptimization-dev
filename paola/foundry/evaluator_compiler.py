@@ -157,19 +157,13 @@ class EvaluatorCompiler:
     def _extract_imports(self, tree: ast.AST) -> List[str]:
         """Extract all import statements from AST."""
         imports = []
-        for node in tree.body:  # Only look at top-level statements
+        for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    if alias.asname:
-                        imports.append(f"import {alias.name} as {alias.asname}")
-                    else:
-                        imports.append(f"import {alias.name}")
+                    imports.append(f"import {alias.name}")
             elif isinstance(node, ast.ImportFrom):
                 module = node.module or ""
-                names = ", ".join(
-                    f"{alias.name} as {alias.asname}" if alias.asname else alias.name
-                    for alias in node.names
-                )
+                names = ", ".join(alias.name for alias in node.names)
                 imports.append(f"from {module} import {names}")
         return imports
 

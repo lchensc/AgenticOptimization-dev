@@ -12,7 +12,7 @@ from langchain_core.messages import HumanMessage
 from ..agent.react_agent import build_optimization_agent
 from ..agent.conversational_agent import build_conversational_agent
 from ..tools.optimizer_tools import run_scipy_optimization
-from ..tools.evaluator_tools import create_benchmark_problem, create_nlp_problem
+from ..tools.evaluator_tools import create_nlp_problem
 from ..tools.observation_tools import analyze_convergence
 from ..tools.run_tools import start_optimization_run, finalize_optimization_run, get_active_runs, set_foundry
 from ..tools.analysis import analyze_convergence as analyze_convergence_new, analyze_efficiency, get_all_metrics, analyze_run_with_ai
@@ -78,34 +78,20 @@ class AgenticOptREPL:
         self.callback_manager = CallbackManager()
         self.callback_manager.register(CLICallback())  # Display events
 
-        # Import registration tools (deterministic)
+        # Import registration tools
         from ..tools.registration_tools import (
             read_file,
+            write_file,
             execute_python,
             foundry_store_evaluator,
             foundry_list_evaluators,
             foundry_get_evaluator
         )
 
-        # Import agentic registration tools (LLM-based)
-        from ..tools.agentic_registration import (
-            register_evaluator_agentic,
-            auto_generate_variable_extractor,
-            set_foundry as set_agentic_foundry
-        )
-
-        # Import smart NLP creation
-        from ..tools.smart_nlp_creation import create_nlp_problem_smart
-
-        # Set foundry for agentic tools
-        set_agentic_foundry(self.foundry)
-
         # Tools - agent explicitly manages runs
         self.tools = [
             # Problem formulation
-            create_benchmark_problem,
-            create_nlp_problem,  # Traditional NLP creation
-            create_nlp_problem_smart,  # Smart NLP with auto-extractors
+            create_nlp_problem,  # NLP problems from registered evaluators
 
             # Run management
             start_optimization_run,
@@ -128,16 +114,13 @@ class AgenticOptREPL:
             retrieve_optimization_knowledge,
             list_all_knowledge,
 
-            # Evaluator registration (deterministic - fast)
+            # Evaluator registration
             read_file,
+            write_file,
             execute_python,
             foundry_store_evaluator,
             foundry_list_evaluators,
             foundry_get_evaluator,
-
-            # Evaluator registration (agentic - smart)
-            register_evaluator_agentic,
-            auto_generate_variable_extractor,
         ]
 
         # Running state
@@ -358,6 +341,13 @@ class AgenticOptREPL:
                 self.console.print("[red]Usage: /register <file.py>[/red]")
             else:
                 self.command_handler.handle_register(cmd_parts[1])
+        elif cmd == '/register_eval':
+            if len(cmd_parts) < 2:
+                self.console.print("[red]Usage: /register_eval <file.py>[/red]")
+            else:
+                # Agent-driven registration - send as natural language task
+                task = f"Register all evaluator functions from {cmd_parts[1]} as standalone evaluators in .paola_data/evaluators/. Each evaluator file must work independently (include all dependencies), provide a standard evaluate(x) interface, and be testable by running the file directly."
+                self._process_with_agent(task)
         elif cmd == '/evals':
             self.command_handler.handle_evaluators()
         elif cmd == '/eval':
@@ -382,7 +372,8 @@ class AgenticOptREPL:
   - "analyze the convergence behavior"
 
 [bold]Evaluator Registration:[/bold]
-  /register <file.py>        - Register an evaluator function
+  /register <file.py>        - Register an evaluator function (manual/interactive)
+  /register_eval <file.py>   - Register evaluators using AI agent (recommended)
   /evals                     - List all registered evaluators
   /eval <id>                 - Show detailed evaluator configuration
 

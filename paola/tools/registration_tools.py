@@ -42,6 +42,40 @@ def read_file(file_path: str) -> Dict[str, Any]:
 
 
 @tool
+def write_file(file_path: str, content: str) -> Dict[str, Any]:
+    """
+    Write content to file.
+
+    Args:
+        file_path: Path to file
+        content: Content to write
+
+    Returns:
+        {"success": True, "file_path": "...", "bytes_written": ...}
+        {"success": False, "error": "..."}
+    """
+    try:
+        # Create parent directories if needed
+        Path(file_path).parent.mkdir(parents=True, exist_ok=True)
+
+        # Write file
+        with open(file_path, 'w') as f:
+            bytes_written = f.write(content)
+
+        return {
+            "success": True,
+            "file_path": file_path,
+            "bytes_written": bytes_written
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+@tool
 def execute_python(code: str, timeout: int = 30) -> Dict[str, Any]:
     """
     Execute Python code in subprocess.
@@ -97,49 +131,89 @@ def execute_python(code: str, timeout: int = 30) -> Dict[str, Any]:
 
 @tool
 def foundry_store_evaluator(
-    config: Dict[str, Any],
-    test_result: Dict[str, Any] = {"success": True}
+    evaluator_id: str,
+    name: str,
+    file_path: str,
+    callable_name: str = "evaluate",
+    description: str = None
 ) -> Dict[str, Any]:
     """
-    Store evaluator configuration in Foundry.
+    Register Python function evaluator in Foundry.
+
+    This stores metadata about your evaluator so it can be used in optimization problems.
+    The evaluator file must exist and contain the specified callable.
 
     Args:
-        config: Evaluator configuration dict
-        test_result: Result from testing (for validation)
+        evaluator_id: Unique ID (e.g., "rosenbrock_eval")
+        name: Human-readable name (e.g., "Rosenbrock 2D Function")
+        file_path: Absolute path to .py file (e.g., ".paola_data/evaluators/rosenbrock.py")
+        callable_name: Function name to call (default: "evaluate")
+        description: Optional description of what this evaluator does
 
     Returns:
-        {"success": True, "evaluator_id": "..."}
+        {"success": True, "evaluator_id": "...", "message": "..."}
         {"success": False, "error": "..."}
+
+    Example:
+        foundry_store_evaluator(
+            evaluator_id="rosenbrock_eval",
+            name="Rosenbrock 2D",
+            file_path=".paola_data/evaluators/rosenbrock.py",
+            callable_name="evaluate",
+            description="2D Rosenbrock function with minimum at (1, 1)"
+        )
     """
     try:
         from paola.foundry import (
             OptimizationFoundry,
             FileStorage,
-            EvaluatorConfig
+            create_python_function_config
+        )
+        from datetime import datetime
+
+        # Validate file exists
+        from pathlib import Path
+        if not Path(file_path).exists():
+            return {
+                "success": False,
+                "error": f"File not found: {file_path}"
+            }
+
+        # Create configuration using convenience function
+        config = create_python_function_config(
+            evaluator_id=evaluator_id,
+            name=name,
+            file_path=file_path,
+            callable_name=callable_name,
+            metadata={
+                "description": description or name,
+                "tags": [],
+                "domain": "optimization"
+            },
+            lineage={
+                "registered_at": datetime.now(),
+                "registered_by": "agent"
+            }
         )
 
-        # Create config from dict
-        evaluator_config = EvaluatorConfig.from_dict(config)
-
         # Get or create foundry instance
-        # In production, this would be passed in or retrieved from context
-        # For now, use default storage
         storage = FileStorage(base_dir=".paola_data")
         foundry = OptimizationFoundry(storage=storage)
 
         # Store evaluator
-        evaluator_id = foundry.register_evaluator(evaluator_config)
+        stored_id = foundry.register_evaluator(config)
 
         return {
             "success": True,
-            "evaluator_id": evaluator_id,
-            "message": f"Registered evaluator '{evaluator_config.name}' (ID: {evaluator_id})"
+            "evaluator_id": stored_id,
+            "message": f"Registered evaluator '{name}' (ID: {stored_id})"
         }
 
     except Exception as e:
+        import traceback
         return {
             "success": False,
-            "error": str(e)
+            "error": f"{str(e)}\n{traceback.format_exc()}"
         }
 
 

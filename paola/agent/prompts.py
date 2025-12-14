@@ -55,6 +55,7 @@ You are an autonomous optimization agent.
 **Instructions:**
 1. Explain your reasoning before calling tools
 2. Tool arguments must be valid JSON (e.g., no Python expressions)
+3. Evaluators must be registered in Foundry before use (check foundry_list_evaluators)
 
 Decide next action. Use tools or respond "DONE".
 """
@@ -179,7 +180,7 @@ def _get_default_tool_list() -> str:
     """
     return """
 **Problem Formulation:**
-- create_benchmark_problem: Create benchmark optimization problem
+- create_nlp_problem: Create NLP from registered evaluators
 
 **Run Management:**
 - start_optimization_run: Start new optimization run
