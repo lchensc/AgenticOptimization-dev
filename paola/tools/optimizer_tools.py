@@ -563,6 +563,16 @@ def run_scipy_optimization(
         # Set up scipy bounds
         scipy_bounds = [(lb, ub) for lb, ub in zip(lower_bounds, upper_bounds)]
 
+        # Extract constraints if problem has them (NLPEvaluator)
+        scipy_constraints = None
+        if hasattr(problem, "get_scipy_constraints"):
+            scipy_constraints = problem.get_scipy_constraints()
+            if scipy_constraints:
+                # Log constraint info
+                n_ineq = sum(1 for c in scipy_constraints if c["type"] == "ineq")
+                n_eq = sum(1 for c in scipy_constraints if c["type"] == "eq")
+                print(f"Applying {n_ineq} inequality and {n_eq} equality constraints")
+
         # Run optimization
         import time
         start_time = time.time()
@@ -574,6 +584,7 @@ def run_scipy_optimization(
                 method=algorithm,
                 jac=gradient_with_count,
                 bounds=scipy_bounds,
+                constraints=scipy_constraints,
                 options=options_dict,
             )
         else:
@@ -582,6 +593,7 @@ def run_scipy_optimization(
                 x0=x0,
                 method=algorithm,
                 bounds=scipy_bounds,
+                constraints=scipy_constraints,
                 options=options_dict,
             )
 

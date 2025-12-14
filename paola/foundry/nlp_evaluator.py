@@ -202,6 +202,21 @@ class NLPEvaluator:
 
         return scipy_constraints
 
+    def gradient(self, x: np.ndarray) -> np.ndarray:
+        """
+        Compute objective gradient (scipy-compatible interface).
+
+        This method provides a simple interface compatible with scipy.optimize.minimize.
+        Uses finite difference by default for robustness.
+
+        Args:
+            x: Design point
+
+        Returns:
+            Gradient vector (same shape as x)
+        """
+        return self.get_gradient(x, method="finite_difference")
+
     def get_gradient(self, x: np.ndarray, method: str = "finite_difference") -> np.ndarray:
         """
         Compute objective gradient.
