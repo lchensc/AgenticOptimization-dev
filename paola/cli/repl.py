@@ -78,7 +78,7 @@ class AgenticOptREPL:
         self.callback_manager = CallbackManager()
         self.callback_manager.register(CLICallback())  # Display events
 
-        # Import registration tools
+        # Import registration tools (deterministic)
         from ..tools.registration_tools import (
             read_file,
             execute_python,
@@ -87,11 +87,25 @@ class AgenticOptREPL:
             foundry_get_evaluator
         )
 
+        # Import agentic registration tools (LLM-based)
+        from ..tools.agentic_registration import (
+            register_evaluator_agentic,
+            auto_generate_variable_extractor,
+            set_foundry as set_agentic_foundry
+        )
+
+        # Import smart NLP creation
+        from ..tools.smart_nlp_creation import create_nlp_problem_smart
+
+        # Set foundry for agentic tools
+        set_agentic_foundry(self.foundry)
+
         # Tools - agent explicitly manages runs
         self.tools = [
             # Problem formulation
             create_benchmark_problem,
-            create_nlp_problem,  # NLP problems from registered evaluators
+            create_nlp_problem,  # Traditional NLP creation
+            create_nlp_problem_smart,  # Smart NLP with auto-extractors
 
             # Run management
             start_optimization_run,
@@ -114,12 +128,16 @@ class AgenticOptREPL:
             retrieve_optimization_knowledge,
             list_all_knowledge,
 
-            # Evaluator registration
+            # Evaluator registration (deterministic - fast)
             read_file,
             execute_python,
             foundry_store_evaluator,
             foundry_list_evaluators,
             foundry_get_evaluator,
+
+            # Evaluator registration (agentic - smart)
+            register_evaluator_agentic,
+            auto_generate_variable_extractor,
         ]
 
         # Running state
