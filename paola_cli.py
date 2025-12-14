@@ -10,14 +10,24 @@ load_dotenv()
 
 def main():
     """Main entry point."""
-    # Parse command line args for model selection
+    # Parse command line args
     llm_model = "qwen-flash"  # Default to cheap model
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "--model" and len(sys.argv) > 2:
-            llm_model = sys.argv[2]
+    agent_type = "conversational"  # Default agent type
+
+    args = sys.argv[1:]
+    i = 0
+    while i < len(args):
+        if args[i] == "--model" and i + 1 < len(args):
+            llm_model = args[i + 1]
+            i += 2
+        elif args[i] == "--react":
+            agent_type = "react"
+            i += 1
+        else:
+            i += 1
 
     # Create and run REPL
-    repl = AgenticOptREPL(llm_model=llm_model)
+    repl = AgenticOptREPL(llm_model=llm_model, agent_type=agent_type)
     try:
         repl.run()
     except Exception as e:

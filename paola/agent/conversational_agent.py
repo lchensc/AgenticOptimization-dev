@@ -31,14 +31,16 @@ class ConversationalAgentExecutor:
     the LangGraph-based ReAct agent (which has .invoke() method).
     """
 
-    def __init__(self, agent_func):
+    def __init__(self, agent_func, llm_model: str = ""):
         """
         Initialize executor.
 
         Args:
             agent_func: The conversational agent function
+            llm_model: Model name (used for callback compatibility detection)
         """
         self.agent_func = agent_func
+        self.llm_model = llm_model
 
     def invoke(self, state: dict, config: dict = None) -> dict:
         """
@@ -51,7 +53,16 @@ class ConversationalAgentExecutor:
         Returns:
             Updated state dict
         """
+        # Determine if callbacks should be passed to LLM
+        # Qwen models have issues with callbacks during tool calling
+        is_qwen = any(m in self.llm_model.lower() for m in ["qwen", "qwq"])
+
         # Pass config through to agent function for token tracking
+        # Include model info so agent can decide on callback passing
+        if config is None:
+            config = {}
+        config["_skip_llm_callbacks"] = is_qwen
+
         return self.agent_func(state, config)
 
 
@@ -112,8 +123,12 @@ def build_conversational_agent(
         context = state.get("context", {})
         callback_mgr = state.get("callback_manager", callback_manager)
 
-        # Extract token tracking callbacks from config
-        llm_callbacks = config.get("callbacks", []) if config else []
+        # Extract LLM callbacks from config (for token tracking)
+        # Skip for Qwen models as callbacks interfere with tool calling
+        skip_llm_callbacks = config.get("_skip_llm_callbacks", False) if config else False
+        llm_callbacks = None
+        if not skip_llm_callbacks and config:
+            llm_callbacks = config.get("callbacks", [])
 
         # Count how many messages are already in history to detect first call
         # First call: just user message. Subsequent: user + AI + tools + ...
@@ -122,11 +137,11 @@ def build_conversational_agent(
 
         # Build prompt with context (only on first invocation for this user message)
         if is_first_invocation:
+            # Update context with user's goal
+            context["goal"] = messages[-1].content if messages else "Not set"
             prompt = build_optimization_prompt(context, tools)
-            # Get the last user message (the new request)
-            last_user_msg = messages[-1].content if messages else ""
-            # Replace with system context + user message
-            messages[-1] = HumanMessage(content=f"{prompt}\n\nUser request: {last_user_msg}")
+            # Replace user message with full prompt (same format as ReAct agent)
+            messages[-1] = HumanMessage(content=prompt)
 
         # ReAct cycles: keep processing until we get a final text response
         max_iterations = 15  # Safety limit
@@ -145,8 +160,12 @@ def build_conversational_agent(
 
             # LLM responds (Reasoning + Action decision)
             try:
-                # Pass token tracking callbacks to LLM
-                response = llm_with_tools.invoke(messages, config={"callbacks": llm_callbacks})
+                # Invoke LLM with optional callbacks for token tracking
+                # (callbacks skipped for Qwen models as they interfere with tool calling)
+                if llm_callbacks:
+                    response = llm_with_tools.invoke(messages, config={"callbacks": llm_callbacks})
+                else:
+                    response = llm_with_tools.invoke(messages)
             except Exception as e:
                 logger.error(f"LLM invocation failed: {e}")
                 # Return error message
@@ -158,28 +177,38 @@ def build_conversational_agent(
                     "iteration": iteration
                 }
 
-            # Add AI response to messages
-            messages.append(response)
-
             # Check if response has tool calls
             if not response.tool_calls:
-                # No tool calls → final text response → STOP
+                # Check if this is a real completion (has content) or empty response (abnormal)
+                # Handle both string and list content formats (Claude may return list of blocks)
+                content = response.content
+                if isinstance(content, list):
+                    content = ' '.join(
+                        block.get('text', '') if isinstance(block, dict) else str(block)
+                        for block in content
+                    )
+                has_content = content and content.strip() if isinstance(content, str) else bool(content)
 
-                # Emit reasoning event if response has content (thinking process)
-                if callback_mgr and response.content:
-                    callback_mgr.emit(create_event(
-                        event_type=EventType.REASONING,
-                        iteration=iteration,
-                        data={"reasoning": response.content}
-                    ))
+                if has_content:
+                    # Has content but no tool calls → final text response → STOP
+                    messages.append(response)
+                    # Don't emit REASONING here - REPL will display the final response
+                    logger.info(f"Agent completed request in {iteration} ReAct cycles")
+                    return {
+                        "messages": messages,
+                        "context": context,
+                        "done": True,
+                        "iteration": iteration
+                    }
+                else:
+                    # Empty response (no content, no tool_calls) - abnormal
+                    # Don't add to history, add continuation prompt and retry
+                    logger.warning(f"Empty response from LLM, adding continuation prompt")
+                    messages.append(HumanMessage(content="Continue with the task. Use tools to make progress."))
+                    continue  # Retry
 
-                logger.info(f"Agent completed request in {iteration} ReAct cycles")
-                return {
-                    "messages": messages,
-                    "context": context,
-                    "done": True,  # Always done after giving final response
-                    "iteration": iteration
-                }
+            # Has tool calls - add response to messages
+            messages.append(response)
 
             # Has tool calls - emit reasoning if there's content before tool calls
             if callback_mgr and response.content:
@@ -230,6 +259,11 @@ def build_conversational_agent(
                         data={"tool_name": tool_name, "result": tool_result, "success": success}
                     ))
 
+            # Add continuation prompt after tool execution (like ReAct agent)
+            # This is crucial - tells the LLM to continue working
+            prompt = build_optimization_prompt(context, tools)
+            messages.append(HumanMessage(content=f"Continue. Current status:\n{prompt}"))
+
             # Continue loop - LLM will reason about tool results (next ReAct cycle)
 
         # Safety: max iterations reached
@@ -245,7 +279,7 @@ def build_conversational_agent(
             "iteration": iteration
         }
 
-    return ConversationalAgentExecutor(invoke_agent)
+    return ConversationalAgentExecutor(invoke_agent, llm_model=llm_model)
 
 
 def execute_tool(tools: list, tool_call: dict) -> Any:

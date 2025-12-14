@@ -414,10 +414,13 @@ class AgenticOptREPL:
     def _select_model(self):
         """Interactive model selection."""
         available_models = [
-            ("qwen-flash", "Fast, cheap, good for testing"),
-            ("qwen-plus", "Balanced performance and cost"),
-            ("qwen-max", "Most capable, higher cost"),
-            ("qwen-turbo", "Fast with good quality"),
+            ("qwen-flash", "Qwen Flash - cheapest ($0.05/$0.40)"),
+            ("qwen-turbo", "Qwen Turbo - fast ($0.30/$0.60)"),
+            ("qwen-plus", "Qwen Plus - balanced ($0.40/$1.20)"),
+            ("qwen-max", "Qwen Max - most capable ($20/$60)"),
+            ("claude-3-haiku-20240307", "Claude 3 Haiku - cheapest ($0.25/$1.25)"),
+            ("claude-3-5-haiku-latest", "Claude 3.5 Haiku - fast ($0.80/$4.00)"),
+            ("claude-sonnet-4-20250514", "Claude Sonnet 4 - balanced ($3/$15)"),
         ]
 
         self.console.print("\n[bold cyan]Available LLM Models:[/bold cyan]\n")

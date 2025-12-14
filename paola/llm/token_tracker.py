@@ -107,8 +107,44 @@ MODEL_CONFIGS = {
         "cost_cache_read": 0.10,
         "api_key_env": "ANTHROPIC_API_KEY"
     },
+    "claude-3-5-haiku-latest": {
+        "full_name": "claude-3-5-haiku-latest",
+        "provider": "anthropic",
+        "cost_input": 0.80,   # $0.80 per 1M tokens
+        "cost_output": 4.0,   # $4.00 per 1M tokens
+        "cost_cache_write": 1.0,
+        "cost_cache_read": 0.08,
+        "api_key_env": "ANTHROPIC_API_KEY"
+    },
+    "claude-3-5-haiku-20241022": {
+        "full_name": "claude-3-5-haiku-20241022",
+        "provider": "anthropic",
+        "cost_input": 0.80,   # $0.80 per 1M tokens
+        "cost_output": 4.0,   # $4.00 per 1M tokens
+        "cost_cache_write": 1.0,
+        "cost_cache_read": 0.08,
+        "api_key_env": "ANTHROPIC_API_KEY"
+    },
+    "claude-3-haiku-20240307": {
+        "full_name": "claude-3-haiku-20240307",
+        "provider": "anthropic",
+        "cost_input": 0.25,   # $0.25 per 1M tokens
+        "cost_output": 1.25,  # $1.25 per 1M tokens
+        "cost_cache_write": 0.30,
+        "cost_cache_read": 0.03,
+        "api_key_env": "ANTHROPIC_API_KEY"
+    },
     "claude-3-5-sonnet-20241022": {
         "full_name": "claude-3-5-sonnet-20241022",
+        "provider": "anthropic",
+        "cost_input": 3.0,
+        "cost_output": 15.0,
+        "cost_cache_write": 3.75,
+        "cost_cache_read": 0.3,
+        "api_key_env": "ANTHROPIC_API_KEY"
+    },
+    "claude-sonnet-4-20250514": {
+        "full_name": "claude-sonnet-4-20250514",
         "provider": "anthropic",
         "cost_input": 3.0,
         "cost_output": 15.0,
