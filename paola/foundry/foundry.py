@@ -13,6 +13,8 @@ from datetime import datetime
 from .storage import StorageBackend
 from .run import Run, RunRecord
 from .problem import Problem
+from .evaluator_storage import EvaluatorStorage
+from .evaluator_schema import EvaluatorConfig
 
 
 class OptimizationFoundry:
@@ -62,6 +64,9 @@ class OptimizationFoundry:
         """
         self.storage = storage
         self._active_runs: Dict[int, Run] = {}
+
+        # Initialize evaluator storage
+        self.evaluator_storage = EvaluatorStorage(storage)
 
     # ===== Run Lifecycle Management =====
 
@@ -259,6 +264,107 @@ class OptimizationFoundry:
             Problem or None if not found
         """
         return self.storage.load_problem(problem_id)
+
+    # ===== Evaluator Management =====
+
+    def register_evaluator(self, config: EvaluatorConfig) -> str:
+        """
+        Register evaluator in Foundry.
+
+        Args:
+            config: EvaluatorConfig to register
+
+        Returns:
+            evaluator_id
+        """
+        return self.evaluator_storage.store_evaluator(config)
+
+    def get_evaluator_config(self, evaluator_id: str) -> Dict:
+        """
+        Get evaluator configuration.
+
+        Args:
+            evaluator_id: Evaluator ID
+
+        Returns:
+            Configuration dict (for FoundryEvaluator)
+        """
+        config = self.evaluator_storage.retrieve_evaluator(evaluator_id)
+        return config.dict()
+
+    def list_evaluators(
+        self,
+        evaluator_type: Optional[str] = None,
+        status: Optional[str] = None,
+        domain: Optional[str] = None
+    ) -> List[EvaluatorConfig]:
+        """
+        List registered evaluators with optional filters.
+
+        Args:
+            evaluator_type: Filter by type (python_function, cli_executable)
+            status: Filter by status (registered, validated, active)
+            domain: Filter by domain
+
+        Returns:
+            List of EvaluatorConfig
+        """
+        return self.evaluator_storage.list_evaluators(
+            evaluator_type=evaluator_type,
+            status=status,
+            domain=domain
+        )
+
+    def update_evaluator_performance(
+        self,
+        evaluator_id: str,
+        execution_time: float,
+        success: bool
+    ):
+        """
+        Update evaluator performance metrics.
+
+        Called by FoundryEvaluator after each evaluation.
+
+        Args:
+            evaluator_id: Evaluator ID
+            execution_time: Time taken (seconds)
+            success: Whether evaluation succeeded
+        """
+        self.evaluator_storage.update_performance(
+            evaluator_id=evaluator_id,
+            execution_time=execution_time,
+            success=success
+        )
+
+    def link_evaluator_to_run(self, evaluator_id: str, run_id: str):
+        """
+        Link evaluator to optimization run.
+
+        Args:
+            evaluator_id: Evaluator ID
+            run_id: Run ID
+        """
+        self.evaluator_storage.add_run_reference(evaluator_id, str(run_id))
+
+    def link_evaluator_to_problem(self, evaluator_id: str, problem_id: str):
+        """
+        Link evaluator to problem.
+
+        Args:
+            evaluator_id: Evaluator ID
+            problem_id: Problem ID
+        """
+        self.evaluator_storage.add_problem_reference(evaluator_id, problem_id)
+
+    def get_evaluator_statistics(self) -> Dict:
+        """
+        Get evaluator storage statistics.
+
+        Returns:
+            Dict with statistics
+        """
+        return self.evaluator_storage.get_statistics()
 
     # ===== Utilities =====
 

@@ -10,8 +10,9 @@ from rich.text import Text
 from langchain_core.messages import HumanMessage
 
 from ..agent.react_agent import build_optimization_agent
+from ..agent.conversational_agent import build_conversational_agent
 from ..tools.optimizer_tools import run_scipy_optimization
-from ..tools.evaluator_tools import create_benchmark_problem
+from ..tools.evaluator_tools import create_benchmark_problem, create_nlp_problem
 from ..tools.observation_tools import analyze_convergence
 from ..tools.run_tools import start_optimization_run, finalize_optimization_run, get_active_runs, set_foundry
 from ..tools.analysis import analyze_convergence as analyze_convergence_new, analyze_efficiency, get_all_metrics, analyze_run_with_ai
@@ -30,13 +31,19 @@ class AgenticOptREPL:
     Provides a Claude Code-style conversational interface for optimization.
     """
 
-    def __init__(self, llm_model: str = "qwen-flash", storage: StorageBackend = None):
+    def __init__(
+        self,
+        llm_model: str = "qwen-flash",
+        storage: StorageBackend = None,
+        agent_type: str = "conversational"
+    ):
         """
         Initialize REPL.
 
         Args:
             llm_model: LLM model to use (default: qwen-flash for cost)
             storage: Storage backend (default: FileStorage)
+            agent_type: Agent type - "conversational" (default, like Claude Code) or "react" (autonomous)
         """
         self.console = Console()
         self.session = PromptSession(
@@ -59,6 +66,7 @@ class AgenticOptREPL:
 
         # Agent state
         self.llm_model = llm_model
+        self.agent_type = agent_type
         self.agent = None
         self.conversation_history = []
 
@@ -70,10 +78,20 @@ class AgenticOptREPL:
         self.callback_manager = CallbackManager()
         self.callback_manager.register(CLICallback())  # Display events
 
+        # Import registration tools
+        from ..tools.registration_tools import (
+            read_file,
+            execute_python,
+            foundry_store_evaluator,
+            foundry_list_evaluators,
+            foundry_get_evaluator
+        )
+
         # Tools - agent explicitly manages runs
         self.tools = [
             # Problem formulation
             create_benchmark_problem,
+            create_nlp_problem,  # NLP problems from registered evaluators
 
             # Run management
             start_optimization_run,
@@ -95,6 +113,13 @@ class AgenticOptREPL:
             store_optimization_insight,
             retrieve_optimization_knowledge,
             list_all_knowledge,
+
+            # Evaluator registration
+            read_file,
+            execute_python,
+            foundry_store_evaluator,
+            foundry_list_evaluators,
+            foundry_get_evaluator,
         ]
 
         # Running state
@@ -160,14 +185,22 @@ class AgenticOptREPL:
         """Initialize the optimization agent."""
         self.console.print("[dim]Initializing agent...[/dim]")
 
-        self.agent = build_optimization_agent(
-            tools=self.tools,
-            llm_model=self.llm_model,
-            callback_manager=self.callback_manager,
-            temperature=0.0
-        )
+        if self.agent_type == "conversational":
+            self.agent = build_conversational_agent(
+                tools=self.tools,
+                llm_model=self.llm_model,
+                callback_manager=self.callback_manager,
+                temperature=0.0
+            )
+        else:  # "react"
+            self.agent = build_optimization_agent(
+                tools=self.tools,
+                llm_model=self.llm_model,
+                callback_manager=self.callback_manager,
+                temperature=0.0
+            )
 
-        self.console.print("[dim]✓ Agent ready![/dim]\n")
+        self.console.print(f"[dim]✓ Agent ready! (type: {self.agent_type})[/dim]\n")
 
     def _process_with_agent(self, user_input: str):
         """
@@ -301,6 +334,18 @@ class AgenticOptREPL:
                 self.console.print("[red]Usage: /knowledge OR /knowledge show <id>[/red]")
         elif cmd == '/tokens':
             self._show_token_stats()
+        elif cmd == '/register':
+            if len(cmd_parts) < 2:
+                self.console.print("[red]Usage: /register <file.py>[/red]")
+            else:
+                self.command_handler.handle_register(cmd_parts[1])
+        elif cmd == '/evaluators':
+            self.command_handler.handle_evaluators()
+        elif cmd == '/evaluator':
+            if len(cmd_parts) < 2:
+                self.console.print("[red]Usage: /evaluator <evaluator_id>[/red]")
+            else:
+                self.command_handler.handle_evaluator_show(cmd_parts[1])
         else:
             self.console.print(f"Unknown command: {cmd}. Type /help for available commands.", style="yellow")
 
@@ -316,6 +361,11 @@ class AgenticOptREPL:
   - "optimize a 10D Rosenbrock problem"
   - "compare SLSQP and BFGS on this problem"
   - "analyze the convergence behavior"
+
+[bold]Evaluator Registration:[/bold]
+  /register <file.py>        - Register an evaluator function
+  /evaluators                - List all registered evaluators
+  /evaluator <id>            - Show detailed evaluator configuration
 
 [bold]Inspection Commands:[/bold]
   /runs                      - List all optimization runs

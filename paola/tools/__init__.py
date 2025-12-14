@@ -61,6 +61,15 @@ from paola.tools.observation_tools import (
     compute_improvement_statistics,
 )
 
+from paola.tools.registration_tools import (
+    read_file,
+    execute_python,
+    foundry_store_evaluator,
+    foundry_list_evaluators,
+    foundry_get_evaluator,
+    ALL_REGISTRATION_TOOLS,
+)
+
 __all__ = [
     # Cache tools
     "cache_get",
@@ -99,4 +108,11 @@ __all__ = [
     "check_feasibility",
     "get_gradient_quality",
     "compute_improvement_statistics",
+    # Registration tools
+    "read_file",
+    "execute_python",
+    "foundry_store_evaluator",
+    "foundry_list_evaluators",
+    "foundry_get_evaluator",
+    "ALL_REGISTRATION_TOOLS",
 ]

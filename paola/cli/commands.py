@@ -559,3 +559,215 @@ Iteration"""
         self.console.print("[dim]This command will show detailed insight when implemented[/dim]")
         self.console.print()
 
+    def handle_register(self, file_path: str):
+        """
+        Register an evaluator function.
+
+        Interactive registration flow using agent.
+
+        Args:
+            file_path: Path to Python file containing evaluator
+        """
+        from pathlib import Path
+
+        # Validate file exists
+        path = Path(file_path)
+        if not path.exists():
+            self.console.print(f"\n[red]Error: File not found: {file_path}[/red]\n")
+            return
+
+        if not path.suffix == '.py':
+            self.console.print(f"\n[red]Error: File must be a Python file (.py)[/red]\n")
+            return
+
+        self.console.print(f"\n[cyan]Registering evaluator from:[/cyan] {file_path}")
+        self.console.print("[dim]Reading file...[/dim]")
+
+        # Import registration tools
+        from ..tools.registration_tools import (
+            read_file,
+            execute_python,
+            foundry_store_evaluator
+        )
+
+        # Read file
+        result = read_file.func(file_path=str(path))
+
+        if not result["success"]:
+            self.console.print(f"\n[red]Error reading file: {result['error']}[/red]\n")
+            return
+
+        # Display file contents
+        self.console.print("\n[bold]File contents:[/bold]")
+        self.console.print(Panel(result["contents"], border_style="dim", padding=(1, 2)))
+
+        # Interactive questions
+        self.console.print("\n[cyan]Please provide the following information:[/cyan]\n")
+
+        function_name = input("  Function name: ").strip()
+        if not function_name:
+            self.console.print("[red]Function name is required[/red]")
+            return
+
+        evaluator_name = input("  Evaluator name (default: same as function): ").strip()
+        if not evaluator_name:
+            evaluator_name = function_name
+
+        evaluator_id = input(f"  Evaluator ID (default: {evaluator_name}_eval): ").strip()
+        if not evaluator_id:
+            evaluator_id = f"{evaluator_name}_eval"
+
+        # Build configuration
+        config = {
+            "evaluator_id": evaluator_id,
+            "name": evaluator_name,
+            "source": {
+                "type": "python_function",
+                "file_path": str(path.absolute()),
+                "callable_name": function_name
+            },
+            "interface": {
+                "output": {"format": "auto"}
+            },
+            "capabilities": {
+                "observation_gates": True,
+                "caching": True
+            },
+            "performance": {
+                "cost_per_eval": 1.0
+            }
+        }
+
+        # Test configuration
+        self.console.print("\n[dim]Testing configuration...[/dim]")
+
+        test_code = f"""
+from paola.foundry import FoundryEvaluator
+import numpy as np
+
+config = {config}
+evaluator = FoundryEvaluator.from_config(config)
+result = evaluator.evaluate(np.array([1.0, 1.0]))
+print(f"Test result: {{result.objectives}}")
+print("SUCCESS")
+"""
+
+        test_result = execute_python.func(code=test_code, timeout=10)
+
+        if not test_result["success"]:
+            self.console.print(f"\n[red]Configuration test failed:[/red]")
+            self.console.print(f"[dim]stdout:[/dim] {test_result.get('stdout', '')}")
+            self.console.print(f"[red]stderr:[/red] {test_result.get('stderr', '')}")
+            self.console.print("\n[yellow]Registration aborted[/yellow]\n")
+            return
+
+        if "SUCCESS" not in test_result["stdout"]:
+            self.console.print(f"\n[yellow]Warning: Test did not complete successfully[/yellow]")
+            self.console.print(f"[dim]Output:[/dim] {test_result['stdout']}")
+            confirm = input("Continue with registration anyway? (y/n): ").strip().lower()
+            if confirm not in ['y', 'yes']:
+                self.console.print("[dim]Registration cancelled[/dim]\n")
+                return
+
+        # Store in Foundry
+        self.console.print("[dim]Storing in Foundry...[/dim]")
+
+        store_result = foundry_store_evaluator.func(
+            config=config,
+            test_result=test_result
+        )
+
+        if not store_result["success"]:
+            self.console.print(f"\n[red]Failed to store evaluator: {store_result['error']}[/red]\n")
+            return
+
+        # Success
+        info = f"""[bold green]✓ Evaluator Registered Successfully[/bold green]
+
+[cyan]Evaluator ID:[/cyan]  {store_result['evaluator_id']}
+[cyan]Name:[/cyan]          {config['name']}
+[cyan]Source:[/cyan]        {config['source']['file_path']}
+[cyan]Function:[/cyan]      {config['source']['callable_name']}
+
+[dim]You can now use this evaluator in optimizations[/dim]"""
+
+        self.console.print()
+        self.console.print(Panel(info, border_style="green", padding=(1, 2)))
+        self.console.print()
+
+    def handle_evaluators(self):
+        """List all registered evaluators."""
+        from ..tools.registration_tools import foundry_list_evaluators
+
+        result = foundry_list_evaluators.invoke({})
+
+        if not result["success"]:
+            self.console.print(f"\n[red]Error: {result['error']}[/red]\n")
+            return
+
+        evaluators = result["evaluators"]
+
+        if not evaluators:
+            self.console.print("\n[dim]No evaluators registered yet[/dim]\n")
+            self.console.print("[dim]Use /register <file.py> to register an evaluator[/dim]\n")
+            return
+
+        # Create table
+        table = Table(title="Registered Evaluators")
+        table.add_column("ID", style="cyan")
+        table.add_column("Name")
+        table.add_column("Type", style="yellow")
+        table.add_column("Status")
+
+        for ev in evaluators:
+            status_icon = "✓" if ev.get("status") == "active" else "●"
+            status_style = "green" if ev.get("status") == "active" else "yellow"
+
+            table.add_row(
+                ev["evaluator_id"],
+                ev["name"],
+                ev["type"],
+                f"[{status_style}]{status_icon}[/{status_style}]"
+            )
+
+        self.console.print()
+        self.console.print(table)
+        self.console.print()
+        self.console.print(f"[dim]Total: {result['count']} evaluators[/dim]")
+        self.console.print()
+
+    def handle_evaluator_show(self, evaluator_id: str):
+        """Show detailed evaluator configuration."""
+        from ..tools.registration_tools import foundry_get_evaluator
+
+        result = foundry_get_evaluator.invoke({"evaluator_id": evaluator_id})
+
+        if not result["success"]:
+            self.console.print(f"\n[red]Error: {result['error']}[/red]\n")
+            return
+
+        config = result["config"]
+
+        # Build info panel
+        info = f"""[bold cyan]Evaluator: {config['name']}[/bold cyan]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[cyan]ID:[/cyan]           {config['evaluator_id']}
+[cyan]Status:[/cyan]       {config.get('status', 'unknown')}
+[cyan]Type:[/cyan]         {config['source']['type']}
+[cyan]Source:[/cyan]       {config['source']['file_path']}
+[cyan]Function:[/cyan]     {config['source']['callable_name']}
+
+[bold]Capabilities:[/bold]
+  • Observation gates: {config.get('capabilities', {}).get('observation_gates', False)}
+  • Caching: {config.get('capabilities', {}).get('caching', False)}
+
+[bold]Performance:[/bold]
+  • Cost per eval: {config.get('performance', {}).get('cost_per_eval', 'N/A')}
+  • Total evaluations: {config.get('performance', {}).get('total_evaluations', 0)}
+  • Success rate: {config.get('performance', {}).get('success_rate', 'N/A')}"""
+
+        self.console.print()
+        self.console.print(Panel(info, border_style="cyan", padding=(1, 2)))
+        self.console.print()
+

@@ -106,4 +106,5 @@ claude_tasks/
 
 # PAOLA CLI files
 .paola_runs/
+.paola_data/
 .paola_history

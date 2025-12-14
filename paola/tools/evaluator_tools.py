@@ -302,11 +302,7 @@ def create_benchmark_problem(
     dimension: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Create and register an analytical benchmark problem.
-
-    This tool allows the agent to autonomously create optimization test problems
-    from standard analytical benchmark functions. Once created, the problem can
-    be used with run_scipy_optimization, evaluate_function, etc.
+    Create and register a built-in analytical benchmark problem.
 
     Available benchmark functions:
     - "rosenbrock": Classic Rosenbrock function with narrow curved valley
@@ -396,3 +392,250 @@ def clear_problem_registry():
 def get_problem_by_id(problem_id: str) -> Optional[Any]:
     """Get problem instance by ID."""
     return _PROBLEM_REGISTRY.get(problem_id)
+
+
+@tool
+def create_nlp_problem(
+    problem_id: str,
+    objective_evaluator_id: str,
+    bounds: List[List[float]],
+    objective_sense: str = "minimize",
+    inequality_constraints: Optional[List[Dict[str, Any]]] = None,
+    equality_constraints: Optional[List[Dict[str, Any]]] = None,
+    initial_point: Optional[List[float]] = None,
+    description: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Create Nonlinear Programming (NLP) problem from registered Foundry evaluators.
+
+    NLP standard form:
+        minimize/maximize f(x)
+        subject to:
+          g_i(x) ≤ value  or  g_i(x) ≥ value  (inequality constraints)
+          h_j(x) = value                       (equality constraints)
+          x_lower ≤ x ≤ x_upper                (bounds)
+
+    This tool creates an NLP problem by composing registered evaluators from
+    Foundry. The agent can flexibly combine any evaluators as objective or
+    constraints, enabling dynamic problem formulation.
+
+    Args:
+        problem_id: Unique problem identifier (e.g., "wing_design_v1")
+        objective_evaluator_id: Evaluator ID for objective function f(x)
+                               (must be registered in Foundry)
+        bounds: Design variable bounds [[lower, upper], ...]
+               Example: [[0, 15], [0.1, 0.5]] for 2D problem
+        objective_sense: "minimize" or "maximize" (default: "minimize")
+        inequality_constraints: List of inequality constraint specifications:
+            [{
+                "name": "min_lift",
+                "evaluator_id": "lift_eval",
+                "type": ">=",           # ">=" or "<="
+                "value": 1000.0
+            }]
+        equality_constraints: List of equality constraint specifications:
+            [{
+                "name": "moment_balance",
+                "evaluator_id": "moment_eval",
+                "value": 0.0,
+                "tolerance": 1e-6       # Optional, default: 1e-6
+            }]
+        initial_point: Starting point for optimization (optional, random if not provided)
+        description: Human-readable problem description (optional)
+
+    Returns:
+        Dict with:
+            - success: bool
+            - problem_id: str
+            - problem_type: "NLP"
+            - dimension: int
+            - num_inequality_constraints: int
+            - num_equality_constraints: int
+            - evaluators_used: List[str]
+            - recommended_solvers: List[str]
+            - message: str
+
+    Examples:
+        # Unconstrained NLP
+        create_nlp_problem(
+            problem_id="rosenbrock_2d",
+            objective_evaluator_id="rosenbrock_eval",
+            bounds=[[-5, 10], [-5, 10]]
+        )
+
+        # Constrained NLP
+        create_nlp_problem(
+            problem_id="airfoil_design",
+            objective_evaluator_id="drag_eval",
+            bounds=[[0, 15], [0.1, 0.5]],
+            inequality_constraints=[
+                {"name": "min_lift", "evaluator_id": "lift_eval", "type": ">=", "value": 1000},
+                {"name": "max_stress", "evaluator_id": "stress_eval", "type": "<=", "value": 200}
+            ]
+        )
+
+    Note:
+        - Only supports continuous variables (NLP)
+        - For integer variables, use create_milp_problem (Phase 7+)
+        - For multi-objective, use create_moo_problem (Phase 7+)
+        - Agent can iteratively reformulate by creating new problems with adjusted constraints
+    """
+    try:
+        from paola.foundry import (
+            OptimizationFoundry,
+            FileStorage,
+            NLPProblem,
+            InequalityConstraint,
+            EqualityConstraint,
+            NLPEvaluator,
+            SolverSelector,
+            Problem
+        )
+        from datetime import datetime
+
+        # Check if problem_id already exists
+        if problem_id in _PROBLEM_REGISTRY:
+            return {
+                "success": False,
+                "problem_id": problem_id,
+                "message": f"Problem '{problem_id}' already registered. Use a different ID.",
+            }
+
+        # Get Foundry instance (use same storage as registration tools)
+        storage = FileStorage(base_dir=".paola_data")
+        foundry = OptimizationFoundry(storage=storage)
+
+        # Verify objective evaluator exists
+        try:
+            foundry.get_evaluator_config(objective_evaluator_id)
+        except KeyError:
+            available = foundry.list_evaluators()
+            return {
+                "success": False,
+                "message": (
+                    f"Objective evaluator '{objective_evaluator_id}' not found in Foundry.\n"
+                    f"Available evaluators: {[e['evaluator_id'] for e in available]}\n"
+                    f"Use foundry_list_evaluators to see all registered evaluators."
+                )
+            }
+
+        # Parse inequality constraints
+        ineq_constraints_objs = []
+        if inequality_constraints:
+            for cons_dict in inequality_constraints:
+                # Verify constraint evaluator exists
+                cons_eval_id = cons_dict["evaluator_id"]
+                try:
+                    foundry.get_evaluator_config(cons_eval_id)
+                except KeyError:
+                    return {
+                        "success": False,
+                        "message": f"Constraint evaluator '{cons_eval_id}' not found in Foundry."
+                    }
+
+                ineq_constraints_objs.append(InequalityConstraint(
+                    name=cons_dict["name"],
+                    evaluator_id=cons_dict["evaluator_id"],
+                    constraint_type=cons_dict["type"],
+                    value=float(cons_dict["value"])
+                ))
+
+        # Parse equality constraints
+        eq_constraints_objs = []
+        if equality_constraints:
+            for cons_dict in equality_constraints:
+                # Verify constraint evaluator exists
+                cons_eval_id = cons_dict["evaluator_id"]
+                try:
+                    foundry.get_evaluator_config(cons_eval_id)
+                except KeyError:
+                    return {
+                        "success": False,
+                        "message": f"Constraint evaluator '{cons_eval_id}' not found in Foundry."
+                    }
+
+                eq_constraints_objs.append(EqualityConstraint(
+                    name=cons_dict["name"],
+                    evaluator_id=cons_dict["evaluator_id"],
+                    value=float(cons_dict["value"]),
+                    tolerance=cons_dict.get("tolerance", 1e-6)
+                ))
+
+        # Infer dimension from bounds
+        dimension = len(bounds)
+
+        # Create NLPProblem specification
+        nlp_problem = NLPProblem(
+            problem_id=problem_id,
+            objective_evaluator_id=objective_evaluator_id,
+            objective_sense=objective_sense,
+            dimension=dimension,
+            bounds=bounds,
+            initial_point=initial_point,
+            inequality_constraints=ineq_constraints_objs,
+            equality_constraints=eq_constraints_objs,
+            created_at=datetime.now().isoformat(),
+            description=description
+        )
+
+        # Create NLPEvaluator (composite evaluator)
+        nlp_evaluator = NLPEvaluator.from_problem(nlp_problem, foundry)
+
+        # Register in problem registry (for runtime use)
+        register_problem(problem_id, nlp_evaluator)
+
+        # Store problem metadata in Foundry
+        from paola.foundry.problem import Problem
+        problem_metadata = Problem(
+            problem_id=problem_id,
+            name=description or problem_id,
+            dimensions=dimension,
+            problem_type="NLP",
+            created_at=nlp_problem.created_at,
+            metadata={
+                "objective_evaluator_id": objective_evaluator_id,
+                "objective_sense": objective_sense,
+                "num_inequality_constraints": nlp_problem.num_inequality_constraints,
+                "num_equality_constraints": nlp_problem.num_equality_constraints,
+                "bounds": bounds,
+                "evaluators_used": nlp_problem.get_all_evaluator_ids()
+            }
+        )
+
+        # Store in Foundry (if it has problem storage)
+        if hasattr(foundry, 'register_problem'):
+            foundry.register_problem(problem_metadata)
+
+        # Recommend solvers
+        has_constraints = nlp_problem.is_constrained
+        recommended_solvers = SolverSelector.recommend_solver(
+            problem_type="NLP",
+            gradient_available=True,  # FoundryEvaluator always supports gradients
+            has_constraints=has_constraints
+        )
+
+        return {
+            "success": True,
+            "problem_id": problem_id,
+            "problem_type": "NLP",
+            "dimension": dimension,
+            "num_inequality_constraints": nlp_problem.num_inequality_constraints,
+            "num_equality_constraints": nlp_problem.num_equality_constraints,
+            "evaluators_used": nlp_problem.get_all_evaluator_ids(),
+            "recommended_solvers": recommended_solvers,
+            "message": (
+                f"Created NLP problem '{problem_id}':\n"
+                f"  Objective: {objective_sense} {objective_evaluator_id}\n"
+                f"  Dimension: {dimension}\n"
+                f"  Inequality constraints: {nlp_problem.num_inequality_constraints}\n"
+                f"  Equality constraints: {nlp_problem.num_equality_constraints}\n"
+                f"  Recommended solvers: {', '.join(recommended_solvers[:2])}"
+            )
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "message": f"Error creating NLP problem: {str(e)}\n{traceback.format_exc()}",
+        }
