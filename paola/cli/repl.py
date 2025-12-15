@@ -74,9 +74,13 @@ class AgenticOptREPL:
         self.token_tracker = TokenTracker()
         self.token_callback = LangChainTokenCallback(self.token_tracker, verbose=True)
 
+        # Developer mode flag
+        self.developer_mode = False
+
         # Callback manager with display callback
         self.callback_manager = CallbackManager()
-        self.callback_manager.register(CLICallback())  # Display events
+        self.cli_callback = CLICallback(developer_mode=self.developer_mode)
+        self.callback_manager.register(self.cli_callback)  # Display events
 
         # Import registration tools
         from ..tools.registration_tools import (
@@ -385,6 +389,8 @@ class AgenticOptREPL:
                 self.console.print("[red]Usage: /eval <evaluator_id>[/red]")
             else:
                 self.command_handler.handle_evaluator_show(cmd_parts[1])
+        elif cmd == '/mode':
+            self._toggle_developer_mode()
         else:
             self.console.print(f"Unknown command: {cmd}. Type /help for available commands.", style="yellow")
 
@@ -426,6 +432,7 @@ class AgenticOptREPL:
   /model          - Show current LLM model
   /models         - Select a different LLM model
   /tokens         - Show token usage and cost statistics
+  /mode           - Toggle developer mode (verbose tool args/results)
 
 [bold]Exit:[/bold]
   /exit or Ctrl+D
@@ -512,3 +519,15 @@ class AgenticOptREPL:
         # Use the formatted output from token_tracker module
         formatted_stats = format_session_stats(stats)
         self.console.print(formatted_stats)
+
+    def _toggle_developer_mode(self):
+        """Toggle developer mode for verbose debugging output."""
+        self.developer_mode = not self.developer_mode
+        self.cli_callback.developer_mode = self.developer_mode
+
+        if self.developer_mode:
+            self.console.print("\n[bold cyan]Developer mode: ON[/bold cyan]")
+            self.console.print("[dim]  - Tool arguments will be displayed")
+            self.console.print("[dim]  - Tool results will be displayed[/dim]\n")
+        else:
+            self.console.print("\n[bold cyan]Developer mode: OFF[/bold cyan]\n")
