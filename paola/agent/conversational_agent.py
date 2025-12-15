@@ -93,16 +93,14 @@ class ConversationalAgentExecutor:
     the LangGraph-based ReAct agent (which has .invoke() method).
     """
 
-    def __init__(self, agent_func, llm_model: str = ""):
+    def __init__(self, agent_func):
         """
         Initialize executor.
 
         Args:
             agent_func: The conversational agent function
-            llm_model: Model name (used for callback compatibility detection)
         """
         self.agent_func = agent_func
-        self.llm_model = llm_model
 
     def invoke(self, state: dict, config: dict = None) -> dict:
         """
@@ -115,16 +113,6 @@ class ConversationalAgentExecutor:
         Returns:
             Updated state dict
         """
-        # Determine if callbacks should be passed to LLM
-        # Qwen models have issues with callbacks during tool calling
-        is_qwen = any(m in self.llm_model.lower() for m in ["qwen", "qwq"])
-
-        # Pass config through to agent function for token tracking
-        # Include model info so agent can decide on callback passing
-        if config is None:
-            config = {}
-        config["_skip_llm_callbacks"] = is_qwen
-
         return self.agent_func(state, config)
 
 
@@ -186,11 +174,7 @@ def build_conversational_agent(
         callback_mgr = state.get("callback_manager", callback_manager)
 
         # Extract LLM callbacks from config (for token tracking)
-        # Skip for Qwen models as callbacks interfere with tool calling
-        skip_llm_callbacks = config.get("_skip_llm_callbacks", False) if config else False
-        llm_callbacks = None
-        if not skip_llm_callbacks and config:
-            llm_callbacks = config.get("callbacks", [])
+        llm_callbacks = config.get("callbacks", []) if config else []
 
         # Count how many messages are already in history to detect first call
         # First call: just user message. Subsequent: user + AI + tools + ...
@@ -378,7 +362,7 @@ def build_conversational_agent(
             "iteration": iteration
         }
 
-    return ConversationalAgentExecutor(invoke_agent, llm_model=llm_model)
+    return ConversationalAgentExecutor(invoke_agent)
 
 
 def execute_tool(tools: list, tool_call: dict) -> Any:
