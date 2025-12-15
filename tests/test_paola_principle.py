@@ -462,5 +462,95 @@ class TestConfigTools:
         assert "typical_values" in result
 
 
+class TestCreateNLPProblemCompactBounds:
+    """Test create_nlp_problem with compact bounds specification."""
+
+    @pytest.fixture(autouse=True)
+    def setup_evaluator(self, tmp_path):
+        """Setup a test evaluator."""
+        import os
+        from paola.tools.registration_tools import write_file, foundry_store_evaluator
+        from paola.tools.evaluator_tools import clear_problem_registry
+
+        # Clear any existing problems
+        clear_problem_registry()
+
+        # Create a simple evaluator
+        evaluator_code = '''
+import numpy as np
+
+def evaluate(x):
+    """Sphere function."""
+    x = np.atleast_1d(x)
+    return float(np.sum(x**2))
+'''
+        eval_file = str(tmp_path / "sphere.py")
+        write_file.invoke({"file_path": eval_file, "content": evaluator_code})
+
+        foundry_store_evaluator.invoke({
+            "evaluator_id": "test_sphere",
+            "name": "Test Sphere",
+            "file_path": eval_file,
+            "callable_name": "evaluate",
+            "description": "Test sphere function"
+        })
+
+        yield
+
+        # Cleanup
+        clear_problem_registry()
+
+    def test_uniform_compact_bounds(self):
+        """Test create_nlp_problem with uniform compact bounds."""
+        from paola.tools.evaluator_tools import create_nlp_problem
+
+        result = create_nlp_problem.invoke({
+            "problem_id": "uniform_test",
+            "objective_evaluator_id": "test_sphere",
+            "bounds": {"type": "uniform", "lower": -10, "upper": 10, "dimension": 50}
+        })
+
+        assert result["success"] is True
+        assert result["dimension"] == 50
+
+    def test_grouped_compact_bounds(self):
+        """Test create_nlp_problem with grouped compact bounds."""
+        from paola.tools.evaluator_tools import create_nlp_problem, clear_problem_registry
+
+        clear_problem_registry()
+
+        result = create_nlp_problem.invoke({
+            "problem_id": "grouped_test",
+            "objective_evaluator_id": "test_sphere",
+            "bounds": {
+                "type": "grouped",
+                "groups": {
+                    "x": {"lower": -0.05, "upper": 0.05, "count": 40},
+                    "y": {"lower": -15, "upper": 15, "count": 10}
+                }
+            },
+            "domain_hint": "shape_optimization"
+        })
+
+        assert result["success"] is True
+        assert result["dimension"] == 50
+        assert result["domain_hint"] == "shape_optimization"
+
+    def test_explicit_bounds_backward_compatible(self):
+        """Test create_nlp_problem still accepts explicit bounds."""
+        from paola.tools.evaluator_tools import create_nlp_problem, clear_problem_registry
+
+        clear_problem_registry()
+
+        result = create_nlp_problem.invoke({
+            "problem_id": "explicit_test",
+            "objective_evaluator_id": "test_sphere",
+            "bounds": [[-5, 5], [-10, 10], [0, 1]]
+        })
+
+        assert result["success"] is True
+        assert result["dimension"] == 3
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

@@ -402,7 +402,7 @@ def get_problem_by_id(problem_id: str) -> Optional[Any]:
 def create_nlp_problem(
     problem_id: str,
     objective_evaluator_id: str,
-    bounds: List[List[float]],
+    bounds: Any,  # Accept both explicit list OR compact BoundsSpec dict
     objective_sense: str = "minimize",
     inequality_constraints: Optional[List[Dict[str, Any]]] = None,
     equality_constraints: Optional[List[Dict[str, Any]]] = None,
@@ -412,89 +412,62 @@ def create_nlp_problem(
     """
     Create Nonlinear Programming (NLP) problem from registered Foundry evaluators.
 
-    The Paola Principle: "Initialization is agent intelligence, not user input."
-    Initial points are NOT specified here - Paola computes them automatically
-    based on the domain_hint, problem characteristics, and run history.
+    IMPORTANT - BOUNDS SPECIFICATION:
+    For problems with more than 5 variables, use COMPACT bounds format (not explicit arrays):
 
-    NLP standard form:
-        minimize/maximize f(x)
-        subject to:
-          g_i(x) ≤ value  or  g_i(x) ≥ value  (inequality constraints)
-          h_j(x) = value                       (equality constraints)
-          x_lower ≤ x ≤ x_upper                (bounds)
+    Compact format (REQUIRED for large problems):
+        {"type": "uniform", "lower": -5, "upper": 10, "dimension": 50}
 
-    This tool creates an NLP problem by composing registered evaluators from
-    Foundry. The agent can flexibly combine any evaluators as objective or
-    constraints, enabling dynamic problem formulation.
+    Explicit format (only for small problems, <=5 variables):
+        [[-5, 10], [-5, 10]]
+
+    DO NOT use Python syntax like "[[-5, 10] for _ in range(50)]" - this is invalid JSON!
 
     Args:
         problem_id: Unique problem identifier (e.g., "wing_design_v1")
         objective_evaluator_id: Evaluator ID for objective function f(x)
-                               (must be registered in Foundry)
-        bounds: Design variable bounds [[lower, upper], ...]
-               Example: [[0, 15], [0.1, 0.5]] for 2D problem
-               For large variable spaces, use compact format:
-               {"type": "uniform", "lower": -0.05, "upper": 0.05, "dimension": 100}
+        bounds: Variable bounds - use ONE of these formats:
+            - Compact (RECOMMENDED): {"type": "uniform", "lower": -5, "upper": 10, "dimension": 50}
+            - Grouped: {"type": "grouped", "groups": {"x": {"lower": 0, "upper": 1, "count": 30}, "y": {"lower": -1, "upper": 1, "count": 20}}}
+            - Explicit (small problems only): [[-5, 10], [-5, 10], [-5, 10]]
         objective_sense: "minimize" or "maximize" (default: "minimize")
-        inequality_constraints: List of inequality constraint specifications:
-            [{
-                "name": "min_lift",
-                "evaluator_id": "lift_eval",
-                "type": ">=",           # ">=" or "<="
-                "value": 1000.0
-            }]
-        equality_constraints: List of equality constraint specifications:
-            [{
-                "name": "moment_balance",
-                "evaluator_id": "moment_eval",
-                "value": 0.0,
-                "tolerance": 1e-6       # Optional, default: 1e-6
-            }]
-        domain_hint: Optional hint for initialization strategy:
-            - "shape_optimization": FFD/mesh deformation (init at zero = baseline)
-            - "aerodynamic": Same as shape_optimization
-            - "structural": Structural design (init at center of bounds)
-            - "topology": Topology optimization (init at uniform density)
-            - "general": General problem (init at center of bounds, default)
-        description: Human-readable problem description (optional)
+        inequality_constraints: List of constraint specs:
+            [{"name": "c1", "evaluator_id": "eval_id", "type": "<=", "value": 100}]
+        equality_constraints: List of equality constraint specs:
+            [{"name": "eq1", "evaluator_id": "eval_id", "value": 0.0}]
+        domain_hint: Hint for initialization strategy:
+            - "shape_optimization": Initialize at zero (baseline geometry)
+            - "general": Initialize at center of bounds (default)
+        description: Human-readable problem description
 
     Returns:
-        Dict with:
-            - success: bool
-            - problem_id: str
-            - problem_type: "NLP"
-            - dimension: int
-            - num_inequality_constraints: int
-            - num_equality_constraints: int
-            - evaluators_used: List[str]
-            - recommended_solvers: List[str]
-            - domain_hint: str (if provided)
-            - message: str
+        Dict with success, problem_id, dimension, etc.
 
     Examples:
-        # Unconstrained NLP
+        # 50-dimensional problem - use compact bounds
+        create_nlp_problem(
+            problem_id="high_dim_problem",
+            objective_evaluator_id="rosenbrock_eval",
+            bounds={"type": "uniform", "lower": -5, "upper": 10, "dimension": 50}
+        )
+
+        # Small 2D problem - explicit bounds OK
         create_nlp_problem(
             problem_id="rosenbrock_2d",
             objective_evaluator_id="rosenbrock_eval",
             bounds=[[-5, 10], [-5, 10]]
         )
 
-        # Constrained NLP with domain hint
+        # Grouped bounds for mixed variable types
         create_nlp_problem(
             problem_id="wing_design",
             objective_evaluator_id="drag_eval",
-            bounds=[[-0.05, 0.05]] * 100,  # 100 FFD control points
-            domain_hint="shape_optimization",  # Tells Paola to init at zero
-            inequality_constraints=[
-                {"name": "min_lift", "evaluator_id": "lift_eval", "type": ">=", "value": 1000}
-            ]
+            bounds={"type": "grouped", "groups": {
+                "shape": {"lower": -0.05, "upper": 0.05, "count": 40},
+                "twist": {"lower": -15, "upper": 15, "count": 10}
+            }},
+            domain_hint="shape_optimization"
         )
-
-    Note:
-        - Only supports continuous variables (NLP)
-        - Initial point is computed by Paola based on domain_hint and algorithm
-        - For integer variables, use create_milp_problem (Phase 7+)
-        - For multi-objective, use create_moo_problem (Phase 7+)
     """
     try:
         from paola.foundry import (
@@ -577,8 +550,27 @@ def create_nlp_problem(
                     tolerance=cons_dict.get("tolerance", 1e-6)
                 ))
 
-        # Infer dimension from bounds
-        dimension = len(bounds)
+        # Parse bounds - support both compact format (dict) and explicit list
+        from paola.foundry.bounds_spec import parse_bounds_input
+
+        if isinstance(bounds, dict):
+            # Compact format: {"type": "uniform", "lower": -5, "upper": 10, "dimension": 50}
+            bounds_spec = parse_bounds_input(bounds)
+            explicit_bounds = bounds_spec.expand()
+            dimension = bounds_spec.get_dimension()
+        elif isinstance(bounds, list):
+            # Explicit format: [[-5, 10], [-5, 10], ...]
+            explicit_bounds = bounds
+            dimension = len(bounds)
+        else:
+            return {
+                "success": False,
+                "message": (
+                    f"Invalid bounds format. Expected dict (compact) or list (explicit).\n"
+                    f"Compact format: {{'type': 'uniform', 'lower': -5, 'upper': 10, 'dimension': 50}}\n"
+                    f"Explicit format: [[-5, 10], [-5, 10], ...]"
+                )
+            }
 
         # Create NLPProblem specification
         # Note: initial_point is NOT specified - Paola computes it automatically
@@ -588,7 +580,7 @@ def create_nlp_problem(
             objective_evaluator_id=objective_evaluator_id,
             objective_sense=objective_sense,
             dimension=dimension,
-            bounds=bounds,
+            bounds=explicit_bounds,
             inequality_constraints=ineq_constraints_objs,
             equality_constraints=eq_constraints_objs,
             created_at=datetime.now().isoformat(),
@@ -615,7 +607,7 @@ def create_nlp_problem(
                 "objective_sense": objective_sense,
                 "num_inequality_constraints": nlp_problem.num_inequality_constraints,
                 "num_equality_constraints": nlp_problem.num_equality_constraints,
-                "bounds": bounds,
+                "bounds_spec": bounds,  # Original specification (compact or explicit)
                 "evaluators_used": nlp_problem.get_all_evaluator_ids()
             }
         )
