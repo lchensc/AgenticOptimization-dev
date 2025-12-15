@@ -88,6 +88,22 @@ class AgenticOptREPL:
             foundry_get_evaluator
         )
 
+        # Import intent-based optimization tools (Paola Principle)
+        from ..tools.optimization_tools import (
+            run_optimization,
+            get_optimization_strategy,
+            list_available_algorithms,
+        )
+
+        # Import expert configuration tools
+        from ..tools.config_tools import (
+            config_scipy,
+            config_ipopt,
+            config_nlopt,
+            config_optuna,
+            explain_config_option,
+        )
+
         # Tools - agent explicitly manages runs
         self.tools = [
             # Problem formulation
@@ -98,7 +114,19 @@ class AgenticOptREPL:
             finalize_optimization_run,
             get_active_runs,
 
-            # Optimization
+            # Intent-based optimization (Paola Principle - recommended)
+            run_optimization,  # Agent specifies intent, Paola handles complexity
+            get_optimization_strategy,  # Preview what Paola would do
+            list_available_algorithms,  # List available optimizers
+
+            # Expert configuration (escape hatch)
+            config_scipy,
+            config_ipopt,
+            config_nlopt,
+            config_optuna,
+            explain_config_option,
+
+            # Legacy optimization (deprecated - use run_optimization)
             run_scipy_optimization,
 
             # Analysis (deterministic - fast & free)

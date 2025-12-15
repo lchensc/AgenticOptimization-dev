@@ -33,6 +33,22 @@ from paola.tools.optimizer_tools import (
     get_optimizer_by_id,
 )
 
+# Intent-based optimization tools (Paola Principle)
+from paola.tools.optimization_tools import (
+    run_optimization,
+    get_optimization_strategy,
+    list_available_algorithms,
+)
+
+# Expert configuration tools (escape hatch)
+from paola.tools.config_tools import (
+    config_scipy,
+    config_ipopt,
+    config_nlopt,
+    config_optuna,
+    explain_config_option,
+)
+
 from paola.tools.evaluator_tools import (
     evaluate_function,
     compute_gradient,
@@ -78,14 +94,24 @@ __all__ = [
     "cache_stats",
     "run_db_log",
     "run_db_query",
-    # Optimizer tools
+    # Optimizer tools (legacy)
     "optimizer_create",
     "optimizer_propose",
     "optimizer_update",
     "optimizer_restart",
-    "run_scipy_optimization",
+    "run_scipy_optimization",  # Deprecated - use run_optimization
     "clear_optimizer_registry",
     "get_optimizer_by_id",
+    # Intent-based optimization tools (Paola Principle)
+    "run_optimization",
+    "get_optimization_strategy",
+    "list_available_algorithms",
+    # Expert configuration tools (escape hatch)
+    "config_scipy",
+    "config_ipopt",
+    "config_nlopt",
+    "config_optuna",
+    "explain_config_option",
     # Evaluator tools
     "evaluate_function",
     "compute_gradient",
