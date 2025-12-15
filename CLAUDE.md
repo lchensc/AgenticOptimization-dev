@@ -19,8 +19,6 @@ Unlike traditional optimization platforms (HEEDS, ModeFRONTIER, Dakota, pyOptSpa
 
 **PAOLA approach**: Agent controls everything, handles all configuration complexity, learns from past optimizations
 
-The agent continuously observes optimization progress, reasons about numerical health and feasibility patterns, autonomously adapts the strategy (constraint bounds, gradient methods, exploration control), and accumulates knowledge that improves future optimizations.
-
 ### The Paola Principle
 
 > **"Optimization complexity is Paola intelligence, not user burden."**
@@ -30,7 +28,7 @@ This principle defines PAOLA's approach to the overwhelming complexity of optimi
 | What Users Specify | What Paola Handles |
 |-------------------|-------------------|
 | Problem definition (objective, constraints, bounds) | Algorithm selection |
-| Intent (`priority="robustness"`) | Option configuration (250+ IPOPT options) |
+| Natural language goals | Option configuration (250+ IPOPT options) |
 | | Initialization (x0, sigma, population) |
 | | Convergence failure handling |
 | | Warm-starting from history |
@@ -42,22 +40,25 @@ This principle defines PAOLA's approach to the overwhelming complexity of optimi
 ```
 AgenticOptimization/
 ├── paola/                                 # Main package
-│   ├── agent/                            # Agent intelligence (InitializationManager, ConfigurationManager)
-│   ├── tools/                            # Tool primitives for agent
-│   ├── foundry/                          # Core schemas (NLPProblem, BoundsSpec)
-│   ├── storage/                          # Run storage backend
-│   ├── cli/                              # Interactive CLI
-│   ├── knowledge/                        # Knowledge base + RAG (TODO: Phase 3)
-│   └── analysis/                         # Multi-run analysis (TODO: Phase 3)
-├── docs/                                  # Documentation (timestamped, organized by category)
+│   ├── agent/                            # LangGraph agents (conversational, react)
+│   ├── tools/                            # LangChain @tool functions
+│   │   ├── session_tools.py              # Session management (v0.2.0)
+│   │   ├── optimization_tools.py         # run_optimization, get_problem_info
+│   │   ├── evaluator_tools.py            # create_nlp_problem, evaluate_function
+│   │   ├── config_tools.py               # Expert escape hatch (config_scipy, etc.)
+│   │   └── analysis.py                   # Metrics and AI analysis
+│   ├── foundry/                          # Data foundation layer
+│   │   ├── schema/                       # Polymorphic components per optimizer family
+│   │   ├── storage/                      # FileStorage backend
+│   │   ├── active_session.py             # In-progress session/run tracking
+│   │   └── foundry.py                    # OptimizationFoundry main class
+│   ├── optimizers/                       # Optimizer backends (SciPy, IPOPT, Optuna)
+│   ├── cli/                              # Interactive CLI (repl.py, commands.py)
+│   ├── knowledge/                        # Knowledge base (skeleton - Phase 3)
+│   └── analysis/                         # Metrics computation
+├── docs/                                  # Documentation (timestamped)
 │   ├── architecture/                     # Design documents
-│   ├── implementation/                   # Implementation summaries
-│   ├── bugfix/                           # Bug fix documentation
-│   ├── analysis/                         # Analysis and research
-│   ├── decisions/                        # Decision records
-│   ├── planning/                         # Planning documents
-│   ├── progress/                         # Progress reports
-│   └── archive/                          # Historical/superseded docs
+│   └── ...                               # Other categories
 ├── tests/                                 # Test suite
 └── CLAUDE.md                             # This file
 ```
@@ -69,93 +70,86 @@ AgenticOptimization/
 
 ## Key Concepts
 
-### Agent Autonomy vs. Fixed Loops
+### v0.2.0 Session-Based Architecture
 
-**Traditional platforms** (all existing software):
-```python
-# Fixed loop prescribed by platform
-for iteration in range(max_iterations):
-    design = optimizer.propose()
-    result = evaluate(design)
-    optimizer.update(result)
-    if convergence_criteria_met():
-        break
-```
-
-**Agentic platform** (this innovation):
-```python
-# Agent decides everything autonomously
-agent = OptimizationAgent(llm="qwen-plus")
-goal = "Minimize drag on transonic wing, maintain CL >= 0.5"
-tools = platform.get_tools()  # optimizer_*, workflow_*, cache_*, etc.
-agent.optimize(goal, tools)
-# Agent composes its own strategy, no fixed loop
-```
-
-### Tool Architecture (Three-Layer Design)
-
-Tools are organized in three layers reflecting the Paola Principle:
+**Session** = Complete optimization task (may involve multiple runs with different optimizers)
+**Run** = Single optimizer execution within a session
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  User Layer: Intent                                 │
-│    "Optimize my wing robustly"                      │
-├─────────────────────────────────────────────────────┤
-│  Paola Layer: Expert Knowledge                      │
-│    Algorithm selection + Configuration +            │
-│    Initialization + Failure handling                │
-├─────────────────────────────────────────────────────┤
-│  Optimizer Layer: Execution                         │
-│    IPOPT/SNOPT/CMA-ES with 100+ options each        │
-└─────────────────────────────────────────────────────┘
+Session #42: "Optimize wing drag"
+│
+├── Run 1: Global exploration (Optuna TPE)
+│   └── Paola decides: "Found promising region, switch to gradient"
+│
+├── Run 2: Local refinement (SLSQP)
+│   └── Paola decides: "Stuck at local minimum, try CMA-ES"
+│
+└── Run 3: Escape local minimum (CMA-ES)
+    └── Paola decides: "Converged, done"
+
+Session: success=true, final_obj=0.05, total_evals=100
 ```
 
-**Problem Formulation Tools** (User specifies WHAT):
-- `create_nlp_problem(problem_id, objective, bounds, constraints, domain_hint)` - Define problem mathematically
-- `get_problem_info(problem_id)` - Retrieve problem specification
+### Optimizer Families (Polymorphic Components)
 
-**Optimization Execution Tools** (Intent-based):
-- `run_optimization(problem_id, optimizer="auto", priority="balanced")` - Run with Paola handling details
-  - `optimizer`: "auto", "gradient-based", "global", or specific like "scipy:SLSQP"
-  - `priority`: "speed", "robustness", "accuracy", "balanced"
-- `get_run_info(run_id)` - Get run status and results
-- `get_best_solution(problem_id)` - Best solution across all runs
+Each run uses family-specific data structures:
 
-**Expert Escape Hatch** (Optional, for users who know exactly what they want):
-- `config_scipy(config_id, algorithm, ...)` - Bypass Paola's auto-config
-- `config_ipopt(config_id, ...)` - Direct IPOPT configuration
+| Family | Optimizers | Key Data |
+|--------|------------|----------|
+| `gradient` | SciPy (SLSQP, L-BFGS-B), IPOPT | iterations, gradient_norm, step_size |
+| `bayesian` | Optuna (TPE) | trials, acquisition values |
+| `population` | DE, GA, PSO | generations, population |
+| `cmaes` | CMA-ES | mean, covariance, generations |
 
-**Evaluator Tools**:
-- `foundry_store_evaluator(evaluator_id, source_code)` - Register objective/constraint functions
-- `foundry_list_evaluators()` - List available evaluators
+### Tool Architecture (LLM-Driven)
 
-**Analysis Tools** (Phase 2/3):
-- `analyze_runs(run_ids)` - Compare multiple optimization strategies
-- `get_all_metrics(run_id)` - Convergence, gradient, constraint metrics
+The LLM agent IS the intelligence. It has been trained on IPOPT docs, SciPy reference, Optuna tutorials, optimization theory. We don't re-implement this knowledge in Python - we let the LLM reason.
 
-### Strategic Adaptation Mechanisms
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    LLM AGENT (Intelligence)                      │
+│  Trained knowledge of: IPOPT, Optuna, NLopt, SciPy, CMA-ES     │
+│  Core tasks: analyze problem → select optimizer → configure     │
+└─────────────────────────────────────────────────────────────────┘
+              │               │               │
+              ▼               ▼               ▼
+┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
+│ INFORMATION     │ │ EXECUTION       │ │ SESSION         │
+│ TOOLS           │ │ TOOLS           │ │ TOOLS           │
+├─────────────────┤ ├─────────────────┤ ├─────────────────┤
+│ get_problem_info│ │ run_optimization│ │ start_session   │
+│ list_optimizers │ │ create_nlp_prob │ │ finalize_session│
+│ get_opt_options │ │                 │ │ get_session_info│
+└─────────────────┘ └─────────────────┘ └─────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    OPTIMIZER BACKENDS                            │
+│  SciPyBackend: SLSQP, L-BFGS-B, trust-constr, COBYLA           │
+│  IPOPTBackend: Interior-point with 250+ options                 │
+│  OptunaBackend: TPE, CMA-ES, Random samplers                    │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-The agent makes informed decisions to adapt strategy based on continuous observation:
+### Core Tools (v0.2.0)
 
-1. **Constraint Feasibility Management**
-   - Detects repeated constraint violations (e.g., CL = 0.49 when CL >= 0.5 required)
-   - Tightens constraints to force optimizer into feasible region
-   - Proven pattern for handling optimizer stuck at infeasible boundaries
+**Session Management**:
+- `start_session(problem_id, goal)` - Create new optimization session
+- `finalize_session(session_id, success)` - Complete and persist session
+- `get_session_info(session_id)` - Get session status
 
-2. **Gradient Method Switching**
-   - Monitors gradient variance/noise levels
-   - Switches adjoint ↔ finite-difference when numerical noise detected
-   - Proven pattern from AdjointFlow V6 (handles shock oscillations)
+**Optimization Execution**:
+- `run_optimization(session_id, optimizer, config, init_strategy)` - Execute optimization
+  - `optimizer`: "scipy:SLSQP", "scipy:L-BFGS-B", "ipopt", "optuna:TPE"
+  - `init_strategy`: "center", "random", "warm_start"
+  - `config`: JSON string with optimizer-specific options
 
-3. **Bayesian Exploration Control**
-   - Adjusts acquisition functions (EI, UCB, PI) for exploration vs exploitation
-   - Uses seed management for deterministic replay
-   - Warm-starts surrogate models when changing strategies
+**Problem Formulation**:
+- `create_nlp_problem(problem_id, objective_evaluator_id, bounds, constraints)` - Define NLP
+- `get_problem_info(problem_id)` - Get problem characteristics for LLM reasoning
 
-4. **Convergence Verification**
-   - Automatically runs high-fidelity verification of converged designs
-   - Detects false convergence from gradient noise
-   - Validates feasibility before terminating
+**Expert Escape Hatch** (optional):
+- `config_scipy(...)`, `config_ipopt(...)` - Direct configuration for experts
 
 ### Evaluation Cache (Critical for Efficiency)
 
@@ -164,134 +158,81 @@ Engineering simulations are 10,000× more expensive than optimizer iterations:
 - Gradient (adjoint): 6 CPU hours → $600
 - Optimizer iteration: 0.001 hours → $0.10
 
-The cache prevents re-running expensive simulations when the optimizer revisits designs during line search or trust region adjustments.
-
-### Agent Observation Metrics
-
-The agent monitors every iteration:
-- **Convergence health**: improvement_rate, gradient_norm, step_size
-- **Numerical health**: gradient_variance, condition_number, constraint_activity
-- **Optimizer health**: trust_region_size, qp_solver_success, lagrange_multipliers
-- **Resource usage**: budget_used, evaluations_count
+The cache prevents re-running expensive simulations when the optimizer revisits designs.
 
 ## Design Documents
 
-### docs/architecture/tools_optimization_foundry_design.md (Primary)
+### docs/architecture/20251215_2100_foundry_polymorphic_schema_design.md
 
-**The definitive design document** for PAOLA's tool architecture:
-- The Paola Principle: "Optimization complexity is agent intelligence, not user burden"
-- Three-layer architecture (User Intent → Paola Intelligence → Optimizer Execution)
-- Intent-based `run_optimization(optimizer="auto", priority="robustness")`
-- Paola's Configuration Intelligence (algorithm selection, option configuration)
-- Paola's Initialization Intelligence (x0, sigma, population handling)
-- Compact bounds specification for large variable spaces
-- Expert escape hatch for direct configuration
+**Session-based architecture design** for v0.2.0:
+- Session vs Run terminology
+- Polymorphic components per optimizer family
+- Clean API without backward compatibility
 
-### docs/architecture/optimizer_initialization_research.md
+### docs/architecture/20251215_1630_llm_driven_optimization_redesign.md
 
-Research on initialization handling across optimizers:
-- Survey of IPOPT, SNOPT, SciPy, NLopt, CMA-ES, Optuna, pymoo
-- Why initialization is agent intelligence, not user input
-- Algorithm-specific defaults (gradient→center, shape_opt→zero, etc.)
+**LLM-driven architecture**:
+- Why hardcoded if-else is wrong (not real intelligence)
+- LLM trained knowledge IS the intelligence
+- Information/Execution/Session tool split
 
-### docs/architecture/optimizer_configuration_research.md
+### docs/architecture/20251215_1109_tools_optimization_foundry_design.md
 
-Research on configuration complexity:
-- IPOPT: 250 options across 22 categories
-- SNOPT: scaling sensitivity
-- Why most users only touch 3-5 options
-- How Paola applies expert knowledge automatically
-
-### agent_controlled_optimization.md (50KB)
-
-Comprehensive technical design covering:
-- Core innovation: Agent autonomy vs prescribed loops
-- Comparison with all major existing platforms (HEEDS, ModeFRONTIER, Dakota, pyOptSparse, FADO, Tosca)
-- Practical adaptation mechanisms and the "replay constraint"
-- Agent decision patterns and reasoning examples
-- Complete workflow example showing agent in action
-
-### agentic_optimization_vision.md (7KB)
-
-High-level vision and value propositions:
-- 7 core value propositions from first principles analysis
-- Paradigm shift from "operator configures loops" to "director sets goals"
-- Knowledge accumulation and learning organization concept
+**Tool architecture design**:
+- The Paola Principle implementation
+- Compact bounds specification
+- Expert escape hatch pattern
 
 ## Implementation Status
 
-**Current state**: Design/documentation phase (no code yet)
+**Current state**: v0.2.0 - Session-based architecture implemented
 
-**Planned implementation phases**:
-1. **Phase 1** (2 months): Core mechanisms - evaluation cache, optimizer wrapper with checkpointing, basic agent with observation
-2. **Phase 2** (2 months): Agent intelligence - full observation metrics, constraint management, gradient switching, Bayesian control
-3. **Phase 3** (2 months): Validation & extension - real engineering test cases, multiple optimizers, knowledge base, production hardening
+**Working features**:
+- CLI with conversational interface (`python -m paola.cli`)
+- Session management (start, run, finalize)
+- Multiple optimizer backends (SciPy, IPOPT, Optuna)
+- Evaluator registration system
+- Polymorphic run storage per optimizer family
+
+**In progress**:
+- Knowledge base with RAG retrieval (skeleton implemented)
+- Multi-run analysis
+- Strategic adaptation within sessions
 
 ## Development Principles
 
 When implementing this platform:
 
-1. **The Paola Principle**: Optimization complexity is agent intelligence, not user burden. Users specify intent ("robustness"), Paola handles the 250 IPOPT options.
-2. **Agent Autonomy First**: Never add a "hook" or "callback" - the agent IS the controller
-3. **Intent Over Options**: Expose high-level intents (priority, optimizer family), not low-level knobs. Expert escape hatch for those who need it.
+1. **The Paola Principle**: Optimization complexity is agent intelligence, not user burden
+2. **LLM IS the Intelligence**: Don't hardcode optimizer selection logic - let LLM reason
+3. **Session-Based**: Every optimization runs within a session for multi-run support
 4. **Tools Not Control Flow**: Platform provides primitives, agent composes strategy
 5. **Observable Everything**: Every action must be observable and explainable
-6. **Strategic Restarts**: Adaptations are informed restarts from better positions, not unpredictable experiments
-7. **Cache Everything**: Simulations are expensive, cache all evaluations
-8. **Learn Continuously**: Every optimization adds to the knowledge base
-9. **CRITICAL - Minimal Prompting**: Keep system prompts and tool schemas minimal. Trust the LLM's intelligence. Never add verbose guidance, formatting rules, or hand-holding without explicit permission. The agent must learn from experience, not from over-specified prompts.
+6. **Cache Everything**: Simulations are expensive, cache all evaluations
+7. **CRITICAL - Minimal Prompting**: Keep system prompts minimal. Trust the LLM's intelligence. Never add verbose guidance without explicit permission
 
 ## Key Terminology
 
-- **The Paola Principle**: Core design philosophy - "Optimization complexity is Paola intelligence, not user burden"
-- **Intent-based tools**: Tools that accept user intent (e.g., `priority="robustness"`) rather than low-level configuration
-- **Expert escape hatch**: Optional tools for users who need direct control over optimizer configuration
-- **Configuration intelligence**: Paola's ability to select and configure optimizer options based on problem characteristics
-- **Initialization intelligence**: Paola's ability to determine optimal starting points based on algorithm type, domain, and history
-- **Fixed loop**: Traditional optimization paradigm where platform controls iteration
-- **Tool primitives**: Atomic operations that agent composes into strategies
-- **Evaluation cache**: Storage for expensive simulation results (design → objective, gradient, constraints)
-- **Strategic restart**: Informed decision to restart optimizer from current best with modified settings
-- **Replay constraint**: Limitation that changing optimizer settings (like scaling) changes trajectory, preventing free experimentation
-- **Gradient variance**: Metric for detecting numerical noise in gradients
-- **Constraint feasibility management**: Agent's ability to detect and fix repeated constraint violations
-- **Compositional strategy**: Agent-invented optimization approach combining multiple tools/algorithms
-- **Agentic Learning**: Autonomous accumulation of strategic knowledge through observation and experience across optimization runs (not machine learning)
-- **Knowledge base**: RAG-based storage of problem signatures, successful setups, and expert knowledge
-- **Multi-run analysis**: Comparing multiple optimization strategies to identify best practices
-- **Warm-starting**: Using retrieved knowledge from similar past problems to accelerate convergence
-- **Problem signature**: Characteristics that define a problem class (dimensions, constraints, physics, regime)
-- **Domain hint**: Optional problem metadata (e.g., "shape_optimization") that guides Paola's decisions
+- **Session**: Complete optimization task (may involve multiple runs)
+- **Run**: Single optimizer execution within a session
+- **Optimizer Family**: Category of optimizer (gradient, bayesian, population, cmaes)
+- **Polymorphic Components**: Family-specific data structures (iterations vs trials vs generations)
+- **Warm-start**: Using previous run's result as starting point
+- **The Paola Principle**: "Optimization complexity is Paola intelligence, not user burden"
+- **Expert Escape Hatch**: Optional tools for direct optimizer configuration
+- **Evaluation Cache**: Storage for expensive simulation results
+- **Domain Hint**: Optional problem metadata (e.g., "shape_optimization")
 
-## Architectural Patterns
+## CLI Commands
 
-### Agent-Tool Interaction
-
-```python
-# Agent's autonomous reasoning loop (not prescribed)
-while not done:
-    observation = observe()       # Monitor optimization health
-    decision = reason(obs)        # LLM reasoning about what to do
-    action = choose_tool(dec)     # Select tool based on decision
-    execute(action)               # Use tool primitive
 ```
-
-### Knowledge Accumulation
-
-```python
-# Platform learns patterns across all optimizations
-# Example: "Airfoil CL constraints typically undershoot by 2%"
-# Later optimization automatically applies this knowledge
-# → Tighten CL constraints proactively
-```
-
-### Multi-Strategy Composition
-
-```python
-# Agent invents strategy never programmed into platform
-# Example: Bayesian(10 samples) → SLSQP(2 parallel starts)
-#          → Constraint tightening → SLSQP restart → High-fidelity verification
-# Total: 45 evaluations, agent decided sequence dynamically
+/sessions           - List all optimization sessions
+/show <id>          - Show session details
+/plot <id>          - Plot convergence
+/compare <id1> <id2> - Compare sessions
+/analyze <id>       - AI-powered analysis
+/evals              - List registered evaluators
+/help               - Show all commands
 ```
 
 ## Value Proposition Summary
@@ -303,22 +244,17 @@ while not done:
 "The first optimization platform where an AI agent handles all optimization complexity - algorithm selection, configuration, initialization, and failure recovery - while continuously learning from past optimizations."
 
 **For Engineers**:
-- Say `priority="robustness"`, not configure 250 IPOPT options
 - Natural language goals instead of algorithm configuration
 - Platform learns from your past optimizations
 - Automatic warm-starting from similar problems
 
 **For Companies**:
-- 90% success rate (vs 50%), 2-3× faster convergence
-- Organizational knowledge accumulation (expert knowledge persists)
+- Organizational knowledge accumulation
 - Multi-run analysis reveals best practices
 - Democratize optimization expertise
 
 **Technical Moat**:
-- **The Paola Principle**: Expert knowledge encoded in agent
-- Agent autonomy (no fixed loops)
-- Configuration intelligence (250+ options → "robustness")
-- Initialization intelligence (algorithm-aware, history-aware)
+- LLM-driven intelligence (not hardcoded rules)
+- Session-based multi-run optimization
+- Polymorphic storage per optimizer family
 - Knowledge base with RAG retrieval
-- Strategic adaptation within runs
-- Evaluation cache for efficiency
