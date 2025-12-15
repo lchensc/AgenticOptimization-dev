@@ -3,7 +3,7 @@
 **Document ID**: 20251215_2100_foundry_polymorphic_schema_design
 **Date**: December 15, 2025
 **Status**: Design Proposal (Revised)
-**Version**: 2.1 - Session/Run terminology clarification
+**Version**: 2.2 - Clean API, no backward compatibility
 **Purpose**: Design maintainable, extensible Foundry schemas for Paola v0.2.0
 
 ---
@@ -1211,25 +1211,31 @@ COMPONENT_REGISTRY.register_family(
 
 ## 10. API Tool Updates
 
-### 10.1 New Session Tools
+### 10.1 Session Tools
 
 ```python
-# Session management (new)
+# Session management
 start_session(problem_id, goal, config) -> session_id
 finalize_session(session_id, success) -> SessionRecord
 get_session_info(session_id) -> SessionRecord
 
-# Run management (existing tool, unchanged signature)
-run_optimization(problem_id, optimizer, config) -> run_result
-# Now internally linked to current active session
+# Run management (requires active session)
+run_optimization(session_id, optimizer, config) -> OptimizationRun
+# Raises error if no active session
 ```
 
-### 10.2 Backward Compatibility
+### 10.2 Clean API Contract
 
-For simple cases (one optimizer, no session management):
-- `run_optimization()` auto-creates a session if none active
-- Single-run sessions work exactly like before
-- No breaking changes for existing workflows
+**Explicit session management required:**
+- `run_optimization()` requires a valid `session_id`
+- No implicit session creation
+- Clear ownership: Session owns Runs
+
+**Rationale:**
+- Paola v0.2.0 is a clean break from v0.1.0
+- No legacy code paths to maintain
+- Explicit is better than implicit
+- Forces proper session lifecycle management
 
 ---
 
@@ -1274,5 +1280,5 @@ paola/foundry/
 ---
 
 **Document Status**: Ready for Implementation
-**Version**: 2.1 (Session/Run terminology clarification)
+**Version**: 2.2 (Clean API, no backward compatibility)
 **Next Action**: Implement for Paola v0.2.0
