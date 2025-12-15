@@ -645,25 +645,14 @@ def run_scipy_optimization(
             }
 
         # Record to run if run_id provided
+        # NOTE: run_id recording is deprecated. Use run_optimization with session_id instead.
         if run_id is not None:
-            from .run_tools import _FOUNDRY
-
-            if _FOUNDRY is not None:
-                run = _FOUNDRY.get_run(run_id)
-
-                if run:
-                    # Record iterations
-                    for h in history:
-                        run.record_iteration(
-                            design=np.array(h["design"]),
-                            objective=h["objective"]
-                        )
-
-                    # Finalize run with result
-                    run.finalize(result, metadata={"convergence_info": convergence_info})
-                else:
-                    # Run not found, just continue without recording
-                    pass
+            import warnings
+            warnings.warn(
+                "run_id parameter is deprecated. Use run_optimization with session_id instead.",
+                DeprecationWarning,
+                stacklevel=2
+            )
 
         return {
             "success": result.success,

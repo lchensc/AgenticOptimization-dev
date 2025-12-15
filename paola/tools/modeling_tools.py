@@ -13,7 +13,7 @@ from langchain.tools import tool
 
 from ..modeling.parsers import ProblemParser, parse_problem
 from ..modeling.validation import validate_problem, check_initial_feasibility
-from ..tools.run_tools import _FOUNDRY
+from ..tools.session_tools import _FOUNDRY
 
 
 @tool

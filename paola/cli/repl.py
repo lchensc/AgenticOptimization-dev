@@ -14,7 +14,7 @@ from ..agent.conversational_agent import build_conversational_agent
 from ..tools.optimizer_tools import run_scipy_optimization
 from ..tools.evaluator_tools import create_nlp_problem
 from ..tools.observation_tools import analyze_convergence
-from ..tools.run_tools import start_optimization_run, finalize_optimization_run, get_active_runs, set_foundry
+from ..tools.session_tools import start_session, finalize_session, get_active_sessions, get_session_info, set_foundry
 from ..tools.analysis import analyze_convergence as analyze_convergence_new, analyze_efficiency, get_all_metrics, analyze_run_with_ai
 from ..tools.knowledge_tools import store_optimization_insight, retrieve_optimization_knowledge, list_all_knowledge
 from ..callbacks import CallbackManager
@@ -74,8 +74,8 @@ class AgenticOptREPL:
         self.token_tracker = TokenTracker()
         self.token_callback = LangChainTokenCallback(self.token_tracker, verbose=True)
 
-        # Developer mode flag
-        self.developer_mode = False
+        # Developer mode flag (default: on for verbose debugging)
+        self.developer_mode = True
 
         # Callback manager with display callback
         self.callback_manager = CallbackManager()
@@ -109,15 +109,16 @@ class AgenticOptREPL:
             explain_config_option,
         )
 
-        # Tools - agent explicitly manages runs
+        # Tools - agent explicitly manages sessions (v0.2.0)
         self.tools = [
             # Problem formulation
             create_nlp_problem,  # NLP problems from registered evaluators
 
-            # Run management
-            start_optimization_run,
-            finalize_optimization_run,
-            get_active_runs,
+            # Session management (v0.2.0)
+            start_session,
+            finalize_session,
+            get_active_sessions,
+            get_session_info,
 
             # LLM-driven optimization (Paola Principle - recommended)
             run_optimization,  # Execute optimization with LLM-specified config
@@ -197,9 +198,9 @@ class AgenticOptREPL:
         """Display welcome message."""
         welcome = Panel(
             Text.from_markup(
-                "[bold cyan]PAOLA[/bold cyan] v0.1.0 - Agentic Optimization Platform\n\n"
+                "[bold cyan]PAOLA[/bold cyan] v0.2.0 - Agentic Optimization Platform\n\n"
                 "[dim]AI-powered optimization with conversational interface[/dim]\n\n"
-                "Commands: /help | /evals | /runs | /exit\n"
+                "Commands: /help | /evals | /sessions | /exit\n"
                 "Or just type your goal in natural language"
             ),
             border_style="cyan",
@@ -308,59 +309,59 @@ class AgenticOptREPL:
             self._show_model_info()
         elif cmd == '/models':
             self._select_model()
-        elif cmd == '/runs':
-            self.command_handler.handle_runs()
+        elif cmd == '/sessions':
+            self.command_handler.handle_sessions()
         elif cmd == '/show':
             if len(cmd_parts) < 2:
-                self.console.print("[red]Usage: /show <run_id>[/red]")
+                self.console.print("[red]Usage: /show <session_id>[/red]")
             else:
                 try:
-                    run_id = int(cmd_parts[1])
-                    self.command_handler.handle_show(run_id)
+                    session_id = int(cmd_parts[1])
+                    self.command_handler.handle_show(session_id)
                 except ValueError:
-                    self.console.print("[red]Run ID must be a number[/red]")
+                    self.console.print("[red]Session ID must be a number[/red]")
         elif cmd == '/plot':
             if len(cmd_parts) < 2:
-                self.console.print("[red]Usage: /plot <run_id> OR /plot compare <run1> <run2> ...[/red]")
+                self.console.print("[red]Usage: /plot <session_id> OR /plot compare <session1> <session2> ...[/red]")
             elif cmd_parts[1].lower() == 'compare':
-                # /plot compare <run1> <run2> ...
+                # /plot compare <session1> <session2> ...
                 if len(cmd_parts) < 4:
-                    self.console.print("[red]Usage: /plot compare <run1> <run2> [run3...][/red]")
+                    self.console.print("[red]Usage: /plot compare <session1> <session2> [session3...][/red]")
                 else:
                     try:
-                        run_ids = [int(id) for id in cmd_parts[2:]]
-                        self.command_handler.handle_plot_compare(run_ids)
+                        session_ids = [int(id) for id in cmd_parts[2:]]
+                        self.command_handler.handle_plot_compare(session_ids)
                     except ValueError:
-                        self.console.print("[red]Run IDs must be numbers[/red]")
+                        self.console.print("[red]Session IDs must be numbers[/red]")
             else:
-                # /plot <run_id>
+                # /plot <session_id>
                 try:
-                    run_id = int(cmd_parts[1])
-                    self.command_handler.handle_plot(run_id)
+                    session_id = int(cmd_parts[1])
+                    self.command_handler.handle_plot(session_id)
                 except ValueError:
-                    self.console.print("[red]Run ID must be a number[/red]")
+                    self.console.print("[red]Session ID must be a number[/red]")
         elif cmd == '/compare':
-            if len(cmd_parts) < 3:  # Need at least 2 run IDs
-                self.console.print("[red]Usage: /compare <run1> <run2> [run3...][/red]")
+            if len(cmd_parts) < 3:  # Need at least 2 session IDs
+                self.console.print("[red]Usage: /compare <session1> <session2> [session3...][/red]")
             else:
                 try:
-                    run_ids = [int(id) for id in cmd_parts[1:]]
-                    self.command_handler.handle_compare(run_ids)
+                    session_ids = [int(id) for id in cmd_parts[1:]]
+                    self.command_handler.handle_compare(session_ids)
                 except ValueError:
-                    self.console.print("[red]Run IDs must be numbers[/red]")
+                    self.console.print("[red]Session IDs must be numbers[/red]")
         elif cmd == '/best':
             self.command_handler.handle_best()
         elif cmd == '/analyze':
             if len(cmd_parts) < 2:
-                self.console.print("[red]Usage: /analyze <run_id> [focus][/red]")
+                self.console.print("[red]Usage: /analyze <session_id> [focus][/red]")
                 self.console.print("[dim]Focus options: convergence, efficiency, algorithm, overall (default)[/dim]")
             else:
                 try:
-                    run_id = int(cmd_parts[1])
+                    session_id = int(cmd_parts[1])
                     focus = cmd_parts[2] if len(cmd_parts) > 2 else "overall"
-                    self.command_handler.handle_analyze(run_id, focus)
+                    self.command_handler.handle_analyze(session_id, focus)
                 except ValueError:
-                    self.console.print("[red]Run ID must be a number[/red]")
+                    self.console.print("[red]Session ID must be a number[/red]")
         elif cmd == '/knowledge':
             if len(cmd_parts) == 1:
                 self.command_handler.handle_knowledge_list()
@@ -414,14 +415,14 @@ class AgenticOptREPL:
   /eval <id>                 - Show detailed evaluator configuration
 
 [bold]Inspection Commands:[/bold]
-  /runs                      - List all optimization runs
-  /show <id>                 - Show detailed results for run (with metrics)
+  /sessions                  - List all optimization sessions
+  /show <id>                 - Show detailed results for session (with metrics)
   /analyze <id> [focus]      - AI-powered strategic analysis (costs ~$0.02-0.05)
                                Focus: convergence, efficiency, algorithm, overall (default)
-  /plot <id>                 - Plot convergence for run
-  /plot compare <id1> <id2>  - Overlay convergence curves for multiple runs
-  /compare <id1> <id2>       - Side-by-side comparison of runs
-  /best                      - Show best solution across all runs
+  /plot <id>                 - Plot convergence for session
+  /plot compare <id1> <id2>  - Overlay convergence curves for multiple sessions
+  /compare <id1> <id2>       - Side-by-side comparison of sessions
+  /best                      - Show best solution across all sessions
   /knowledge                 - List knowledge base (skeleton - not yet implemented)
   /knowledge show <id>       - Show detailed insight (skeleton)
 
@@ -432,7 +433,7 @@ class AgenticOptREPL:
   /model          - Show current LLM model
   /models         - Select a different LLM model
   /tokens         - Show token usage and cost statistics
-  /mode           - Toggle developer mode (verbose tool args/results)
+  /mode           - Toggle developer mode (on by default, shows tool args/results)
 
 [bold]Exit:[/bold]
   /exit or Ctrl+D

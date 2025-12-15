@@ -3,8 +3,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
-# Import from platform.run, not storage.models
-from ..run import RunRecord
+from ..schema import SessionRecord
 from ..problem import Problem
 
 
@@ -13,38 +12,40 @@ class StorageBackend(ABC):
     Abstract storage interface for optimization data.
 
     Implementations: FileStorage (JSON), SQLiteStorage (future)
+
+    v0.2.0: Session-based storage (SessionRecord contains runs)
     """
 
     @abstractmethod
-    def save_run(self, run: RunRecord) -> None:
+    def save_session(self, session: SessionRecord) -> None:
         """
-        Persist optimization run.
+        Persist optimization session.
 
         Args:
-            run: RunRecord to save
+            session: SessionRecord to save
         """
         pass
 
     @abstractmethod
-    def load_run(self, run_id: int) -> Optional[RunRecord]:
+    def load_session(self, session_id: int) -> Optional[SessionRecord]:
         """
-        Load optimization run by ID.
+        Load optimization session by ID.
 
         Args:
-            run_id: Run identifier
+            session_id: Session identifier
 
         Returns:
-            RunRecord or None if not found
+            SessionRecord or None if not found
         """
         pass
 
     @abstractmethod
-    def load_all_runs(self) -> List[RunRecord]:
+    def load_all_sessions(self) -> List[SessionRecord]:
         """
-        Load all optimization runs.
+        Load all optimization sessions.
 
         Returns:
-            List of all RunRecords, sorted by run_id
+            List of all SessionRecords, sorted by session_id
         """
         pass
 
@@ -72,13 +73,13 @@ class StorageBackend(ABC):
         pass
 
     @abstractmethod
-    def get_next_run_id(self) -> int:
+    def get_next_session_id(self) -> int:
         """
-        Get next available run ID.
+        Get next available session ID.
 
         This method must be atomic to prevent ID conflicts.
 
         Returns:
-            Next run ID
+            Next session ID
         """
         pass

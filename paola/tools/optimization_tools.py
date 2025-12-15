@@ -8,21 +8,16 @@ This module provides tools where:
 - Execution tools execute decisions FROM the LLM
 - The LLM's trained knowledge (IPOPT docs, optimization theory, etc.) IS the intelligence
 
+v0.2.0: Session-based architecture
+- run_optimization requires session_id
+- Records runs with polymorphic components per optimizer family
+
 Architecture:
     LLM reasons → selects optimizer → constructs config → calls run_optimization
     (Intelligence)                                        (Execution)
-
-Example workflow:
-    1. LLM calls get_problem_info("rosenbrock_10d")
-    2. LLM reasons: "10D unconstrained, gradient available → L-BFGS-B is ideal"
-    3. LLM calls run_optimization(
-           problem_id="rosenbrock_10d",
-           optimizer="scipy:L-BFGS-B",
-           config='{"ftol": 1e-8}'
-       )
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any
 import numpy as np
 from langchain_core.tools import tool
 import time
@@ -33,23 +28,30 @@ from ..optimizers.backends import (
     get_backend,
     list_backends,
     get_available_backends,
-    OptimizationResult,
 )
-from ..foundry.nlp_schema import NLPProblem
+from ..foundry import (
+    COMPONENT_REGISTRY,
+    GradientInitialization,
+    GradientProgress,
+    GradientResult,
+    BayesianInitialization,
+    BayesianProgress,
+    BayesianResult,
+)
 
 logger = logging.getLogger(__name__)
 
 
 @tool
 def run_optimization(
-    problem_id: str,
+    session_id: int,
     optimizer: str,
     config: Optional[str] = None,
     max_iterations: int = 100,
-    run_id: Optional[int] = None,
+    init_strategy: str = "center",
 ) -> Dict[str, Any]:
     """
-    Execute optimization with LLM-specified backend and configuration.
+    Execute optimization within a session.
 
     The LLM decides which optimizer and configuration to use based on:
     - Problem characteristics (from get_problem_info)
@@ -57,64 +59,72 @@ def run_optimization(
     - Paola's learned knowledge of optimization algorithms
 
     Args:
-        problem_id: Problem ID (from create_nlp_problem)
+        session_id: Session ID from start_session (required)
         optimizer: Backend specification:
             - "scipy" or "scipy:SLSQP" - SciPy with method
             - "scipy:L-BFGS-B" - SciPy L-BFGS-B
             - "scipy:trust-constr" - SciPy trust-constr
             - "ipopt" - IPOPT interior-point optimizer
             - "optuna" or "optuna:TPE" - Optuna with sampler
-            - "optuna:CMA-ES" - Optuna CMA-ES sampler
         config: JSON string with optimizer-specific options.
             LLM constructs this based on its knowledge.
             SciPy: '{"ftol": 1e-6, "gtol": 1e-5}'
             IPOPT: '{"tol": 1e-6, "mu_strategy": "adaptive"}'
             Optuna: '{"n_trials": 100, "seed": 42}'
         max_iterations: Maximum iterations (default: 100)
-        run_id: Optional run ID for recording results
+        init_strategy: Initialization strategy:
+            - "center" - center of bounds (default)
+            - "random" - random point within bounds
+            - "warm_start" - warm-start from previous run in session
 
     Returns:
         Dict with:
             success: bool
             message: str
+            run_id: int - ID of this run within the session
             final_design: List[float]
             final_objective: float
             optimizer_used: str
             n_iterations: int
             n_function_evals: int
             n_gradient_evals: int
-            convergence_info: Dict
 
     Example:
-        # LLM decides to use L-BFGS-B for unconstrained problem
+        # First start a session
+        session = start_session(problem_id="rosenbrock_10d")
+        # session_id = 1
+
+        # Then run optimization
         result = run_optimization(
-            problem_id="rosenbrock_10d",
+            session_id=1,
             optimizer="scipy:L-BFGS-B",
             config='{"ftol": 1e-8}',
             max_iterations=200
         )
-
-        # LLM decides IPOPT for constrained problem
-        result = run_optimization(
-            problem_id="constrained_nlp",
-            optimizer="ipopt",
-            config='{"tol": 1e-6, "mu_strategy": "adaptive"}'
-        )
-
-        # LLM decides Optuna for multi-modal problem
-        result = run_optimization(
-            problem_id="ackley_10d",
-            optimizer="optuna:TPE",
-            config='{"n_trials": 500}'
-        )
     """
     from .evaluator_tools import _get_problem
+    from .session_tools import _FOUNDRY
 
     try:
-        # Get problem
-        problem = _get_problem(problem_id)
+        # Check foundry
+        if _FOUNDRY is None:
+            return {
+                "success": False,
+                "message": "Foundry not initialized. Call set_foundry() first.",
+            }
 
-        # Parse optimizer specification (e.g., "scipy:SLSQP" → backend="scipy", method="SLSQP")
+        # Get session
+        session = _FOUNDRY.get_session(session_id)
+        if session is None:
+            return {
+                "success": False,
+                "message": f"Session {session_id} not found or already finalized. Use start_session first.",
+            }
+
+        # Get problem
+        problem = _get_problem(session.problem_id)
+
+        # Parse optimizer specification
         parts = optimizer.split(":")
         backend_name = parts[0].lower()
         method = parts[1] if len(parts) > 1 else None
@@ -131,7 +141,7 @@ def run_optimization(
         if not backend.is_available():
             return {
                 "success": False,
-                "message": f"Backend '{backend_name}' is not installed. Check package requirements.",
+                "message": f"Backend '{backend_name}' is not installed.",
             }
 
         # Parse config
@@ -145,32 +155,78 @@ def run_optimization(
                     "message": f"Invalid config JSON: {e}",
                 }
 
-        # Add method to config if specified
+        # Add method to config
         if method:
             config_dict["method"] = method
         config_dict["max_iterations"] = max_iterations
 
-        # Get bounds and constraints from problem
+        # Get bounds from problem
         nlp_problem = None
         if hasattr(problem, "problem"):
             nlp_problem = problem.problem
 
         if nlp_problem:
             bounds = nlp_problem.bounds
-            x0 = np.array(nlp_problem.get_bounds_center())
+            bounds_center = nlp_problem.get_bounds_center()
         elif hasattr(problem, "bounds"):
             bounds = problem.bounds
-            x0 = np.array([(b[0] + b[1]) / 2 for b in bounds])
+            bounds_center = [(b[0] + b[1]) / 2 for b in bounds]
         elif hasattr(problem, "get_bounds"):
-            # AnalyticalFunction with get_bounds() method
             lb, ub = problem.get_bounds()
             bounds = [[float(lb[i]), float(ub[i])] for i in range(len(lb))]
-            x0 = np.array([(b[0] + b[1]) / 2 for b in bounds])
+            bounds_center = [(b[0] + b[1]) / 2 for b in bounds]
         else:
             return {
                 "success": False,
                 "message": "Problem must have bounds defined",
             }
+
+        # Determine initialization
+        family = COMPONENT_REGISTRY.get_family(optimizer)
+        warm_start_from = None
+
+        if init_strategy == "warm_start" and session.runs:
+            # Use best design from previous run
+            best_run = session.get_best_run()
+            if best_run:
+                x0 = np.array(best_run.best_design)
+                warm_start_from = best_run.run_id
+            else:
+                x0 = np.array(bounds_center)
+        elif init_strategy == "random":
+            # Random point within bounds
+            lower = np.array([b[0] for b in bounds])
+            upper = np.array([b[1] for b in bounds])
+            x0 = lower + np.random.random(len(bounds)) * (upper - lower)
+        else:
+            # Default: center of bounds
+            x0 = np.array(bounds_center)
+
+        # Create initialization component based on family
+        if family == "gradient":
+            initialization = GradientInitialization(
+                specification={"type": init_strategy, "source_run": warm_start_from},
+                x0=x0.tolist(),
+            )
+        elif family == "bayesian":
+            initialization = BayesianInitialization(
+                specification={"type": init_strategy},
+                warm_start_trials=None,
+                n_initial_random=config_dict.get("n_startup_trials", 10),
+            )
+        else:
+            # Default to gradient-style for unknown families
+            initialization = GradientInitialization(
+                specification={"type": init_strategy},
+                x0=x0.tolist(),
+            )
+
+        # Start run within session
+        active_run = session.start_run(
+            optimizer=optimizer,
+            initialization=initialization,
+            warm_start_from=warm_start_from,
+        )
 
         # Prepare objective function
         def objective(x):
@@ -200,46 +256,84 @@ def run_optimization(
 
         elapsed = time.time() - start_time
 
-        # Record to run if run_id provided
-        if run_id is not None:
-            try:
-                from .run_tools import _FOUNDRY
-                if _FOUNDRY is not None:
-                    run = _FOUNDRY.get_run(run_id)
-                    if run:
-                        for h in result.history:
-                            if "design" in h:
-                                run.record_iteration(
-                                    design=np.array(h["design"]),
-                                    objective=h["objective"]
-                                )
-                        # Create a standardized result object for finalize
-                        # This ensures compatibility with all backends (SciPy, IPOPT, Optuna)
-                        from types import SimpleNamespace
-                        std_result = SimpleNamespace(
-                            fun=result.final_objective,
-                            x=result.final_design,
-                            success=result.success,
-                            nfev=result.n_function_evals,
-                            nit=result.n_iterations,
-                            message=result.message
-                        )
-                        run.finalize(std_result, metadata={"elapsed": elapsed, "optimizer": optimizer})
-            except Exception as e:
-                logger.warning(f"Failed to record run: {e}")
+        # Record iterations to active run
+        for h in result.history:
+            active_run.record_iteration(h)
+
+        # Create progress and result components based on family
+        if family == "gradient":
+            progress = GradientProgress()
+            for h in result.history:
+                progress.add_iteration(
+                    iteration=h.get("iteration", 0),
+                    objective=h.get("objective", 0.0),
+                    design=h.get("design", []),
+                    gradient_norm=h.get("gradient_norm"),
+                    step_size=h.get("step_size"),
+                    constraint_violation=h.get("constraint_violation"),
+                )
+            result_component = GradientResult(
+                termination_reason=result.message,
+                final_gradient_norm=None,
+                final_constraint_violation=None,
+            )
+        elif family == "bayesian":
+            progress = BayesianProgress()
+            for i, h in enumerate(result.history):
+                progress.add_trial(
+                    trial_number=h.get("trial", i + 1),
+                    design=h.get("design", []),
+                    objective=h.get("objective", 0.0),
+                    state="complete",
+                )
+            result_component = BayesianResult(
+                termination_reason=result.message,
+                best_trial_number=len(result.history),
+                n_complete_trials=len(result.history),
+                n_pruned_trials=0,
+            )
+        else:
+            # Default to gradient-style
+            progress = GradientProgress()
+            for h in result.history:
+                progress.add_iteration(
+                    iteration=h.get("iteration", 0),
+                    objective=h.get("objective", 0.0),
+                    design=h.get("design", []),
+                )
+            result_component = GradientResult(
+                termination_reason=result.message,
+            )
+
+        # Complete run
+        final_design = (
+            result.final_design.tolist()
+            if isinstance(result.final_design, np.ndarray)
+            else list(result.final_design)
+        )
+
+        completed_run = session.complete_run(
+            progress=progress,
+            result=result_component,
+            best_objective=result.final_objective,
+            best_design=final_design,
+            success=result.success,
+        )
 
         # Return result
         return {
             "success": result.success,
             "message": result.message,
-            "final_design": result.final_design.tolist() if isinstance(result.final_design, np.ndarray) else list(result.final_design),
+            "run_id": completed_run.run_id,
+            "final_design": final_design,
             "final_objective": float(result.final_objective),
             "optimizer_used": optimizer,
+            "optimizer_family": family,
             "n_iterations": result.n_iterations,
             "n_function_evals": result.n_function_evals,
             "n_gradient_evals": result.n_gradient_evals,
             "elapsed_time": elapsed,
-            "optimization_history": result.history[-20:] if len(result.history) > 20 else result.history,
+            "warm_started_from": warm_start_from,
         }
 
     except Exception as e:
@@ -257,40 +351,19 @@ def get_problem_info(problem_id: str) -> Dict[str, Any]:
     Get problem characteristics for LLM reasoning.
 
     Use this tool to understand a problem before deciding on optimizer
-    selection and configuration. Returns information the LLM needs
-    to make intelligent optimization decisions.
+    selection and configuration.
 
     Args:
-        problem_id: Problem ID (from create_nlp_problem or create_benchmark_problem)
+        problem_id: Problem ID (from create_nlp_problem)
 
     Returns:
-        Dict with:
-            success: bool
-            problem_id: str
-            dimension: int - number of design variables
-            bounds: List[List[float]] - variable bounds [[lb, ub], ...]
-            bounds_summary: str - compact summary of bounds
-            bounds_center: List[float] - center of bounds (typical starting point)
-            bounds_width: List[float] - width of bounds per variable
-            num_inequality_constraints: int
-            num_equality_constraints: int
-            has_gradient: bool - whether analytical gradient is available
-            domain_hint: Optional[str] - e.g., "shape_optimization"
-            description: str
-
-    Example:
-        # LLM queries problem info to decide optimizer
-        info = get_problem_info("rosenbrock_10d")
-        # Returns dimension=10, no constraints, description mentions valley
-
-        # LLM reasons: "Unconstrained, 10D with narrow valley → L-BFGS-B is good"
+        Dict with problem characteristics
     """
     from .evaluator_tools import _get_problem
 
     try:
         problem = _get_problem(problem_id)
 
-        # Get NLPProblem if available
         nlp_problem = None
         if hasattr(problem, "problem"):
             nlp_problem = problem.problem
@@ -301,11 +374,9 @@ def get_problem_info(problem_id: str) -> Dict[str, Any]:
             bounds_center = nlp_problem.get_bounds_center()
             bounds_width = nlp_problem.get_bounds_width()
 
-            # Count constraints
             n_ineq = len(nlp_problem.inequality_constraints) if nlp_problem.inequality_constraints else 0
             n_eq = len(nlp_problem.equality_constraints) if nlp_problem.equality_constraints else 0
 
-            # Summarize bounds
             if all(b[0] == bounds[0][0] and b[1] == bounds[0][1] for b in bounds):
                 bounds_summary = f"uniform [{bounds[0][0]}, {bounds[0][1]}] for all {n_vars} variables"
             else:
@@ -317,7 +388,7 @@ def get_problem_info(problem_id: str) -> Dict[str, Any]:
                 "success": True,
                 "problem_id": problem_id,
                 "dimension": n_vars,
-                "bounds": bounds[:10] if n_vars > 10 else bounds,  # First 10 for large problems
+                "bounds": bounds[:10] if n_vars > 10 else bounds,
                 "bounds_truncated": n_vars > 10,
                 "bounds_summary": bounds_summary,
                 "bounds_center": bounds_center[:10] if n_vars > 10 else bounds_center,
@@ -352,7 +423,6 @@ def get_problem_info(problem_id: str) -> Dict[str, Any]:
             }
 
         elif hasattr(problem, "get_bounds"):
-            # AnalyticalFunction with get_bounds() method
             lb, ub = problem.get_bounds()
             bounds = [[float(lb[i]), float(ub[i])] for i in range(len(lb))]
             n_vars = len(bounds)
@@ -363,7 +433,7 @@ def get_problem_info(problem_id: str) -> Dict[str, Any]:
                 "dimension": n_vars,
                 "bounds": bounds[:10] if n_vars > 10 else bounds,
                 "bounds_truncated": n_vars > 10,
-                "bounds_summary": f"{n_vars} variables, bounds: [{lb[0]}, {ub[0]}]" if all(lb[i] == lb[0] and ub[i] == ub[0] for i in range(n_vars)) else f"{n_vars} variables",
+                "bounds_summary": f"{n_vars} variables",
                 "bounds_center": [(b[0] + b[1]) / 2 for b in bounds[:10]],
                 "bounds_width": [b[1] - b[0] for b in bounds[:10]],
                 "num_inequality_constraints": 0,
@@ -392,26 +462,14 @@ def list_available_optimizers() -> Dict[str, Any]:
     """
     List available optimizer backends and their capabilities.
 
-    Use this tool to discover what optimizers are installed and
-    their characteristics. The LLM uses this to decide which
-    optimizer to use for a given problem.
+    Use this tool to discover what optimizers are installed.
 
     Returns:
-        Dict with backend information:
-            scipy: {available, methods, supports_constraints, ...}
-            ipopt: {available, supports_constraints, key_options, ...}
-            optuna: {available, samplers, ...}
-
-    Example:
-        # LLM checks available optimizers
-        optimizers = list_available_optimizers()
-
-        # If IPOPT available and problem is constrained:
-        # LLM reasons: "IPOPT is ideal for large constrained NLPs"
+        Dict with backend information
     """
     backends = list_backends()
 
-    result = {
+    return {
         "success": True,
         "available_backends": get_available_backends(),
         "backends": backends,
@@ -423,62 +481,43 @@ def list_available_optimizers() -> Dict[str, Any]:
         ),
     }
 
-    return result
-
 
 @tool
 def get_optimizer_options(optimizer: str) -> Dict[str, Any]:
     """
     Get detailed options for a specific optimizer.
 
-    Use this tool to understand what configuration options are
-    available for a specific optimizer backend.
-
     Args:
         optimizer: Optimizer name ("scipy", "ipopt", "optuna")
 
     Returns:
-        Dict with:
-            name: str
-            available: bool
-            methods/samplers: List[str]
-            key_options: List[str] - important configuration options
-            option_descriptions: Dict[str, str]
-
-    Example:
-        # LLM wants to configure IPOPT
-        options = get_optimizer_options("ipopt")
-        # Returns key options like tol, mu_strategy, linear_solver
+        Dict with options and descriptions
     """
     backend = get_backend(optimizer)
 
     if backend is None:
         return {
             "success": False,
-            "message": f"Unknown optimizer '{optimizer}'. Use list_available_optimizers() to see available options.",
+            "message": f"Unknown optimizer '{optimizer}'.",
         }
 
     info = backend.get_info()
     info["success"] = True
     info["available"] = backend.is_available()
 
-    # Add detailed option descriptions
     if optimizer.lower() == "scipy":
         info["option_descriptions"] = {
-            "method": "Optimization algorithm (SLSQP, L-BFGS-B, trust-constr, etc.)",
+            "method": "Optimization algorithm (SLSQP, L-BFGS-B, trust-constr)",
             "maxiter": "Maximum iterations",
             "ftol": "Function tolerance for convergence",
             "gtol": "Gradient tolerance for convergence",
-            "disp": "Display optimization progress",
         }
     elif optimizer.lower() == "ipopt":
         info["option_descriptions"] = {
             "tol": "Convergence tolerance (default 1e-8)",
             "max_iter": "Maximum iterations (default 3000)",
-            "mu_strategy": "Barrier parameter strategy ('monotone' or 'adaptive')",
-            "mu_init": "Initial barrier parameter",
-            "linear_solver": "Linear solver ('mumps', 'ma27', 'ma57', 'pardiso')",
-            "print_level": "Output verbosity (0-12)",
+            "mu_strategy": "Barrier parameter strategy",
+            "linear_solver": "Linear solver",
         }
     elif optimizer.lower() == "optuna":
         info["option_descriptions"] = {

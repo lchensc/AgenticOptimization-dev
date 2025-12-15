@@ -87,6 +87,15 @@ from paola.tools.registration_tools import (
     ALL_REGISTRATION_TOOLS,
 )
 
+# Session management tools (v0.2.0)
+from paola.tools.session_tools import (
+    start_session,
+    finalize_session,
+    get_active_sessions,
+    get_session_info,
+    set_foundry,
+)
+
 __all__ = [
     # Cache tools
     "cache_get",
@@ -143,4 +152,10 @@ __all__ = [
     "foundry_list_evaluators",
     "foundry_get_evaluator",
     "ALL_REGISTRATION_TOOLS",
+    # Session management tools (v0.2.0)
+    "start_session",
+    "finalize_session",
+    "get_active_sessions",
+    "get_session_info",
+    "set_foundry",
 ]

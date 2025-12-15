@@ -1,17 +1,22 @@
 """
-OptimizationFoundry - Data foundation for optimization runs.
+OptimizationFoundry - Data foundation for optimization sessions.
 
 The foundry provides a single source of truth for optimization data,
-managing problems, runs, results with versioning and lineage.
+managing problems, sessions, results with versioning and lineage.
+
+v0.2.0: Session-based architecture
+- Session = complete optimization task (may involve multiple runs)
+- Run = single optimizer execution
 
 Pattern: Dependency injection (testable, explicit)
 """
 
 from typing import Dict, Optional, List
-from datetime import datetime
+import re
 
 from .storage import StorageBackend
-from .run import Run, RunRecord
+from .schema import SessionRecord
+from .active_session import ActiveSession
 from .problem import Problem
 from .evaluator_storage import EvaluatorStorage
 from .evaluator_schema import EvaluatorConfig
@@ -19,18 +24,16 @@ from .evaluator_schema import EvaluatorConfig
 
 class OptimizationFoundry:
     """
-    Data foundation for optimization runs.
+    Data foundation for optimization sessions.
 
     The foundry provides a single source of truth for optimization data,
-    managing problems, runs, results with versioning and lineage.
+    managing problems, sessions, results with versioning and lineage.
 
-    Inspired by Palantir Foundry's ontology layer: creates organized,
-    trustworthy data that the agent and knowledge base can build upon.
-
-    Design:
+    v0.2.0 Design:
     - Uses dependency injection (pass storage backend)
     - No singleton (each instance is independent)
-    - Manages active runs (in-memory)
+    - Manages active sessions (in-memory)
+    - Sessions contain multiple runs (optimizer executions)
     - Delegates persistence to storage backend
 
     Example:
@@ -38,21 +41,26 @@ class OptimizationFoundry:
         storage = FileStorage(base_dir=".paola_runs")
         foundry = OptimizationFoundry(storage=storage)
 
-        # Create and track run
-        run = foundry.create_run(
+        # Create session
+        session = foundry.create_session(
             problem_id="rosenbrock_10d",
-            problem_name="Rosenbrock 10D",
-            algorithm="SLSQP"
+            config={"goal": "minimize"}
         )
 
-        # Optimization loop records iterations
-        run.record_iteration(design=x, objective=f)
+        # Start a run within session
+        run = session.start_run(
+            optimizer="scipy:SLSQP",
+            initialization=GradientInitialization(...)
+        )
 
-        # Finalize
-        run.finalize(result)
+        # Record iterations
+        run.record_iteration({"iteration": 1, "objective": 0.5, ...})
 
-        # Query
-        all_runs = foundry.load_all_runs()
+        # Complete run
+        session.complete_run(progress, result, best_obj, best_design)
+
+        # Finalize session
+        record = foundry.finalize_session(session.session_id, success=True)
     """
 
     def __init__(self, storage: StorageBackend):
@@ -63,178 +71,174 @@ class OptimizationFoundry:
             storage: Storage backend (FileStorage, SQLiteStorage, etc.)
         """
         self.storage = storage
-        self._active_runs: Dict[int, Run] = {}
+        self._active_sessions: Dict[int, ActiveSession] = {}
 
         # Initialize evaluator storage
         self.evaluator_storage = EvaluatorStorage(storage)
 
-    # ===== Run Lifecycle Management =====
+    # ===== Session Lifecycle Management =====
 
-    def create_run(
+    def create_session(
         self,
         problem_id: str,
-        problem_name: str,
-        algorithm: str,
-        description: str = ""
-    ) -> Run:
+        config: Optional[Dict] = None,
+    ) -> ActiveSession:
         """
-        Create new optimization run.
+        Create new optimization session.
 
-        This creates an active run handle that tools use to track
-        optimization progress. The run auto-persists to storage
-        on every iteration.
+        This creates an active session handle that can contain multiple
+        optimizer runs. The session is persisted when finalized.
 
         Args:
             problem_id: Problem identifier
-            problem_name: Human-readable problem name
-            algorithm: Optimization algorithm
-            description: Optional description
+            config: Session configuration (goal, constraints, etc.)
 
         Returns:
-            Run: Active run handle
+            ActiveSession: Active session handle
 
         Example:
-            run = foundry.create_run(
+            session = foundry.create_session(
                 problem_id="rosenbrock_10d",
-                problem_name="Rosenbrock 10D",
-                algorithm="SLSQP",
-                description="First attempt with default settings"
+                config={"goal": "minimize", "max_evaluations": 1000}
             )
         """
-        # Get next run ID from storage
-        run_id = self.storage.get_next_run_id()
+        # Get next session ID from storage
+        session_id = self.storage.get_next_session_id()
 
-        # Create active run
-        run = Run(
-            run_id=run_id,
+        # Create active session
+        session = ActiveSession(
+            session_id=session_id,
             problem_id=problem_id,
-            problem_name=problem_name,
-            algorithm=algorithm,
-            storage=self.storage,
-            description=description
+            config=config,
         )
 
         # Register as active
-        self._active_runs[run_id] = run
+        self._active_sessions[session_id] = session
 
-        return run
+        return session
 
-    def get_run(self, run_id: int) -> Optional[Run]:
+    def get_session(self, session_id: int) -> Optional[ActiveSession]:
         """
-        Get active run by ID.
+        Get active session by ID.
 
-        Only returns runs that are currently active (in-progress).
-        For completed runs, use load_run().
+        Only returns sessions that are currently active (in-progress).
+        For completed sessions, use load_session().
 
         Args:
-            run_id: Run identifier
+            session_id: Session identifier
 
         Returns:
-            Run if active, None otherwise
+            ActiveSession if active, None otherwise
         """
-        return self._active_runs.get(run_id)
+        return self._active_sessions.get(session_id)
 
-    def finalize_run(self, run_id: int) -> None:
+    def finalize_session(self, session_id: int, success: bool) -> Optional[SessionRecord]:
         """
-        Finalize run and remove from active registry.
-
-        Called after run.finalize() to remove from active runs.
+        Finalize session and persist to storage.
 
         Args:
-            run_id: Run identifier
-        """
-        if run_id in self._active_runs:
-            del self._active_runs[run_id]
-
-    def get_active_runs(self) -> Dict[int, Run]:
-        """
-        Get all active (in-progress) runs.
+            session_id: Session identifier
+            success: Whether optimization was successful
 
         Returns:
-            Dict mapping run_id to Run
+            SessionRecord if session found, None otherwise
         """
-        return self._active_runs.copy()
+        session = self._active_sessions.get(session_id)
+        if session is None:
+            return None
 
-    # ===== Storage Queries (Completed Runs) =====
+        # Finalize session to get immutable record
+        record = session.finalize(success)
 
-    def load_run(self, run_id: int) -> Optional[RunRecord]:
+        # Persist to storage
+        self.storage.save_session(record)
+
+        # Remove from active registry
+        del self._active_sessions[session_id]
+
+        return record
+
+    def get_active_sessions(self) -> Dict[int, ActiveSession]:
         """
-        Load completed run from storage.
+        Get all active (in-progress) sessions.
+
+        Returns:
+            Dict mapping session_id to ActiveSession
+        """
+        return self._active_sessions.copy()
+
+    # ===== Storage Queries (Completed Sessions) =====
+
+    def load_session(self, session_id: int) -> Optional[SessionRecord]:
+        """
+        Load completed session from storage.
 
         Args:
-            run_id: Run identifier
+            session_id: Session identifier
 
         Returns:
-            RunRecord or None if not found
+            SessionRecord or None if not found
         """
-        return self.storage.load_run(run_id)
+        return self.storage.load_session(session_id)
 
-    def load_all_runs(self) -> List[RunRecord]:
+    def load_all_sessions(self) -> List[SessionRecord]:
         """
-        Load all runs from storage.
+        Load all sessions from storage.
 
         Returns:
-            List of all RunRecords, sorted by run_id
+            List of all SessionRecords, sorted by session_id
         """
-        return self.storage.load_all_runs()
+        return self.storage.load_all_sessions()
 
-    def query_runs(
+    def query_sessions(
         self,
-        algorithm: Optional[str] = None,
         problem_id: Optional[str] = None,
         success: Optional[bool] = None,
-        limit: int = 100
-    ) -> List[RunRecord]:
+        limit: int = 100,
+    ) -> List[SessionRecord]:
         """
-        Query runs with filters.
+        Query sessions with filters.
 
         Currently does post-load filtering (loads all, then filters).
         Future: Push filtering to storage backend for efficiency.
 
         Args:
-            algorithm: Filter by algorithm name
             problem_id: Filter by problem ID (supports wildcards)
             success: Filter by success status
             limit: Maximum number of results
 
         Returns:
-            List of matching RunRecords
+            List of matching SessionRecords
 
         Example:
-            # Get all successful SLSQP runs on Rosenbrock
-            runs = foundry.query_runs(
-                algorithm="SLSQP",
+            # Get all successful sessions on Rosenbrock
+            sessions = foundry.query_sessions(
                 problem_id="rosenbrock*",
                 success=True,
                 limit=10
             )
         """
-        runs = self.storage.load_all_runs()
+        sessions = self.storage.load_all_sessions()
 
         # Apply filters
         filtered = []
-        for run in runs:
-            # Algorithm filter
-            if algorithm is not None and run.algorithm != algorithm:
-                continue
-
+        for session in sessions:
             # Problem ID filter (support wildcards)
             if problem_id is not None:
                 if '*' in problem_id:
                     # Wildcard matching
                     pattern = problem_id.replace('*', '.*')
-                    import re
-                    if not re.match(pattern, run.problem_id):
+                    if not re.match(pattern, session.problem_id):
                         continue
                 else:
-                    if run.problem_id != problem_id:
+                    if session.problem_id != problem_id:
                         continue
 
             # Success filter
-            if success is not None and run.success != success:
+            if success is not None and session.success != success:
                 continue
 
-            filtered.append(run)
+            filtered.append(session)
 
             # Limit
             if len(filtered) >= limit:
@@ -296,7 +300,7 @@ class OptimizationFoundry:
         self,
         evaluator_type: Optional[str] = None,
         status: Optional[str] = None,
-        domain: Optional[str] = None
+        domain: Optional[str] = None,
     ) -> List[EvaluatorConfig]:
         """
         List registered evaluators with optional filters.
@@ -312,14 +316,14 @@ class OptimizationFoundry:
         return self.evaluator_storage.list_evaluators(
             evaluator_type=evaluator_type,
             status=status,
-            domain=domain
+            domain=domain,
         )
 
     def update_evaluator_performance(
         self,
         evaluator_id: str,
         execution_time: float,
-        success: bool
+        success: bool,
     ):
         """
         Update evaluator performance metrics.
@@ -334,18 +338,18 @@ class OptimizationFoundry:
         self.evaluator_storage.update_performance(
             evaluator_id=evaluator_id,
             execution_time=execution_time,
-            success=success
+            success=success,
         )
 
-    def link_evaluator_to_run(self, evaluator_id: str, run_id: str):
+    def link_evaluator_to_session(self, evaluator_id: str, session_id: int):
         """
-        Link evaluator to optimization run.
+        Link evaluator to optimization session.
 
         Args:
             evaluator_id: Evaluator ID
-            run_id: Run ID
+            session_id: Session ID
         """
-        self.evaluator_storage.add_run_reference(evaluator_id, str(run_id))
+        self.evaluator_storage.add_run_reference(evaluator_id, str(session_id))
 
     def link_evaluator_to_problem(self, evaluator_id: str, problem_id: str):
         """
@@ -368,15 +372,61 @@ class OptimizationFoundry:
 
     # ===== Utilities =====
 
-    def clear_active_runs(self) -> None:
+    def clear_active_sessions(self) -> None:
         """
-        Clear all active runs (for testing).
+        Clear all active sessions (for testing).
 
-        Warning: This removes runs from registry without finalizing them.
+        Warning: This removes sessions from registry without finalizing them.
         Only use in testing scenarios.
         """
-        self._active_runs.clear()
+        self._active_sessions.clear()
+
+    # ===== Deprecated v0.1.0 API (for backward compatibility) =====
+
+    def load_run(self, run_id: int):
+        """
+        DEPRECATED: Load run by ID.
+
+        This method is deprecated. Use load_session() instead.
+        In v0.2.0, runs are contained within sessions.
+
+        Args:
+            run_id: Run identifier
+
+        Returns:
+            None (deprecated - no backward compatible storage)
+        """
+        import warnings
+        warnings.warn(
+            "load_run() is deprecated. Use load_session() instead. "
+            "In v0.2.0, runs are contained within sessions.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return None
+
+    def get_run(self, run_id: int):
+        """
+        DEPRECATED: Get active run by ID.
+
+        This method is deprecated. Use get_session() instead.
+        In v0.2.0, runs are managed through sessions.
+
+        Args:
+            run_id: Run identifier
+
+        Returns:
+            None (deprecated)
+        """
+        import warnings
+        warnings.warn(
+            "get_run() is deprecated. Use get_session() instead. "
+            "In v0.2.0, runs are managed through sessions.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return None
 
     def __repr__(self) -> str:
         """String representation."""
-        return f"OptimizationFoundry(active_runs={len(self._active_runs)}, storage={type(self.storage).__name__})"
+        return f"OptimizationFoundry(active_sessions={len(self._active_sessions)}, storage={type(self.storage).__name__})"
