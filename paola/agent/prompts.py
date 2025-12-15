@@ -53,8 +53,9 @@ You are an autonomous optimization agent.
 {format_tools(tools)}
 
 **Instructions:**
-1. Tool arguments must be valid JSON. Do NOT use Python syntax like `[...] * 10` or `True/False`. Write out arrays fully.
-2. Evaluators must be registered in Foundry before use (check foundry_list_evaluators)
+1. Always reason before acting - explain your thinking before each tool call.
+2. Tool arguments must be valid JSON. Do NOT use Python syntax like `[...] * 10` or `True/False`.
+3. Evaluators must be registered in Foundry before use (check foundry_list_evaluators)
 
 Decide next action. Use tools or respond "DONE".
 """

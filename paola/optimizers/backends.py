@@ -145,7 +145,11 @@ class SciPyBackend(OptimizerBackend):
         def wrapped_objective(x):
             n_evals[0] += 1
             val = objective(x)
-            history.append({"iteration": n_evals[0], "objective": float(val)})
+            history.append({
+                "iteration": n_evals[0],
+                "objective": float(val),
+                "design": x.tolist() if hasattr(x, 'tolist') else list(x),
+            })
             return val
 
         def wrapped_gradient(x):
@@ -254,7 +258,11 @@ class IPOPTBackend(OptimizerBackend):
         def wrapped_objective(x):
             n_evals[0] += 1
             val = objective(x)
-            history.append({"iteration": n_evals[0], "objective": float(val)})
+            history.append({
+                "iteration": n_evals[0],
+                "objective": float(val),
+                "design": x.tolist() if hasattr(x, 'tolist') else list(x),
+            })
             return val
 
         def wrapped_gradient(x):
