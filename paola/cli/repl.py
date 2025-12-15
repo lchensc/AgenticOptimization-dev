@@ -88,11 +88,12 @@ class AgenticOptREPL:
             foundry_get_evaluator
         )
 
-        # Import intent-based optimization tools (Paola Principle)
+        # Import LLM-driven optimization tools (Paola Principle)
         from ..tools.optimization_tools import (
             run_optimization,
-            get_optimization_strategy,
-            list_available_algorithms,
+            get_problem_info,
+            list_available_optimizers,
+            get_optimizer_options,
         )
 
         # Import expert configuration tools
@@ -114,10 +115,11 @@ class AgenticOptREPL:
             finalize_optimization_run,
             get_active_runs,
 
-            # Intent-based optimization (Paola Principle - recommended)
-            run_optimization,  # Agent specifies intent, Paola handles complexity
-            get_optimization_strategy,  # Preview what Paola would do
-            list_available_algorithms,  # List available optimizers
+            # LLM-driven optimization (Paola Principle - recommended)
+            run_optimization,  # Execute optimization with LLM-specified config
+            get_problem_info,  # Get problem characteristics for LLM reasoning
+            list_available_optimizers,  # List available backends
+            get_optimizer_options,  # Get optimizer configuration options
 
             # Expert configuration (escape hatch)
             config_scipy,

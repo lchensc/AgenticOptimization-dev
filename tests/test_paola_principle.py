@@ -3,9 +3,14 @@ Tests for Paola Principle implementation.
 
 Tests cover:
 - BoundsSpec: Compact bounds specification
-- InitializationManager: Agent intelligence for initialization
-- ConfigurationManager: Agent intelligence for algorithm selection
-- Intent-based run_optimization tool
+- NLPProblem schema: Updated schema without initial_point
+- Optimizer backends: SciPy, IPOPT, Optuna backends
+- Config tools: Expert escape hatch
+- create_nlp_problem: Compact bounds parsing
+
+Note: InitializationManager and ConfigurationManager tests were removed
+in the LLM-driven architecture refactor. The intelligence is now in the LLM,
+not in hardcoded Python classes.
 """
 
 import pytest
@@ -202,217 +207,86 @@ class TestNLPProblemSchema:
         # initial_point should be stripped out
 
 
-class TestInitializationManager:
-    """Test InitializationManager for agent initialization decisions."""
+class TestOptimizerBackends:
+    """Test optimizer backends (LLM-driven architecture)."""
 
-    def test_gradient_based_center_init(self):
-        """Test gradient-based algorithms use center of bounds."""
-        from paola.agent.initialization import InitializationManager
-        from paola.foundry.nlp_schema import NLPProblem
+    def test_scipy_backend_available(self):
+        """Test SciPy backend is available."""
+        from paola.optimizers.backends import SciPyBackend
 
-        manager = InitializationManager()
-        problem = NLPProblem(
-            problem_id="test",
-            objective_evaluator_id="obj",
-            dimension=3,
-            bounds=[[0, 10], [0, 20], [-5, 5]]
+        backend = SciPyBackend()
+        assert backend.is_available() is True
+        assert backend.name == "scipy"
+
+    def test_scipy_backend_info(self):
+        """Test SciPy backend info."""
+        from paola.optimizers.backends import SciPyBackend
+
+        backend = SciPyBackend()
+        info = backend.get_info()
+
+        assert "methods" in info
+        assert "SLSQP" in info["methods"]
+        assert "L-BFGS-B" in info["methods"]
+
+    def test_scipy_backend_optimize_rosenbrock(self):
+        """Test SciPy backend on Rosenbrock function."""
+        from paola.optimizers.backends import SciPyBackend
+
+        backend = SciPyBackend()
+
+        # Rosenbrock function
+        def rosenbrock(x):
+            return (1 - x[0])**2 + 100 * (x[1] - x[0]**2)**2
+
+        bounds = [[-5, 10], [-5, 10]]
+        x0 = np.array([0.0, 0.0])
+        config = {"method": "L-BFGS-B", "max_iterations": 200}
+
+        result = backend.optimize(
+            objective=rosenbrock,
+            bounds=bounds,
+            x0=x0,
+            config=config,
+            constraints=None,
+            gradient=None
         )
 
-        x0 = manager.compute_initial_point(problem, "SLSQP")
+        assert result.success is True
+        # Should converge near (1, 1)
+        assert abs(result.final_design[0] - 1.0) < 0.1
+        assert abs(result.final_design[1] - 1.0) < 0.1
+        assert result.final_objective < 0.01
 
-        np.testing.assert_array_equal(x0, [5, 10, 0])
+    def test_list_backends(self):
+        """Test list_backends function."""
+        from paola.optimizers.backends import list_backends
 
-    def test_shape_optimization_zero_init(self):
-        """Test shape optimization domain uses zero initialization."""
-        from paola.agent.initialization import InitializationManager
-        from paola.foundry.nlp_schema import NLPProblem
+        backends = list_backends()
 
-        manager = InitializationManager()
-        problem = NLPProblem(
-            problem_id="wing_ffd",
-            objective_evaluator_id="drag",
-            dimension=100,
-            bounds=[[-0.05, 0.05]] * 100,
-            domain_hint="shape_optimization"
-        )
+        assert "scipy" in backends
+        assert "ipopt" in backends
+        assert "optuna" in backends
 
-        x0 = manager.compute_initial_point(problem, "SLSQP")
+    def test_get_available_backends(self):
+        """Test get_available_backends function."""
+        from paola.optimizers.backends import get_available_backends
 
-        np.testing.assert_array_equal(x0, np.zeros(100))
+        available = get_available_backends()
 
-    def test_bayesian_returns_none(self):
-        """Test Bayesian algorithms return None (sampler handles)."""
-        from paola.agent.initialization import InitializationManager
-        from paola.foundry.nlp_schema import NLPProblem
+        assert "scipy" in available  # SciPy should always be available
 
-        manager = InitializationManager()
-        problem = NLPProblem(
-            problem_id="test",
-            objective_evaluator_id="obj",
-            dimension=3,
-            bounds=[[0, 10], [0, 20], [-5, 5]]
-        )
+    def test_get_backend(self):
+        """Test get_backend function."""
+        from paola.optimizers.backends import get_backend
 
-        x0 = manager.compute_initial_point(problem, "TPE")
+        backend = get_backend("scipy")
+        assert backend is not None
+        assert backend.name == "scipy"
 
-        assert x0 is None
-
-    def test_cmaes_params(self):
-        """Test CMA-ES parameter computation."""
-        from paola.agent.initialization import InitializationManager
-        from paola.foundry.nlp_schema import NLPProblem
-
-        manager = InitializationManager()
-        problem = NLPProblem(
-            problem_id="test",
-            objective_evaluator_id="obj",
-            dimension=3,
-            bounds=[[0, 10], [0, 20], [-5, 5]]  # widths: 10, 20, 10
-        )
-
-        mean, sigma = manager.compute_cmaes_params(problem)
-
-        np.testing.assert_array_equal(mean, [5, 10, 0])
-        # sigma ≈ 0.25 × mean(widths) = 0.25 × (10+20+10)/3 ≈ 3.33
-        assert 3.0 < sigma < 4.0
-
-    def test_population_generation_lhs(self):
-        """Test Latin Hypercube Sampling for population."""
-        from paola.agent.initialization import InitializationManager
-        from paola.foundry.nlp_schema import NLPProblem
-
-        manager = InitializationManager()
-        problem = NLPProblem(
-            problem_id="test",
-            objective_evaluator_id="obj",
-            dimension=3,
-            bounds=[[0, 10], [0, 10], [0, 10]]
-        )
-
-        population = manager.generate_population(problem, size=50, method="lhs")
-
-        assert population.shape == (50, 3)
-        # All values should be within bounds
-        assert np.all(population >= 0)
-        assert np.all(population <= 10)
-
-    def test_force_strategy(self):
-        """Test forcing a specific initialization strategy."""
-        from paola.agent.initialization import InitializationManager
-        from paola.foundry.nlp_schema import NLPProblem
-
-        manager = InitializationManager()
-        problem = NLPProblem(
-            problem_id="test",
-            objective_evaluator_id="obj",
-            dimension=3,
-            bounds=[[0, 10], [0, 10], [0, 10]]
-        )
-
-        x0 = manager.compute_initial_point(problem, "SLSQP", force_strategy="zero")
-
-        np.testing.assert_array_equal(x0, np.zeros(3))
-
-
-class TestConfigurationManager:
-    """Test ConfigurationManager for algorithm selection and configuration."""
-
-    def test_algorithm_selection_constrained(self):
-        """Test algorithm selection for constrained problems."""
-        from paola.agent.configuration import ConfigurationManager
-        from paola.foundry.nlp_schema import NLPProblem, InequalityConstraint
-
-        manager = ConfigurationManager()
-        problem = NLPProblem(
-            problem_id="test",
-            objective_evaluator_id="obj",
-            dimension=3,
-            bounds=[[0, 10], [0, 10], [0, 10]],
-            inequality_constraints=[
-                InequalityConstraint("c1", "cons_eval", "<=", 0)
-            ]
-        )
-
-        algorithm = manager.select_algorithm(problem, priority="balanced")
-
-        assert algorithm == "SLSQP"  # Default for constrained
-
-    def test_algorithm_selection_unconstrained(self):
-        """Test algorithm selection for unconstrained problems."""
-        from paola.agent.configuration import ConfigurationManager
-        from paola.foundry.nlp_schema import NLPProblem
-
-        manager = ConfigurationManager()
-        problem = NLPProblem(
-            problem_id="test",
-            objective_evaluator_id="obj",
-            dimension=3,
-            bounds=[[0, 10], [0, 10], [0, 10]]
-        )
-
-        algorithm = manager.select_algorithm(problem, priority="balanced")
-
-        assert algorithm == "L-BFGS-B"  # Default for unconstrained
-
-    def test_configuration_by_priority(self):
-        """Test configuration varies by priority."""
-        from paola.agent.configuration import ConfigurationManager
-        from paola.foundry.nlp_schema import NLPProblem
-
-        manager = ConfigurationManager()
-        problem = NLPProblem(
-            problem_id="test",
-            objective_evaluator_id="obj",
-            dimension=3,
-            bounds=[[0, 10], [0, 10], [0, 10]]
-        )
-
-        config_robust = manager.configure_algorithm("SLSQP", problem, "robustness")
-        config_speed = manager.configure_algorithm("SLSQP", problem, "speed")
-
-        # Robustness should have more iterations
-        assert config_robust["options"]["maxiter"] > config_speed["options"]["maxiter"]
-        # Speed should have looser tolerance
-        assert config_speed["options"]["ftol"] > config_robust["options"]["ftol"]
-
-    def test_max_iterations_override(self):
-        """Test max iterations override."""
-        from paola.agent.configuration import ConfigurationManager
-        from paola.foundry.nlp_schema import NLPProblem
-
-        manager = ConfigurationManager()
-        problem = NLPProblem(
-            problem_id="test",
-            objective_evaluator_id="obj",
-            dimension=3,
-            bounds=[[0, 10], [0, 10], [0, 10]]
-        )
-
-        config = manager.configure_algorithm(
-            "SLSQP", problem, "balanced", max_iterations=500
-        )
-
-        assert config["options"]["maxiter"] == 500
-
-    def test_custom_options_merge(self):
-        """Test custom options merge."""
-        from paola.agent.configuration import ConfigurationManager
-        from paola.foundry.nlp_schema import NLPProblem
-
-        manager = ConfigurationManager()
-        problem = NLPProblem(
-            problem_id="test",
-            objective_evaluator_id="obj",
-            dimension=3,
-            bounds=[[0, 10], [0, 10], [0, 10]]
-        )
-
-        config = manager.configure_algorithm(
-            "SLSQP", problem, "balanced",
-            custom_options={"options": {"eps": 1e-10}}
-        )
-
-        assert config["options"]["eps"] == 1e-10
+        backend = get_backend("scipy:SLSQP")  # Should handle method suffix
+        assert backend is not None
+        assert backend.name == "scipy"
 
 
 class TestConfigTools:

@@ -33,11 +33,12 @@ from paola.tools.optimizer_tools import (
     get_optimizer_by_id,
 )
 
-# Intent-based optimization tools (Paola Principle)
+# Intent-based optimization tools (LLM-driven architecture)
 from paola.tools.optimization_tools import (
     run_optimization,
-    get_optimization_strategy,
-    list_available_algorithms,
+    get_problem_info,
+    list_available_optimizers,
+    get_optimizer_options,
 )
 
 # Expert configuration tools (escape hatch)
@@ -102,10 +103,11 @@ __all__ = [
     "run_scipy_optimization",  # Deprecated - use run_optimization
     "clear_optimizer_registry",
     "get_optimizer_by_id",
-    # Intent-based optimization tools (Paola Principle)
+    # Intent-based optimization tools (LLM-driven architecture)
     "run_optimization",
-    "get_optimization_strategy",
-    "list_available_algorithms",
+    "get_problem_info",
+    "list_available_optimizers",
+    "get_optimizer_options",
     # Expert configuration tools (escape hatch)
     "config_scipy",
     "config_ipopt",
