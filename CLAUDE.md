@@ -8,17 +8,34 @@ This repository contains **PAOLA (Platform for Agentic Optimization with Learnin
 
 ### Core Innovation
 
-Unlike traditional optimization platforms (HEEDS, ModeFRONTIER, Dakota, pyOptSparse, FADO) that use fixed control loops with user-configured algorithms, PAOLA provides three key innovations:
+Unlike traditional optimization platforms (HEEDS, ModeFRONTIER, Dakota, pyOptSparse, FADO) that use fixed control loops with user-configured algorithms, PAOLA provides four key innovations:
 
 1. **Agentic Control**: Agent autonomously composes strategies using tool primitives (not fixed loops)
-2. **Organizational Learning**: Knowledge base with RAG-based retrieval for warm-starting similar problems
-3. **Multi-Run Analysis**: Compares multiple optimization strategies to select best approaches
+2. **The Paola Principle**: Optimization complexity is agent intelligence, not user burden
+3. **Organizational Learning**: Knowledge base with RAG-based retrieval for warm-starting similar problems
+4. **Multi-Run Analysis**: Compares multiple optimization strategies to select best approaches
 
-**Traditional approach**: Platform prescribes the loop, user configures it, no memory between runs
+**Traditional approach**: Platform prescribes the loop, user configures it (250+ IPOPT options!), no memory between runs
 
-**PAOLA approach**: Agent controls everything, learns from past optimizations, analyzes multiple strategies
+**PAOLA approach**: Agent controls everything, handles all configuration complexity, learns from past optimizations
 
 The agent continuously observes optimization progress, reasons about numerical health and feasibility patterns, autonomously adapts the strategy (constraint bounds, gradient methods, exploration control), and accumulates knowledge that improves future optimizations.
+
+### The Paola Principle
+
+> **"Optimization complexity is Paola intelligence, not user burden."**
+
+This principle defines PAOLA's approach to the overwhelming complexity of optimization:
+
+| What Users Specify | What Paola Handles |
+|-------------------|-------------------|
+| Problem definition (objective, constraints, bounds) | Algorithm selection |
+| Intent (`priority="robustness"`) | Option configuration (250+ IPOPT options) |
+| | Initialization (x0, sigma, population) |
+| | Convergence failure handling |
+| | Warm-starting from history |
+
+**Example**: IPOPT has ~250 options across 22 categories. SNOPT is scaling-sensitive. CMA-ES needs sigma tuning. Most users only touch 3-5 options. Paola knows which options matter for which problems - this expert knowledge is Paola's core competence.
 
 ## Repository Structure
 
@@ -64,41 +81,46 @@ agent.optimize(goal, tools)
 # Agent composes its own strategy, no fixed loop
 ```
 
-### Tool Primitives Architecture
+### Tool Architecture (Three-Layer Design)
 
-The platform provides atomic tools that the agent composes into strategies:
+Tools are organized in three layers reflecting the Paola Principle:
 
-**Optimizer Tools**:
-- `optimizer_create(algorithm, problem)` - Create optimizer instance
-- `optimizer_propose_design()` - Get next design candidate
-- `optimizer_update(design, objective, gradient)` - Update optimizer state
-- `optimizer_restart_from_checkpoint(new_settings)` - Restart with new configuration
-- `optimizer_checkpoint() / restore()` - Save/restore optimizer state
+```
+┌─────────────────────────────────────────────────────┐
+│  User Layer: Intent                                 │
+│    "Optimize my wing robustly"                      │
+├─────────────────────────────────────────────────────┤
+│  Paola Layer: Expert Knowledge                      │
+│    Algorithm selection + Configuration +            │
+│    Initialization + Failure handling                │
+├─────────────────────────────────────────────────────┤
+│  Optimizer Layer: Execution                         │
+│    IPOPT/SNOPT/CMA-ES with 100+ options each        │
+└─────────────────────────────────────────────────────┘
+```
 
-**Evaluation Tools**:
-- `workflow_execute(template, design, fidelity)` - Run CFD/FEA simulation
-- `workflow_get_template(name)` - Get workflow configuration
+**Problem Formulation Tools** (User specifies WHAT):
+- `create_nlp_problem(problem_id, objective, bounds, constraints, domain_hint)` - Define problem mathematically
+- `get_problem_info(problem_id)` - Retrieve problem specification
 
-**Data Tools**:
-- `cache_get(design) / cache_store(design, results)` - Evaluation cache
-- `database_query(filter)` - Query optimization history
-- `database_find_similar(design)` - Find similar past designs
+**Optimization Execution Tools** (Intent-based):
+- `run_optimization(problem_id, optimizer="auto", priority="balanced")` - Run with Paola handling details
+  - `optimizer`: "auto", "gradient-based", "global", or specific like "scipy:SLSQP"
+  - `priority`: "speed", "robustness", "accuracy", "balanced"
+- `get_run_info(run_id)` - Get run status and results
+- `get_best_solution(problem_id)` - Best solution across all runs
 
-**Learning Tools** (Phase 3):
-- `knowledge_store(problem_signature, successful_setup)` - Store expert knowledge
-- `knowledge_retrieve(problem_signature)` - RAG-based retrieval of similar problems
-- `knowledge_apply(retrieved_knowledge)` - Warm-start with proven strategies
+**Expert Escape Hatch** (Optional, for users who know exactly what they want):
+- `config_scipy(config_id, algorithm, ...)` - Bypass Paola's auto-config
+- `config_ipopt(config_id, ...)` - Direct IPOPT configuration
+
+**Evaluator Tools**:
+- `foundry_store_evaluator(evaluator_id, source_code)` - Register objective/constraint functions
+- `foundry_list_evaluators()` - List available evaluators
 
 **Analysis Tools** (Phase 2/3):
 - `analyze_runs(run_ids)` - Compare multiple optimization strategies
-- `plot_convergence(run_ids)` - Visualize convergence history
-- `recommend_strategy(problem, past_results)` - Select best approach based on analysis
-
-**Utility Tools**:
-- `gradient_compute(design, method)` - Switch between adjoint/finite-difference
-- `constraint_adjust_bounds(constraint_id, new_bound)` - Tighten/relax constraints
-- `budget_remaining()` - Check remaining computational budget
-- `time_elapsed()` - Track optimization time
+- `get_all_metrics(run_id)` - Convergence, gradient, constraint metrics
 
 ### Strategic Adaptation Mechanisms
 
@@ -143,23 +165,40 @@ The agent monitors every iteration:
 
 ## Design Documents
 
+### docs/architecture/tools_optimization_foundry_design.md (Primary)
+
+**The definitive design document** for PAOLA's tool architecture:
+- The Paola Principle: "Optimization complexity is agent intelligence, not user burden"
+- Three-layer architecture (User Intent → Paola Intelligence → Optimizer Execution)
+- Intent-based `run_optimization(optimizer="auto", priority="robustness")`
+- Paola's Configuration Intelligence (algorithm selection, option configuration)
+- Paola's Initialization Intelligence (x0, sigma, population handling)
+- Compact bounds specification for large variable spaces
+- Expert escape hatch for direct configuration
+
+### docs/architecture/optimizer_initialization_research.md
+
+Research on initialization handling across optimizers:
+- Survey of IPOPT, SNOPT, SciPy, NLopt, CMA-ES, Optuna, pymoo
+- Why initialization is agent intelligence, not user input
+- Algorithm-specific defaults (gradient→center, shape_opt→zero, etc.)
+
+### docs/architecture/optimizer_configuration_research.md
+
+Research on configuration complexity:
+- IPOPT: 250 options across 22 categories
+- SNOPT: scaling sensitivity
+- Why most users only touch 3-5 options
+- How Paola applies expert knowledge automatically
+
 ### agent_controlled_optimization.md (50KB)
 
 Comprehensive technical design covering:
 - Core innovation: Agent autonomy vs prescribed loops
 - Comparison with all major existing platforms (HEEDS, ModeFRONTIER, Dakota, pyOptSparse, FADO, Tosca)
-- Tool primitives architecture
 - Practical adaptation mechanisms and the "replay constraint"
 - Agent decision patterns and reasoning examples
 - Complete workflow example showing agent in action
-- Implementation architecture and phases
-
-**Key sections**:
-- Section 4: Detailed comparison with existing software
-- Section 7: Tool primitives design
-- Section 8: Practical adaptation mechanisms (constraint replay understanding)
-- Section 15: Specific agent adaptation strategies with examples
-- Section 17: Complete workflow showing agent reasoning and actions
 
 ### agentic_optimization_vision.md (7KB)
 
@@ -167,8 +206,6 @@ High-level vision and value propositions:
 - 7 core value propositions from first principles analysis
 - Paradigm shift from "operator configures loops" to "director sets goals"
 - Knowledge accumulation and learning organization concept
-- Multi-fidelity intelligence and compositional problem formulation
-- Failure mode prevention through predictive analytics
 
 ## Implementation Status
 
@@ -183,16 +220,23 @@ High-level vision and value propositions:
 
 When implementing this platform:
 
-1. **Agent Autonomy First**: Never add a "hook" or "callback" - the agent IS the controller
-2. **Tools Not Control Flow**: Platform provides primitives, agent composes strategy
-3. **Observable Everything**: Every action must be observable and explainable
-4. **Strategic Restarts**: Adaptations are informed restarts from better positions, not unpredictable experiments
-5. **Cache Everything**: Simulations are expensive, cache all evaluations
-6. **Learn Continuously**: Every optimization adds to the knowledge base
-7. **CRITICAL - Minimal Prompting**: Keep system prompts and tool schemas minimal. Trust the LLM's intelligence. Never add verbose guidance, formatting rules, or hand-holding without explicit permission. The agent must learn from experience, not from over-specified prompts.
+1. **The Paola Principle**: Optimization complexity is agent intelligence, not user burden. Users specify intent ("robustness"), Paola handles the 250 IPOPT options.
+2. **Agent Autonomy First**: Never add a "hook" or "callback" - the agent IS the controller
+3. **Intent Over Options**: Expose high-level intents (priority, optimizer family), not low-level knobs. Expert escape hatch for those who need it.
+4. **Tools Not Control Flow**: Platform provides primitives, agent composes strategy
+5. **Observable Everything**: Every action must be observable and explainable
+6. **Strategic Restarts**: Adaptations are informed restarts from better positions, not unpredictable experiments
+7. **Cache Everything**: Simulations are expensive, cache all evaluations
+8. **Learn Continuously**: Every optimization adds to the knowledge base
+9. **CRITICAL - Minimal Prompting**: Keep system prompts and tool schemas minimal. Trust the LLM's intelligence. Never add verbose guidance, formatting rules, or hand-holding without explicit permission. The agent must learn from experience, not from over-specified prompts.
 
 ## Key Terminology
 
+- **The Paola Principle**: Core design philosophy - "Optimization complexity is Paola intelligence, not user burden"
+- **Intent-based tools**: Tools that accept user intent (e.g., `priority="robustness"`) rather than low-level configuration
+- **Expert escape hatch**: Optional tools for users who need direct control over optimizer configuration
+- **Configuration intelligence**: Paola's ability to select and configure optimizer options based on problem characteristics
+- **Initialization intelligence**: Paola's ability to determine optimal starting points based on algorithm type, domain, and history
 - **Fixed loop**: Traditional optimization paradigm where platform controls iteration
 - **Tool primitives**: Atomic operations that agent composes into strategies
 - **Evaluation cache**: Storage for expensive simulation results (design → objective, gradient, constraints)
@@ -206,6 +250,7 @@ When implementing this platform:
 - **Multi-run analysis**: Comparing multiple optimization strategies to identify best practices
 - **Warm-starting**: Using retrieved knowledge from similar past problems to accelerate convergence
 - **Problem signature**: Characteristics that define a problem class (dimensions, constraints, physics, regime)
+- **Domain hint**: Optional problem metadata (e.g., "shape_optimization") that guides Paola's decisions
 
 ## Architectural Patterns
 
@@ -242,9 +287,12 @@ while not done:
 
 **PAOLA: The optimization platform that learns from every run**
 
-"The first optimization platform where an AI agent continuously observes optimization progress, detects feasibility and convergence issues, autonomously adapts strategy, accumulates knowledge from past optimizations, and analyzes multiple runs to achieve reliable convergence."
+> **"Optimization complexity is Paola intelligence, not user burden."**
+
+"The first optimization platform where an AI agent handles all optimization complexity - algorithm selection, configuration, initialization, and failure recovery - while continuously learning from past optimizations."
 
 **For Engineers**:
+- Say `priority="robustness"`, not configure 250 IPOPT options
 - Natural language goals instead of algorithm configuration
 - Platform learns from your past optimizations
 - Automatic warm-starting from similar problems
@@ -253,11 +301,13 @@ while not done:
 - 90% success rate (vs 50%), 2-3× faster convergence
 - Organizational knowledge accumulation (expert knowledge persists)
 - Multi-run analysis reveals best practices
+- Democratize optimization expertise
 
 **Technical Moat**:
+- **The Paola Principle**: Expert knowledge encoded in agent
 - Agent autonomy (no fixed loops)
+- Configuration intelligence (250+ options → "robustness")
+- Initialization intelligence (algorithm-aware, history-aware)
 - Knowledge base with RAG retrieval
-- Multi-run analysis and comparison
 - Strategic adaptation within runs
 - Evaluation cache for efficiency
-- Proven patterns from AdjointFlow
