@@ -23,6 +23,68 @@ from .react_agent import initialize_llm
 logger = logging.getLogger(__name__)
 
 
+def repair_message_history(messages: List[BaseMessage]) -> List[BaseMessage]:
+    """
+    Validate and repair message history for LLM API compatibility.
+
+    Qwen API requires that every AIMessage with tool_calls MUST be followed by
+    ToolMessages for each tool_call_id. This function ensures this invariant.
+
+    Args:
+        messages: List of messages
+
+    Returns:
+        Repaired message list
+    """
+    repaired = []
+    pending_tool_ids = set()  # tool_call_ids that need ToolMessages
+
+    for msg in messages:
+        # Check if previous AIMessage had tool_calls that need responses
+        if pending_tool_ids and isinstance(msg, ToolMessage):
+            # This ToolMessage responds to a pending tool_call
+            tool_id = getattr(msg, 'tool_call_id', None)
+            if tool_id in pending_tool_ids:
+                pending_tool_ids.discard(tool_id)
+        elif pending_tool_ids and not isinstance(msg, ToolMessage):
+            # Non-ToolMessage but we have pending tool_calls - add error responses
+            for tool_id in pending_tool_ids:
+                logger.warning(f"Adding missing ToolMessage for tool_call_id: {tool_id}")
+                repaired.append(ToolMessage(
+                    content="Error: Tool call was not processed.",
+                    tool_call_id=tool_id,
+                    name="unknown"
+                ))
+            pending_tool_ids.clear()
+
+        repaired.append(msg)
+
+        # Track new tool_calls from AIMessages
+        if isinstance(msg, AIMessage):
+            if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                for tc in msg.tool_calls:
+                    tool_id = tc.get('id')
+                    if tool_id:
+                        pending_tool_ids.add(tool_id)
+            # Also track invalid_tool_calls
+            if hasattr(msg, 'invalid_tool_calls') and msg.invalid_tool_calls:
+                for tc in msg.invalid_tool_calls:
+                    tool_id = tc.get('id')
+                    if tool_id:
+                        pending_tool_ids.add(tool_id)
+
+    # Handle any remaining pending tool_calls at the end
+    for tool_id in pending_tool_ids:
+        logger.warning(f"Adding missing ToolMessage for tool_call_id at end: {tool_id}")
+        repaired.append(ToolMessage(
+            content="Error: Tool call was not processed.",
+            tool_call_id=tool_id,
+            name="unknown"
+        ))
+
+    return repaired
+
+
 class ConversationalAgentExecutor:
     """
     Wrapper for conversational agent function to provide LangGraph-compatible API.
@@ -160,6 +222,10 @@ def build_conversational_agent(
 
             # LLM responds (Reasoning + Action decision)
             try:
+                # Repair message history to ensure tool_call/ToolMessage pairing
+                # This is critical for Qwen API which strictly validates message ordering
+                messages = repair_message_history(messages)
+
                 # Invoke LLM with optional callbacks for token tracking
                 # (callbacks skipped for Qwen models as they interfere with tool calling)
                 if llm_callbacks:
@@ -177,8 +243,11 @@ def build_conversational_agent(
                     "iteration": iteration
                 }
 
-            # Check if response has tool calls
-            if not response.tool_calls:
+            # Check for tool calls (valid or invalid)
+            has_tool_calls = bool(response.tool_calls)
+            has_invalid_tool_calls = hasattr(response, 'invalid_tool_calls') and bool(response.invalid_tool_calls)
+
+            if not has_tool_calls and not has_invalid_tool_calls:
                 # Check if this is a real completion (has content) or empty response (abnormal)
                 # Handle both string and list content formats (Claude may return list of blocks)
                 content = response.content
@@ -207,10 +276,10 @@ def build_conversational_agent(
                     messages.append(HumanMessage(content="Continue with the task. Use tools to make progress."))
                     continue  # Retry
 
-            # Has tool calls - add response to messages
+            # Has tool calls (valid or invalid) - add response to messages
             messages.append(response)
 
-            # Has tool calls - emit reasoning if there's content before tool calls
+            # Emit reasoning if there's content before tool calls
             if callback_mgr and response.content:
                 callback_mgr.emit(create_event(
                     event_type=EventType.REASONING,
@@ -218,8 +287,38 @@ def build_conversational_agent(
                     data={"reasoning": response.content}
                 ))
 
-            # Execute tool calls (Acting phase)
-            for tool_call in response.tool_calls:
+            # Handle invalid tool calls first - send error feedback for self-correction
+            # This is critical for Qwen which may produce malformed tool calls
+            if has_invalid_tool_calls:
+                for inv in response.invalid_tool_calls:
+                    tool_name = inv.get('name', 'unknown')
+                    error_msg = inv.get('error', 'Failed to parse tool call')
+                    tool_id = inv.get('id', f'invalid_{tool_name}')
+
+                    logger.warning(f"Invalid tool call: {tool_name} - {error_msg}")
+
+                    # Emit tool error event
+                    if callback_mgr:
+                        callback_mgr.emit(create_event(
+                            event_type=EventType.TOOL_ERROR,
+                            iteration=iteration,
+                            data={
+                                "tool_name": tool_name,
+                                "error": f"Invalid tool call: {error_msg}",
+                                "invalid": True
+                            }
+                        ))
+
+                    # Send error back to LLM via ToolMessage for self-correction
+                    # This is REQUIRED - Qwen API demands ToolMessage for every tool_call_id
+                    messages.append(ToolMessage(
+                        content=f"Error: {error_msg}. Please fix the tool call format.",
+                        tool_call_id=tool_id,
+                        name=tool_name
+                    ))
+
+            # Execute valid tool calls (Acting phase)
+            for tool_call in (response.tool_calls or []):
                 tool_name = tool_call.get("name", "unknown")
                 tool_args = tool_call.get("args", {})
 
