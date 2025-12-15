@@ -2,99 +2,108 @@
 
 **Document ID**: 20251215_2100_foundry_polymorphic_schema_design
 **Date**: December 15, 2025
-**Status**: Design Proposal
-**Purpose**: Design maintainable, extensible Foundry schemas for multiple optimizer types
+**Status**: Design Proposal (Revised)
+**Version**: 2.1 - Session/Run terminology clarification
+**Purpose**: Design maintainable, extensible Foundry schemas for Paola v0.2.0
 
 ---
 
-## 1. Problem Statement
+## 1. Terminology: Session vs Run
 
-### Current State
+### 1.1 The Problem
 
-The Foundry currently uses a single `RunRecord` class for all optimizer types. As we add more optimizers (SciPy, IPOPT, Optuna, CMA-ES, DE, NLopt, etc.), this approach becomes problematic.
+The term "run" was overloaded:
+- `run_optimization()` tool creates a single optimizer execution
+- But Paola's vision involves multiple optimizer executions for one task
 
-### The Challenge
+### 1.2 Solution: Clear Terminology
 
-Different optimizer families have fundamentally different concepts:
+| Term | Definition | API |
+|------|------------|-----|
+| **Session** | Complete optimization task (may involve multiple optimizers) | `start_session()`, `finalize_session()` |
+| **Run** | Single optimizer execution | `run_optimization()` (existing) |
 
-| Family | Initialization | Progress | Result |
-|--------|---------------|----------|--------|
-| **Gradient-based** | Single point x0 | Iterations with gradient | Converged point |
-| **Population-based** | Population of points | Generations | Pareto front or best |
-| **Bayesian** | Prior trials (optional) | Trials with surrogate | Best trial |
-| **CMA-ES** | Mean + sigma | Generations with covariance | Distribution params |
+### 1.3 The Paola Vision
 
-A single schema with optional fields for all these concepts:
-- Becomes sparse (most fields are `None`)
-- Is hard to validate (which fields should be present?)
-- Grows unboundedly as new optimizers are added
-- Provides poor developer experience (unclear contracts)
+Paola is an autonomous optimization agent that may use **multiple optimizers** from **different families** to solve a single optimization task (session).
+
+**Traditional model:**
+```
+One session = One optimizer = One run
+```
+
+**Paola model:**
+```
+Session = Complete optimization task (orchestrated by Paola)
+    └── Run 1: First optimizer
+    └── Run 2: Second optimizer (warm-start from Run 1)
+    └── Run 3: Third optimizer (warm-start from Run 2)
+```
+
+### 1.4 Example: Multi-Run Session
+
+```
+Session #42: "Optimize wing drag"
+│
+├── Run 1: Global exploration (Optuna TPE)
+│   ├── Family: bayesian
+│   ├── 50 trials, best obj = 0.15
+│   └── Paola decides: "Found promising region, switch to gradient"
+│
+├── Run 2: Local refinement (SLSQP)
+│   ├── Family: gradient
+│   ├── Warm-start from Run 1 best
+│   ├── 30 iterations, converged obj = 0.08
+│   └── Paola decides: "Stuck at local minimum, try CMA-ES"
+│
+└── Run 3: Escape local minimum (CMA-ES)
+    ├── Family: cmaes
+    ├── Warm-start mean from Run 2
+    ├── 20 generations, final obj = 0.05
+    └── Paola decides: "Converged, done"
+
+Overall Session: success=true, final_obj=0.05, total_evals=100
+```
+
+### 1.5 Key Insight
+
+The **polymorphic components** (initialization, progress, result) apply at the **Run level**, not the Session level. A single Session contains multiple Runs, each with its own optimizer-family-specific data.
 
 ---
 
-## 2. Design Principles
+## 2. Schema Architecture
 
-### 2.1 Separation of Concerns
-
-**Common core**: Fields that ALL optimization runs share, regardless of algorithm
-**Type-specific components**: Data structures specific to each optimizer family
-
-### 2.2 Open for Extension, Closed for Modification
-
-Adding a new optimizer family should:
-- NOT require modifying the core `RunRecord` class
-- Only require adding new component classes and registering them
-
-### 2.3 Queryability
-
-Common fields must be directly queryable across all runs:
-- "Find all successful runs for problem X"
-- "Find runs with final_objective < 0.01"
-- "Compare wall_time across different optimizers"
-
-### 2.4 Type Safety
-
-Each optimizer family should have well-defined, validated schemas:
-- A gradient-based run MUST have `x0`
-- A population-based run MUST have `population`
-- Validation happens at record creation, not query time
-
----
-
-## 3. Proposed Architecture
-
-### 3.1 Overview
+### 2.1 Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     RunRecord (Common Core)                      │
+│                  SessionRecord (Complete Task)                   │
 ├─────────────────────────────────────────────────────────────────┤
-│  Universally queryable fields:                                   │
-│  - run_id, problem_id, optimizer, optimizer_family              │
-│  - success, final_objective, final_design                       │
-│  - n_evaluations, wall_time_seconds, created_at                 │
+│  session_id, problem_id, created_at                             │
+│  success, final_objective, final_design                         │
+│  total_evaluations, total_wall_time                             │
+├─────────────────────────────────────────────────────────────────┤
+│  runs: List[OptimizationRun]                                    │
+│    ├── Run 1 (bayesian family)                                  │
+│    ├── Run 2 (gradient family)                                  │
+│    └── Run 3 (cmaes family)                                     │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│               OptimizationRun (Single Optimizer)                 │
+├─────────────────────────────────────────────────────────────────┤
+│  run_id, optimizer, optimizer_family                            │
+│  warm_start_from (reference to previous run)                    │
+│  n_evaluations, wall_time, run_success                          │
 ├─────────────────────────────────────────────────────────────────┤
 │  Polymorphic components (vary by optimizer_family):             │
 │  - initialization: InitializationComponent                      │
 │  - progress: ProgressComponent                                  │
 │  - result: ResultComponent                                      │
 └─────────────────────────────────────────────────────────────────┘
-                                │
-                Component Registry
-                                │
-        ┌───────────────────────┼───────────────────────┐
-        ▼                       ▼                       ▼
-┌───────────────┐      ┌───────────────┐      ┌───────────────┐
-│   Gradient    │      │  Population   │      │   Bayesian    │
-│    Family     │      │    Family     │      │    Family     │
-├───────────────┤      ├───────────────┤      ├───────────────┤
-│GradientInit   │      │PopulationInit │      │BayesianInit   │
-│GradientProg   │      │PopulationProg │      │BayesianProg   │
-│GradientResult │      │PopulationResult│     │BayesianResult │
-└───────────────┘      └───────────────┘      └───────────────┘
 ```
 
-### 3.2 Optimizer Families
+### 2.2 Optimizer Families
 
 | Family | Optimizers | Key Characteristics |
 |--------|------------|---------------------|
@@ -102,56 +111,214 @@ Each optimizer family should have well-defined, validated schemas:
 | `population` | DE, GA, NSGA-II, PSO | Population of solutions, generations |
 | `bayesian` | Optuna (TPE), BO-GP | Trials, surrogate model, acquisition |
 | `cmaes` | CMA-ES | Mean + covariance, special structure |
-| `simplex` | Nelder-Mead, COBYLA | Simplex vertices, no gradients |
+| `simplex` | Nelder-Mead, COBYLA | Simplex vertices, derivative-free |
 
 ---
 
-## 4. Schema Definitions
+## 3. Schema Definitions
 
-### 4.1 Common Core (All Runs)
+### 3.1 SessionRecord (Complete Optimization Task)
 
 ```python
 @dataclass
-class RunRecord:
+class SessionRecord:
     """
-    Universal run record with common queryable fields.
+    Complete optimization session record.
 
-    All optimization runs share these fields regardless of algorithm.
-    Type-specific data is stored in polymorphic components.
+    A Session represents Paola's complete effort to solve an optimization problem.
+    It may involve multiple runs using different optimizers.
+
+    Example:
+        - Run 1: Bayesian exploration to find promising region
+        - Run 2: Gradient refinement to converge
+        - Run 3: CMA-ES to escape local minimum
     """
 
-    # === Identity ===
-    run_id: int
+    # === Session Identity ===
+    session_id: int
     problem_id: str
+    created_at: str              # ISO timestamp
 
-    # === Optimizer Info ===
-    optimizer: str              # Full spec: "scipy:SLSQP", "optuna:TPE"
-    optimizer_family: str       # Family: "gradient", "population", "bayesian"
+    # === Configuration ===
+    config: Dict[str, Any]       # User-provided configuration
 
-    # === Universal Metrics (queryable across all runs) ===
-    success: bool
-    final_objective: float
-    final_design: List[float]   # Best design found
-    n_evaluations: int          # Total function evaluations
-    wall_time_seconds: float
+    # === Runs (multiple optimizers) ===
+    runs: List['OptimizationRun']
 
-    # === Metadata ===
-    created_at: str             # ISO timestamp
-    config: Dict[str, Any]      # User-provided configuration
+    # === Overall Session Outcome ===
+    success: bool                # Did Paola consider this successful?
+    final_objective: float       # Best objective found across all runs
+    final_design: List[float]    # Best design found
+    total_evaluations: int       # Sum across all runs
+    total_wall_time: float       # Total time (seconds)
 
-    # === Polymorphic Components ===
-    # Structure varies by optimizer_family, validated by schema registry
+    # === Paola's Decision Log ===
+    decisions: List['PaolaDecision']  # Why Paola switched runs, etc.
+
+    def get_run(self, run_id: int) -> Optional['OptimizationRun']:
+        """Get run by ID."""
+        for run in self.runs:
+            if run.run_id == run_id:
+                return run
+        return None
+
+    def get_best_run(self) -> Optional['OptimizationRun']:
+        """Get run that found the best objective."""
+        if not self.runs:
+            return None
+        return min(self.runs, key=lambda r: r.best_objective)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dictionary."""
+        return {
+            "session_id": self.session_id,
+            "problem_id": self.problem_id,
+            "created_at": self.created_at,
+            "config": self.config,
+            "runs": [r.to_dict() for r in self.runs],
+            "success": self.success,
+            "final_objective": self.final_objective,
+            "final_design": self.final_design,
+            "total_evaluations": self.total_evaluations,
+            "total_wall_time": self.total_wall_time,
+            "decisions": [d.to_dict() for d in self.decisions]
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'SessionRecord':
+        """Deserialize from dictionary."""
+        runs = [OptimizationRun.from_dict(r) for r in data["runs"]]
+        decisions = [PaolaDecision.from_dict(d) for d in data.get("decisions", [])]
+        return cls(
+            session_id=data["session_id"],
+            problem_id=data["problem_id"],
+            created_at=data["created_at"],
+            config=data.get("config", {}),
+            runs=runs,
+            success=data["success"],
+            final_objective=data["final_objective"],
+            final_design=data["final_design"],
+            total_evaluations=data["total_evaluations"],
+            total_wall_time=data["total_wall_time"],
+            decisions=decisions
+        )
+
+
+@dataclass
+class PaolaDecision:
+    """
+    Record of Paola's strategic decision during optimization.
+
+    Captures why Paola switched runs, changed strategy, etc.
+    Important for learning and explainability.
+    """
+    timestamp: str
+    decision_type: str           # "start_run", "switch_optimizer", "terminate"
+    reasoning: str               # Paola's reasoning (from LLM)
+    from_run: Optional[int]      # Run ID before decision
+    to_run: Optional[int]        # Run ID after decision (if applicable)
+    metrics_at_decision: Dict[str, Any]  # Metrics that informed decision
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "timestamp": self.timestamp,
+            "decision_type": self.decision_type,
+            "reasoning": self.reasoning,
+            "from_run": self.from_run,
+            "to_run": self.to_run,
+            "metrics_at_decision": self.metrics_at_decision
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'PaolaDecision':
+        return cls(**data)
+```
+
+### 3.2 OptimizationRun (Single Optimizer Execution)
+
+```python
+@dataclass
+class OptimizationRun:
+    """
+    Single optimizer execution within a session.
+
+    Each run uses one optimizer from one family.
+    Runs can warm-start from previous runs.
+    """
+
+    # === Run Identity ===
+    run_id: int                  # Sequential within session (1, 2, 3, ...)
+    optimizer: str               # Full spec: "scipy:SLSQP", "optuna:TPE"
+    optimizer_family: str        # Family: "gradient", "bayesian", etc.
+
+    # === Warm-Start Reference ===
+    warm_start_from: Optional[int]  # run_id of source run, or None
+
+    # === Run Metrics ===
+    n_evaluations: int
+    wall_time: float             # Seconds
+    run_success: bool            # Did this run succeed?
+    best_objective: float        # Best found in this run
+    best_design: List[float]     # Best design in this run
+
+    # === Family-Specific Components (Polymorphic) ===
     initialization: 'InitializationComponent'
     progress: 'ProgressComponent'
     result: 'ResultComponent'
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to dictionary."""
+        return {
+            "run_id": self.run_id,
+            "optimizer": self.optimizer,
+            "optimizer_family": self.optimizer_family,
+            "warm_start_from": self.warm_start_from,
+            "n_evaluations": self.n_evaluations,
+            "wall_time": self.wall_time,
+            "run_success": self.run_success,
+            "best_objective": self.best_objective,
+            "best_design": self.best_design,
+            "initialization": self.initialization.to_dict(),
+            "progress": self.progress.to_dict(),
+            "result": self.result.to_dict()
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'OptimizationRun':
+        """Deserialize from dictionary using component registry."""
+        family = data["optimizer_family"]
+
+        init, progress, result = COMPONENT_REGISTRY.deserialize_components(
+            family=family,
+            init_data=data["initialization"],
+            progress_data=data["progress"],
+            result_data=data["result"]
+        )
+
+        return cls(
+            run_id=data["run_id"],
+            optimizer=data["optimizer"],
+            optimizer_family=family,
+            warm_start_from=data.get("warm_start_from"),
+            n_evaluations=data["n_evaluations"],
+            wall_time=data["wall_time"],
+            run_success=data["run_success"],
+            best_objective=data["best_objective"],
+            best_design=data["best_design"],
+            initialization=init,
+            progress=progress,
+            result=result
+        )
 ```
 
-### 4.2 Component Base Classes
+### 3.3 Component Base Classes
 
 ```python
+from abc import ABC, abstractmethod
+
 @dataclass
 class InitializationComponent(ABC):
-    """Base class for initialization data."""
+    """Base class for run initialization data."""
 
     # What was requested (for reproducibility)
     specification: Dict[str, Any]
@@ -196,7 +363,11 @@ class ResultComponent(ABC):
         pass
 ```
 
-### 4.3 Gradient Family Components
+---
+
+## 4. Family-Specific Components
+
+### 4.1 Gradient Family
 
 ```python
 @dataclass
@@ -256,10 +427,7 @@ class GradientProgress(ProgressComponent):
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'GradientProgress':
-        iterations = [
-            GradientIteration(**it_data)
-            for it_data in data["iterations"]
-        ]
+        iterations = [GradientIteration(**it) for it in data["iterations"]]
         return cls(iterations=iterations)
 
 
@@ -270,8 +438,7 @@ class GradientResult(ResultComponent):
     termination_reason: str      # "convergence", "max_iter", "failed"
     final_gradient_norm: Optional[float] = None
     final_constraint_violation: Optional[float] = None
-    hessian_approximation: Optional[List[List[float]]] = None  # If available
-    lagrange_multipliers: Optional[List[float]] = None         # For constrained
+    lagrange_multipliers: Optional[List[float]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -279,7 +446,6 @@ class GradientResult(ResultComponent):
             "termination_reason": self.termination_reason,
             "final_gradient_norm": self.final_gradient_norm,
             "final_constraint_violation": self.final_constraint_violation,
-            "hessian_approximation": self.hessian_approximation,
             "lagrange_multipliers": self.lagrange_multipliers
         }
 
@@ -289,117 +455,20 @@ class GradientResult(ResultComponent):
             termination_reason=data["termination_reason"],
             final_gradient_norm=data.get("final_gradient_norm"),
             final_constraint_violation=data.get("final_constraint_violation"),
-            hessian_approximation=data.get("hessian_approximation"),
             lagrange_multipliers=data.get("lagrange_multipliers")
         )
 ```
 
-### 4.4 Population Family Components
-
-```python
-@dataclass
-class PopulationInitialization(InitializationComponent):
-    """Initialization for population-based optimizers."""
-
-    specification: Dict[str, Any]  # {"type": "lhs", "size": 50}
-    method: str                    # "lhs", "sobol", "random"
-    population_size: int
-    initial_population: List[List[float]]  # All initial individuals
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "family": "population",
-            "specification": self.specification,
-            "method": self.method,
-            "population_size": self.population_size,
-            "initial_population": self.initial_population
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'PopulationInitialization':
-        return cls(
-            specification=data["specification"],
-            method=data["method"],
-            population_size=data["population_size"],
-            initial_population=data["initial_population"]
-        )
-
-
-@dataclass
-class Generation:
-    """Single generation record for population-based optimizer."""
-    generation: int
-    best_objective: float
-    best_design: List[float]
-    population_objectives: List[float]  # All objectives in generation
-    diversity: Optional[float] = None   # Population diversity metric
-
-
-@dataclass
-class PopulationProgress(ProgressComponent):
-    """Progress data for population-based optimizers."""
-
-    generations: List[Generation]
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "family": "population",
-            "generations": [
-                {
-                    "generation": gen.generation,
-                    "best_objective": gen.best_objective,
-                    "best_design": gen.best_design,
-                    "population_objectives": gen.population_objectives,
-                    "diversity": gen.diversity
-                }
-                for gen in self.generations
-            ]
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'PopulationProgress':
-        generations = [Generation(**gen_data) for gen_data in data["generations"]]
-        return cls(generations=generations)
-
-
-@dataclass
-class PopulationResult(ResultComponent):
-    """Detailed result for population-based optimizers."""
-
-    termination_reason: str
-    final_population: List[List[float]]      # Final population
-    final_objectives: List[float]            # Objectives of final population
-    pareto_front: Optional[List[List[float]]] = None  # For multi-objective
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            "family": "population",
-            "termination_reason": self.termination_reason,
-            "final_population": self.final_population,
-            "final_objectives": self.final_objectives,
-            "pareto_front": self.pareto_front
-        }
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'PopulationResult':
-        return cls(
-            termination_reason=data["termination_reason"],
-            final_population=data["final_population"],
-            final_objectives=data["final_objectives"],
-            pareto_front=data.get("pareto_front")
-        )
-```
-
-### 4.5 Bayesian Family Components
+### 4.2 Bayesian Family
 
 ```python
 @dataclass
 class BayesianInitialization(InitializationComponent):
     """Initialization for Bayesian optimizers."""
 
-    specification: Dict[str, Any]  # {"type": "none"} or {"type": "warm_start", ...}
-    warm_start_trials: Optional[List[Dict[str, Any]]] = None  # Prior trials if any
-    n_initial_random: int = 10     # Random trials before surrogate
+    specification: Dict[str, Any]
+    warm_start_trials: Optional[List[Dict[str, Any]]] = None
+    n_initial_random: int = 10
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -451,7 +520,7 @@ class BayesianProgress(ProgressComponent):
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'BayesianProgress':
-        trials = [Trial(**t_data) for t_data in data["trials"]]
+        trials = [Trial(**t) for t in data["trials"]]
         return cls(trials=trials)
 
 
@@ -475,25 +544,117 @@ class BayesianResult(ResultComponent):
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'BayesianResult':
+        return cls(**{k: data[k] for k in ["termination_reason", "best_trial_number",
+                                            "n_complete_trials", "n_pruned_trials"]})
+```
+
+### 4.3 Population Family
+
+```python
+@dataclass
+class PopulationInitialization(InitializationComponent):
+    """Initialization for population-based optimizers."""
+
+    specification: Dict[str, Any]  # {"type": "lhs", "size": 50}
+    method: str                    # "lhs", "sobol", "random"
+    population_size: int
+    initial_population: List[List[float]]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "family": "population",
+            "specification": self.specification,
+            "method": self.method,
+            "population_size": self.population_size,
+            "initial_population": self.initial_population
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'PopulationInitialization':
+        return cls(
+            specification=data["specification"],
+            method=data["method"],
+            population_size=data["population_size"],
+            initial_population=data["initial_population"]
+        )
+
+
+@dataclass
+class Generation:
+    """Single generation record for population-based optimizer."""
+    generation: int
+    best_objective: float
+    best_design: List[float]
+    mean_objective: float
+    diversity: Optional[float] = None
+
+
+@dataclass
+class PopulationProgress(ProgressComponent):
+    """Progress data for population-based optimizers."""
+
+    generations: List[Generation]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "family": "population",
+            "generations": [
+                {
+                    "generation": g.generation,
+                    "best_objective": g.best_objective,
+                    "best_design": g.best_design,
+                    "mean_objective": g.mean_objective,
+                    "diversity": g.diversity
+                }
+                for g in self.generations
+            ]
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'PopulationProgress':
+        generations = [Generation(**g) for g in data["generations"]]
+        return cls(generations=generations)
+
+
+@dataclass
+class PopulationResult(ResultComponent):
+    """Detailed result for population-based optimizers."""
+
+    termination_reason: str
+    final_population_size: int
+    final_diversity: Optional[float] = None
+    pareto_front: Optional[List[List[float]]] = None  # For multi-objective
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "family": "population",
+            "termination_reason": self.termination_reason,
+            "final_population_size": self.final_population_size,
+            "final_diversity": self.final_diversity,
+            "pareto_front": self.pareto_front
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'PopulationResult':
         return cls(
             termination_reason=data["termination_reason"],
-            best_trial_number=data["best_trial_number"],
-            n_complete_trials=data["n_complete_trials"],
-            n_pruned_trials=data["n_pruned_trials"]
+            final_population_size=data["final_population_size"],
+            final_diversity=data.get("final_diversity"),
+            pareto_front=data.get("pareto_front")
         )
 ```
 
-### 4.6 CMA-ES Family Components
+### 4.4 CMA-ES Family
 
 ```python
 @dataclass
 class CMAESInitialization(InitializationComponent):
     """Initialization for CMA-ES optimizer."""
 
-    specification: Dict[str, Any]  # {"type": "center", "sigma": "auto"}
-    mean: List[float]              # Initial mean
-    sigma: float                   # Initial step size
-    population_size: int           # Lambda
+    specification: Dict[str, Any]
+    mean: List[float]
+    sigma: float
+    population_size: int
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -520,9 +681,9 @@ class CMAESGeneration:
     generation: int
     best_objective: float
     best_design: List[float]
-    mean: List[float]              # Current mean
-    sigma: float                   # Current step size
-    condition_number: Optional[float] = None  # Covariance condition
+    mean: List[float]
+    sigma: float
+    condition_number: Optional[float] = None
 
 
 @dataclass
@@ -549,7 +710,7 @@ class CMAESProgress(ProgressComponent):
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'CMAESProgress':
-        generations = [CMAESGeneration(**g_data) for g_data in data["generations"]]
+        generations = [CMAESGeneration(**g) for g in data["generations"]]
         return cls(generations=generations)
 
 
@@ -585,10 +746,8 @@ class CMAESResult(ResultComponent):
 
 ## 5. Component Registry
 
-The registry maps optimizer families to their component types and handles serialization/deserialization.
-
 ```python
-from typing import Type, Dict, Tuple
+from typing import Type, Dict, Tuple, List
 
 @dataclass
 class OptimizerFamilySchema:
@@ -606,7 +765,7 @@ class ComponentRegistry:
     Handles:
     - Mapping optimizer names to families
     - Serialization/deserialization of components
-    - Validation of run records
+    - Validation of run data
     """
 
     def __init__(self):
@@ -621,16 +780,7 @@ class ComponentRegistry:
         result_class: Type[ResultComponent],
         optimizers: List[str]
     ):
-        """
-        Register an optimizer family and its associated optimizers.
-
-        Args:
-            family: Family name (e.g., "gradient")
-            initialization_class: Class for initialization component
-            progress_class: Class for progress component
-            result_class: Class for result component
-            optimizers: List of optimizer names in this family
-        """
+        """Register an optimizer family."""
         self._families[family] = OptimizerFamilySchema(
             family=family,
             initialization_class=initialization_class,
@@ -641,10 +791,9 @@ class ComponentRegistry:
             self._optimizer_to_family[opt] = family
 
     def get_family(self, optimizer: str) -> str:
-        """Get family name for an optimizer."""
-        # Handle "scipy:SLSQP" format
-        base_optimizer = optimizer.split(":")[0]
-        return self._optimizer_to_family.get(base_optimizer, "gradient")  # Default
+        """Get family name for an optimizer (handles 'scipy:SLSQP' format)."""
+        base = optimizer.split(":")[0]
+        return self._optimizer_to_family.get(base, "gradient")
 
     def get_schema(self, family: str) -> OptimizerFamilySchema:
         """Get schema for a family."""
@@ -675,15 +824,7 @@ COMPONENT_REGISTRY.register_family(
     initialization_class=GradientInitialization,
     progress_class=GradientProgress,
     result_class=GradientResult,
-    optimizers=["scipy", "ipopt", "nlopt"]  # NLopt LD_* methods
-)
-
-COMPONENT_REGISTRY.register_family(
-    family="population",
-    initialization_class=PopulationInitialization,
-    progress_class=PopulationProgress,
-    result_class=PopulationResult,
-    optimizers=["de", "ga", "nsga2", "pso"]
+    optimizers=["scipy", "ipopt", "nlopt"]
 )
 
 COMPONENT_REGISTRY.register_family(
@@ -692,6 +833,14 @@ COMPONENT_REGISTRY.register_family(
     progress_class=BayesianProgress,
     result_class=BayesianResult,
     optimizers=["optuna", "bo"]
+)
+
+COMPONENT_REGISTRY.register_family(
+    family="population",
+    initialization_class=PopulationInitialization,
+    progress_class=PopulationProgress,
+    result_class=PopulationResult,
+    optimizers=["de", "ga", "nsga2", "pso"]
 )
 
 COMPONENT_REGISTRY.register_family(
@@ -705,100 +854,167 @@ COMPONENT_REGISTRY.register_family(
 
 ---
 
-## 6. Storage Layer
+## 6. Storage Format
 
-### 6.1 Serialization
+### 6.1 Single File Per Session
 
-```python
-def serialize_run_record(record: RunRecord) -> Dict[str, Any]:
-    """Serialize RunRecord to dictionary for storage."""
-    return {
-        # Common fields
-        "run_id": record.run_id,
-        "problem_id": record.problem_id,
-        "optimizer": record.optimizer,
-        "optimizer_family": record.optimizer_family,
-        "success": record.success,
-        "final_objective": record.final_objective,
-        "final_design": record.final_design,
-        "n_evaluations": record.n_evaluations,
-        "wall_time_seconds": record.wall_time_seconds,
-        "created_at": record.created_at,
-        "config": record.config,
+Each session is stored as a single JSON file containing all runs:
 
-        # Polymorphic components (serialized)
-        "initialization": record.initialization.to_dict(),
-        "progress": record.progress.to_dict(),
-        "result": record.result.to_dict()
-    }
-
-
-def deserialize_run_record(data: Dict[str, Any]) -> RunRecord:
-    """Deserialize RunRecord from dictionary."""
-    family = data["optimizer_family"]
-
-    init, progress, result = COMPONENT_REGISTRY.deserialize_components(
-        family=family,
-        init_data=data["initialization"],
-        progress_data=data["progress"],
-        result_data=data["result"]
-    )
-
-    return RunRecord(
-        run_id=data["run_id"],
-        problem_id=data["problem_id"],
-        optimizer=data["optimizer"],
-        optimizer_family=family,
-        success=data["success"],
-        final_objective=data["final_objective"],
-        final_design=data["final_design"],
-        n_evaluations=data["n_evaluations"],
-        wall_time_seconds=data["wall_time_seconds"],
-        created_at=data["created_at"],
-        config=data["config"],
-        initialization=init,
-        progress=progress,
-        result=result
-    )
+```
+.paola_runs/
+├── sessions/
+│   ├── session_0001.json
+│   ├── session_0002.json
+│   └── session_0042.json    # Multi-run session
+├── problems/
+│   └── ...
+└── evaluators/
+    └── ...
 ```
 
-### 6.2 JSON Storage Format
+### 6.2 Example: Multi-Run Session JSON
 
 ```json
 {
-  "run_id": 42,
+  "session_id": 42,
   "problem_id": "wing_v2",
-  "optimizer": "scipy:SLSQP",
-  "optimizer_family": "gradient",
+  "created_at": "2025-12-15T21:30:00",
+  "config": {
+    "goal": "minimize drag",
+    "max_total_evaluations": 200
+  },
+
+  "runs": [
+    {
+      "run_id": 1,
+      "optimizer": "optuna:TPE",
+      "optimizer_family": "bayesian",
+      "warm_start_from": null,
+      "n_evaluations": 50,
+      "wall_time": 120.5,
+      "run_success": true,
+      "best_objective": 0.15,
+      "best_design": [0.1, 0.2, "..."],
+
+      "initialization": {
+        "family": "bayesian",
+        "specification": {"type": "none"},
+        "warm_start_trials": null,
+        "n_initial_random": 10
+      },
+      "progress": {
+        "family": "bayesian",
+        "trials": [
+          {"trial_number": 1, "design": ["..."], "objective": 0.8, "state": "complete"},
+          {"trial_number": 2, "design": ["..."], "objective": 0.5, "state": "complete"}
+        ]
+      },
+      "result": {
+        "family": "bayesian",
+        "termination_reason": "n_trials_reached",
+        "best_trial_number": 42,
+        "n_complete_trials": 50,
+        "n_pruned_trials": 0
+      }
+    },
+
+    {
+      "run_id": 2,
+      "optimizer": "scipy:SLSQP",
+      "optimizer_family": "gradient",
+      "warm_start_from": 1,
+      "n_evaluations": 30,
+      "wall_time": 45.2,
+      "run_success": true,
+      "best_objective": 0.08,
+      "best_design": [0.12, 0.18, "..."],
+
+      "initialization": {
+        "family": "gradient",
+        "specification": {"type": "warm_start", "source_run": 1},
+        "x0": [0.1, 0.2, "..."]
+      },
+      "progress": {
+        "family": "gradient",
+        "iterations": [
+          {"iteration": 1, "objective": 0.15, "design": ["..."], "gradient_norm": 0.5},
+          {"iteration": 2, "objective": 0.12, "design": ["..."], "gradient_norm": 0.3}
+        ]
+      },
+      "result": {
+        "family": "gradient",
+        "termination_reason": "convergence",
+        "final_gradient_norm": 1e-6,
+        "final_constraint_violation": 0.0
+      }
+    },
+
+    {
+      "run_id": 3,
+      "optimizer": "cmaes",
+      "optimizer_family": "cmaes",
+      "warm_start_from": 2,
+      "n_evaluations": 20,
+      "wall_time": 30.1,
+      "run_success": true,
+      "best_objective": 0.05,
+      "best_design": [0.11, 0.19, "..."],
+
+      "initialization": {
+        "family": "cmaes",
+        "specification": {"type": "warm_start", "source_run": 2},
+        "mean": [0.12, 0.18, "..."],
+        "sigma": 0.1,
+        "population_size": 10
+      },
+      "progress": {
+        "family": "cmaes",
+        "generations": [
+          {"generation": 1, "best_objective": 0.08, "mean": ["..."], "sigma": 0.1},
+          {"generation": 2, "best_objective": 0.06, "mean": ["..."], "sigma": 0.08}
+        ]
+      },
+      "result": {
+        "family": "cmaes",
+        "termination_reason": "convergence",
+        "final_mean": [0.11, 0.19, "..."],
+        "final_sigma": 0.01
+      }
+    }
+  ],
+
   "success": true,
-  "final_objective": 0.00123,
-  "final_design": [0.1, 0.2, 0.3],
-  "n_evaluations": 156,
-  "wall_time_seconds": 12.5,
-  "created_at": "2025-12-15T21:00:00",
-  "config": {"ftol": 1e-6},
+  "final_objective": 0.05,
+  "final_design": [0.11, 0.19, "..."],
+  "total_evaluations": 100,
+  "total_wall_time": 195.8,
 
-  "initialization": {
-    "family": "gradient",
-    "specification": {"type": "center"},
-    "x0": [0.5, 0.5, 0.5]
-  },
-
-  "progress": {
-    "family": "gradient",
-    "iterations": [
-      {"iteration": 1, "objective": 1.5, "design": [...], "gradient_norm": 0.8},
-      {"iteration": 2, "objective": 0.9, "design": [...], "gradient_norm": 0.3},
-      ...
-    ]
-  },
-
-  "result": {
-    "family": "gradient",
-    "termination_reason": "convergence",
-    "final_gradient_norm": 1e-7,
-    "final_constraint_violation": 0.0
-  }
+  "decisions": [
+    {
+      "timestamp": "2025-12-15T21:32:00",
+      "decision_type": "switch_optimizer",
+      "reasoning": "Bayesian exploration found promising region (obj=0.15). Switching to gradient-based for local refinement.",
+      "from_run": 1,
+      "to_run": 2,
+      "metrics_at_decision": {"best_obj": 0.15, "n_trials": 50}
+    },
+    {
+      "timestamp": "2025-12-15T21:33:00",
+      "decision_type": "switch_optimizer",
+      "reasoning": "SLSQP converged but may be stuck at local minimum (obj=0.08). Trying CMA-ES to explore nearby region.",
+      "from_run": 2,
+      "to_run": 3,
+      "metrics_at_decision": {"best_obj": 0.08, "gradient_norm": 1e-6}
+    },
+    {
+      "timestamp": "2025-12-15T21:33:30",
+      "decision_type": "terminate",
+      "reasoning": "CMA-ES found better solution (obj=0.05) and converged. Optimization complete.",
+      "from_run": 3,
+      "to_run": null,
+      "metrics_at_decision": {"best_obj": 0.05, "sigma": 0.01}
+    }
+  ]
 }
 ```
 
@@ -806,86 +1022,178 @@ def deserialize_run_record(data: Dict[str, Any]) -> RunRecord:
 
 ## 7. Querying
 
-### 7.1 Common Field Queries (Work Across All Families)
+### 7.1 Session-Level Queries
 
 ```python
 class Foundry:
-    def query_runs(
+    def query_sessions(
         self,
         problem_id: Optional[str] = None,
-        optimizer: Optional[str] = None,
-        optimizer_family: Optional[str] = None,
         success: Optional[bool] = None,
         min_objective: Optional[float] = None,
-        max_objective: Optional[float] = None
-    ) -> List[RunRecord]:
-        """
-        Query runs by common fields.
-
-        Works across all optimizer families.
-        """
-        # Filter by common fields (always present)
+        max_evaluations: Optional[int] = None
+    ) -> List[SessionRecord]:
+        """Query sessions by common fields."""
         ...
 
-    def get_best_run(self, problem_id: str) -> Optional[RunRecord]:
-        """Get the most successful run for a problem."""
-        runs = self.query_runs(problem_id=problem_id, success=True)
-        if not runs:
-            return None
-        return min(runs, key=lambda r: r.final_objective)
+    def get_best_session(self, problem_id: str) -> Optional[SessionRecord]:
+        """Get most successful session for a problem."""
+        ...
 ```
 
-### 7.2 Family-Specific Queries
+### 7.2 Run-Level Queries
 
 ```python
 class Foundry:
-    def get_gradient_runs(self, problem_id: str) -> List[RunRecord]:
-        """Get gradient-based runs (with typed components)."""
-        return self.query_runs(
-            problem_id=problem_id,
-            optimizer_family="gradient"
-        )
+    def get_runs_by_family(
+        self,
+        problem_id: str,
+        optimizer_family: str
+    ) -> List[Tuple[SessionRecord, OptimizationRun]]:
+        """Get all runs of a specific family for a problem."""
+        ...
 
-    def get_convergence_history(self, run_id: int) -> List[Tuple[int, float]]:
-        """
-        Get iteration/objective history for a gradient run.
-
-        Returns list of (iteration, objective) tuples.
-        """
-        run = self.get_run(run_id)
-        if run.optimizer_family != "gradient":
-            raise ValueError(f"Run {run_id} is not gradient-based")
-
-        progress: GradientProgress = run.progress
-        return [(it.iteration, it.objective) for it in progress.iterations]
+    def get_warm_start_chains(
+        self,
+        problem_id: str
+    ) -> List[List[OptimizationRun]]:
+        """Get chains of warm-started runs for learning."""
+        ...
 ```
 
 ---
 
-## 8. Adding New Optimizer Families
+## 8. Active Session Management
 
-To add a new optimizer family (e.g., "surrogate" for surrogate-based optimization):
+### 8.1 ActiveSession Class
+
+```python
+class ActiveSession:
+    """
+    Handle for in-progress optimization session.
+
+    Manages runs as they are created and completed.
+    """
+
+    def __init__(self, session_id: int, problem_id: str, storage: StorageBackend):
+        self.session_id = session_id
+        self.problem_id = problem_id
+        self.storage = storage
+        self.runs: List[OptimizationRun] = []
+        self.decisions: List[PaolaDecision] = []
+        self.current_run: Optional[ActiveRun] = None
+        self.start_time = datetime.now()
+
+    def start_run(
+        self,
+        optimizer: str,
+        initialization: InitializationComponent,
+        warm_start_from: Optional[int] = None
+    ) -> 'ActiveRun':
+        """Start a new optimization run."""
+        run_id = len(self.runs) + 1
+        family = COMPONENT_REGISTRY.get_family(optimizer)
+
+        self.current_run = ActiveRun(
+            run_id=run_id,
+            optimizer=optimizer,
+            optimizer_family=family,
+            initialization=initialization,
+            warm_start_from=warm_start_from
+        )
+        return self.current_run
+
+    def complete_run(
+        self,
+        progress: ProgressComponent,
+        result: ResultComponent,
+        best_objective: float,
+        best_design: List[float]
+    ):
+        """Complete current run and add to session."""
+        if self.current_run is None:
+            raise RuntimeError("No active run")
+
+        run = self.current_run.finalize(
+            progress=progress,
+            result=result,
+            best_objective=best_objective,
+            best_design=best_design
+        )
+        self.runs.append(run)
+        self.current_run = None
+        self._persist()
+
+    def record_decision(
+        self,
+        decision_type: str,
+        reasoning: str,
+        metrics: Dict[str, Any]
+    ):
+        """Record Paola's strategic decision."""
+        decision = PaolaDecision(
+            timestamp=datetime.now().isoformat(),
+            decision_type=decision_type,
+            reasoning=reasoning,
+            from_run=len(self.runs) if self.runs else None,
+            to_run=len(self.runs) + 1 if decision_type == "switch_optimizer" else None,
+            metrics_at_decision=metrics
+        )
+        self.decisions.append(decision)
+
+    def finalize(self, success: bool) -> SessionRecord:
+        """Finalize session and return record."""
+        # Compute overall metrics
+        total_evals = sum(r.n_evaluations for r in self.runs)
+        total_time = (datetime.now() - self.start_time).total_seconds()
+        best_run = min(self.runs, key=lambda r: r.best_objective)
+
+        record = SessionRecord(
+            session_id=self.session_id,
+            problem_id=self.problem_id,
+            created_at=self.start_time.isoformat(),
+            config={},
+            runs=self.runs,
+            success=success,
+            final_objective=best_run.best_objective,
+            final_design=best_run.best_design,
+            total_evaluations=total_evals,
+            total_wall_time=total_time,
+            decisions=self.decisions
+        )
+
+        self.storage.save_session(record)
+        return record
+```
+
+---
+
+## 9. Adding New Optimizer Families
+
+To add a new family (e.g., "surrogate"):
 
 ### Step 1: Define Components
 
 ```python
+# paola/foundry/schema/surrogate.py
+
 @dataclass
 class SurrogateInitialization(InitializationComponent):
-    specification: Dict[str, Any]
-    initial_samples: List[List[float]]
-    surrogate_type: str  # "gaussian_process", "neural_network"
-    # ... surrogate-specific fields
+    # Surrogate-specific fields
+    ...
 
 @dataclass
 class SurrogateProgress(ProgressComponent):
-    # ... surrogate-specific progress
+    # Surrogate-specific fields
+    ...
 
 @dataclass
 class SurrogateResult(ResultComponent):
-    # ... surrogate-specific result
+    # Surrogate-specific fields
+    ...
 ```
 
-### Step 2: Register with Registry
+### Step 2: Register
 
 ```python
 COMPONENT_REGISTRY.register_family(
@@ -897,114 +1205,74 @@ COMPONENT_REGISTRY.register_family(
 )
 ```
 
-**No changes to RunRecord or storage layer required.**
+**No changes to SessionRecord, OptimizationRun, or storage layer required.**
 
 ---
 
-## 9. Migration Path
+## 10. API Tool Updates
 
-### From Current Schema
-
-Current runs stored without family-specific components can be migrated:
+### 10.1 New Session Tools
 
 ```python
-def migrate_legacy_run(legacy_data: Dict) -> RunRecord:
-    """Migrate legacy run record to new schema."""
+# Session management (new)
+start_session(problem_id, goal, config) -> session_id
+finalize_session(session_id, success) -> SessionRecord
+get_session_info(session_id) -> SessionRecord
 
-    # Infer family from optimizer
-    optimizer = legacy_data.get("optimizer", "scipy:SLSQP")
-    family = COMPONENT_REGISTRY.get_family(optimizer)
-
-    # Create appropriate components from legacy data
-    if family == "gradient":
-        init = GradientInitialization(
-            specification={"type": "unknown"},  # Legacy didn't track
-            x0=legacy_data.get("x0", legacy_data.get("initial_design", []))
-        )
-        progress = GradientProgress(
-            iterations=[
-                GradientIteration(
-                    iteration=it.get("iteration", i),
-                    objective=it["objective"],
-                    design=it.get("design", [])
-                )
-                for i, it in enumerate(legacy_data.get("iterations", []))
-            ]
-        )
-        result = GradientResult(
-            termination_reason=legacy_data.get("termination", "unknown")
-        )
-    # ... handle other families
-
-    return RunRecord(
-        run_id=legacy_data["run_id"],
-        problem_id=legacy_data["problem_id"],
-        optimizer=optimizer,
-        optimizer_family=family,
-        success=legacy_data.get("success", False),
-        final_objective=legacy_data.get("final_objective", float("inf")),
-        final_design=legacy_data.get("final_design", []),
-        n_evaluations=legacy_data.get("n_evaluations", 0),
-        wall_time_seconds=legacy_data.get("wall_time", 0.0),
-        created_at=legacy_data.get("created_at", ""),
-        config=legacy_data.get("config", {}),
-        initialization=init,
-        progress=progress,
-        result=result
-    )
+# Run management (existing tool, unchanged signature)
+run_optimization(problem_id, optimizer, config) -> run_result
+# Now internally linked to current active session
 ```
+
+### 10.2 Backward Compatibility
+
+For simple cases (one optimizer, no session management):
+- `run_optimization()` auto-creates a session if none active
+- Single-run sessions work exactly like before
+- No breaking changes for existing workflows
 
 ---
 
-## 10. Summary
+## 11. Summary
 
-### Benefits of This Design
+### Key Terminology
 
-| Aspect | Benefit |
-|--------|---------|
-| **Extensibility** | Add new optimizer family without modifying core |
-| **Type Safety** | Each family has well-defined, validated schema |
-| **Queryability** | Common fields always queryable across all runs |
-| **Maintainability** | Clear separation of concerns |
-| **Storage Efficiency** | No sparse optional fields |
+| Term | Definition |
+|------|------------|
+| **Session** | Complete optimization task orchestrated by Paola |
+| **Run** | Single optimizer execution within a session |
+| **Family** | Category of optimizer with shared data structures |
+| **Warm-start** | Using results from previous run as initialization |
+| **Decision** | Paola's strategic choice recorded for learning |
 
-### Trade-offs
+### Benefits
 
-| Trade-off | Mitigation |
-|-----------|------------|
-| More complex serialization | Registry handles it centrally |
-| Need to know family for type-specific queries | `optimizer_family` field makes it explicit |
-| More classes to maintain | Clear organization, one file per family |
+1. **Multi-optimizer sessions** - Paola can use different strategies in one session
+2. **Warm-start chains** - Track how runs connect
+3. **Decision logging** - Explainable optimization process
+4. **Family-specific data** - Each optimizer stores what it needs
+5. **Extensibility** - Add new families without changing core
+6. **Clear terminology** - No more overloaded "run"
 
-### Files to Create/Modify
+### Files to Create
 
 ```
 paola/foundry/
 ├── schema/
 │   ├── __init__.py
-│   ├── base.py              # RunRecord, component ABCs
-│   ├── gradient.py          # Gradient family components
-│   ├── population.py        # Population family components
-│   ├── bayesian.py          # Bayesian family components
-│   ├── cmaes.py             # CMA-ES family components
+│   ├── base.py              # SessionRecord, OptimizationRun, PaolaDecision
+│   ├── components.py        # Component ABCs
+│   ├── gradient.py          # Gradient family
+│   ├── bayesian.py          # Bayesian family
+│   ├── population.py        # Population family
+│   ├── cmaes.py             # CMA-ES family
 │   └── registry.py          # ComponentRegistry
-├── storage/
-│   ├── serialization.py     # Serialize/deserialize logic
-│   └── ...
-└── foundry.py               # Main Foundry class (update queries)
+├── active_session.py        # ActiveSession, ActiveRun
+└── ...
 ```
 
 ---
 
-## 11. Next Steps
-
-1. **Review this design** - Discuss any concerns or modifications
-2. **Implement base schema** - `RunRecord`, component ABCs, registry
-3. **Implement gradient family** - Most commonly used, proves the pattern
-4. **Migrate existing runs** - Update current data to new schema
-5. **Implement other families** - As needed for each optimizer
-
----
-
-**Document Status**: Ready for Review
-**Next Action**: Discussion and approval before implementation
+**Document Status**: Ready for Implementation
+**Version**: 2.1 (Session/Run terminology clarification)
+**Next Action**: Implement for Paola v0.2.0
