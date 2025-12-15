@@ -41,20 +41,31 @@ This principle defines PAOLA's approach to the overwhelming complexity of optimi
 
 ```
 AgenticOptimization/
-├── paola/                                 # Main package (currently 'aopt', rename planned)
-│   ├── agent/                            # ReAct agent implementation
+├── paola/                                 # Main package
+│   ├── agent/                            # Agent intelligence (InitializationManager, ConfigurationManager)
 │   ├── tools/                            # Tool primitives for agent
+│   ├── foundry/                          # Core schemas (NLPProblem, BoundsSpec)
 │   ├── storage/                          # Run storage backend
-│   ├── cli/                              # Interactive CLI (Phase 2)
+│   ├── cli/                              # Interactive CLI
 │   ├── knowledge/                        # Knowledge base + RAG (TODO: Phase 3)
 │   └── analysis/                         # Multi-run analysis (TODO: Phase 3)
-├── docs/
-│   ├── agent_controlled_optimization.md  # Detailed technical design
-│   ├── agentic_optimization_vision.md    # Vision and value proposition
-│   ├── cli_architecture.md               # CLI design (Phase 2)
-│   └── run_architecture.md               # Run-based architecture (Phase 2)
+├── docs/                                  # Documentation (timestamped, organized by category)
+│   ├── architecture/                     # Design documents
+│   ├── implementation/                   # Implementation summaries
+│   ├── bugfix/                           # Bug fix documentation
+│   ├── analysis/                         # Analysis and research
+│   ├── decisions/                        # Decision records
+│   ├── planning/                         # Planning documents
+│   ├── progress/                         # Progress reports
+│   └── archive/                          # Historical/superseded docs
+├── tests/                                 # Test suite
 └── CLAUDE.md                             # This file
 ```
+
+## Documentation Conventions
+
+- **Timestamp prefix**: `YYYYMMDD_HHMM_name.md` (e.g., `20251215_1530_feature_design.md`)
+- **Subfolders**: `architecture/`, `implementation/`, `bugfix/`, `analysis/`, `decisions/`, `planning/`, `progress/`, `archive/`
 
 ## Key Concepts
 
