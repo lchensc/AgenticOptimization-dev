@@ -406,11 +406,15 @@ def create_nlp_problem(
     objective_sense: str = "minimize",
     inequality_constraints: Optional[List[Dict[str, Any]]] = None,
     equality_constraints: Optional[List[Dict[str, Any]]] = None,
-    initial_point: Optional[List[float]] = None,
+    domain_hint: Optional[str] = None,
     description: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Create Nonlinear Programming (NLP) problem from registered Foundry evaluators.
+
+    The Paola Principle: "Initialization is agent intelligence, not user input."
+    Initial points are NOT specified here - Paola computes them automatically
+    based on the domain_hint, problem characteristics, and run history.
 
     NLP standard form:
         minimize/maximize f(x)
@@ -429,6 +433,8 @@ def create_nlp_problem(
                                (must be registered in Foundry)
         bounds: Design variable bounds [[lower, upper], ...]
                Example: [[0, 15], [0.1, 0.5]] for 2D problem
+               For large variable spaces, use compact format:
+               {"type": "uniform", "lower": -0.05, "upper": 0.05, "dimension": 100}
         objective_sense: "minimize" or "maximize" (default: "minimize")
         inequality_constraints: List of inequality constraint specifications:
             [{
@@ -444,7 +450,12 @@ def create_nlp_problem(
                 "value": 0.0,
                 "tolerance": 1e-6       # Optional, default: 1e-6
             }]
-        initial_point: Starting point for optimization (optional, random if not provided)
+        domain_hint: Optional hint for initialization strategy:
+            - "shape_optimization": FFD/mesh deformation (init at zero = baseline)
+            - "aerodynamic": Same as shape_optimization
+            - "structural": Structural design (init at center of bounds)
+            - "topology": Topology optimization (init at uniform density)
+            - "general": General problem (init at center of bounds, default)
         description: Human-readable problem description (optional)
 
     Returns:
@@ -457,6 +468,7 @@ def create_nlp_problem(
             - num_equality_constraints: int
             - evaluators_used: List[str]
             - recommended_solvers: List[str]
+            - domain_hint: str (if provided)
             - message: str
 
     Examples:
@@ -467,22 +479,22 @@ def create_nlp_problem(
             bounds=[[-5, 10], [-5, 10]]
         )
 
-        # Constrained NLP
+        # Constrained NLP with domain hint
         create_nlp_problem(
-            problem_id="airfoil_design",
+            problem_id="wing_design",
             objective_evaluator_id="drag_eval",
-            bounds=[[0, 15], [0.1, 0.5]],
+            bounds=[[-0.05, 0.05]] * 100,  # 100 FFD control points
+            domain_hint="shape_optimization",  # Tells Paola to init at zero
             inequality_constraints=[
-                {"name": "min_lift", "evaluator_id": "lift_eval", "type": ">=", "value": 1000},
-                {"name": "max_stress", "evaluator_id": "stress_eval", "type": "<=", "value": 200}
+                {"name": "min_lift", "evaluator_id": "lift_eval", "type": ">=", "value": 1000}
             ]
         )
 
     Note:
         - Only supports continuous variables (NLP)
+        - Initial point is computed by Paola based on domain_hint and algorithm
         - For integer variables, use create_milp_problem (Phase 7+)
         - For multi-objective, use create_moo_problem (Phase 7+)
-        - Agent can iteratively reformulate by creating new problems with adjusted constraints
     """
     try:
         from paola.foundry import (
@@ -569,17 +581,19 @@ def create_nlp_problem(
         dimension = len(bounds)
 
         # Create NLPProblem specification
+        # Note: initial_point is NOT specified - Paola computes it automatically
+        # based on domain_hint, algorithm, and run history (The Paola Principle)
         nlp_problem = NLPProblem(
             problem_id=problem_id,
             objective_evaluator_id=objective_evaluator_id,
             objective_sense=objective_sense,
             dimension=dimension,
             bounds=bounds,
-            initial_point=initial_point,
             inequality_constraints=ineq_constraints_objs,
             equality_constraints=eq_constraints_objs,
             created_at=datetime.now().isoformat(),
-            description=description
+            description=description,
+            domain_hint=domain_hint
         )
 
         # Create NLPEvaluator (composite evaluator)
@@ -618,6 +632,9 @@ def create_nlp_problem(
             has_constraints=has_constraints
         )
 
+        # Build message with domain hint if provided
+        hint_msg = f"  Domain hint: {domain_hint}\n" if domain_hint else ""
+
         return {
             "success": True,
             "problem_id": problem_id,
@@ -627,13 +644,16 @@ def create_nlp_problem(
             "num_equality_constraints": nlp_problem.num_equality_constraints,
             "evaluators_used": nlp_problem.get_all_evaluator_ids(),
             "recommended_solvers": recommended_solvers,
+            "domain_hint": domain_hint,
             "message": (
                 f"Created NLP problem '{problem_id}':\n"
                 f"  Objective: {objective_sense} {objective_evaluator_id}\n"
                 f"  Dimension: {dimension}\n"
+                f"{hint_msg}"
                 f"  Inequality constraints: {nlp_problem.num_inequality_constraints}\n"
                 f"  Equality constraints: {nlp_problem.num_equality_constraints}\n"
-                f"  Recommended solvers: {', '.join(recommended_solvers[:2])}"
+                f"  Recommended solvers: {', '.join(recommended_solvers[:2])}\n"
+                f"  Note: Initial point will be computed by Paola based on domain and algorithm"
             )
         }
 

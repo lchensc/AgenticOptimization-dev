@@ -152,12 +152,12 @@ if __name__ == "__main__":
     # Step 4: User creates NLP problem using registered evaluator
     print("\n4. User creates NLP problem...")
 
+    # Note: initial_point removed per Paola Principle - agent handles initialization
     problem_result = create_nlp_problem.invoke({
         "problem_id": "rosenbrock_test",
         "objective_evaluator_id": "rosenbrock_opt",
         "bounds": [[-5.0, 10.0], [-5.0, 10.0]],
-        "objective_sense": "minimize",
-        "initial_point": [-1.0, 1.0]
+        "objective_sense": "minimize"
     })
 
     if not problem_result["success"]:

@@ -16,9 +16,11 @@ Where:
 """
 
 from dataclasses import dataclass, field, asdict
-from typing import List, Optional, Dict, Any, Literal
+from typing import List, Optional, Dict, Any, Literal, Union
 from datetime import datetime
 import json
+
+from .bounds_spec import BoundsSpec, parse_bounds_input
 
 
 @dataclass
@@ -115,16 +117,22 @@ class NLPProblem:
     problem_id: str
     objective_evaluator_id: str
     dimension: int
-    bounds: List[List[float]]  # [[lower, upper], ...]
+    bounds: List[List[float]]  # [[lower, upper], ...] - expanded from BoundsSpec
 
     # Fields with defaults
     problem_type: Literal["NLP"] = "NLP"  # Fixed for NLP
     objective_sense: Literal["minimize", "maximize"] = "minimize"
-    initial_point: Optional[List[float]] = None
     inequality_constraints: List[InequalityConstraint] = field(default_factory=list)
     equality_constraints: List[EqualityConstraint] = field(default_factory=list)
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     description: Optional[str] = None
+
+    # The Paola Principle: Initialization is agent intelligence, not user input
+    # Domain hints help the agent make better initialization decisions
+    domain_hint: Optional[str] = None  # e.g., "shape_optimization", "structural", "general"
+
+    # Store original BoundsSpec for reference (if provided)
+    bounds_spec: Optional[Dict[str, Any]] = None
 
     def __post_init__(self):
         """Validate problem specification."""
@@ -135,14 +143,6 @@ class NLPProblem:
                 f"problem dimension ({self.dimension})"
             )
 
-        # Validate initial point if provided
-        if self.initial_point is not None:
-            if len(self.initial_point) != self.dimension:
-                raise ValueError(
-                    f"Initial point dimension ({len(self.initial_point)}) doesn't match "
-                    f"problem dimension ({self.dimension})"
-                )
-
         # Validate bounds format
         for i, bound in enumerate(self.bounds):
             if len(bound) != 2:
@@ -151,6 +151,18 @@ class NLPProblem:
                 raise ValueError(
                     f"Bound {i} has lower >= upper: [{bound[0]}, {bound[1]}]"
                 )
+
+        # Validate domain_hint if provided
+        valid_domain_hints = {
+            "shape_optimization",  # FFD, mesh deformation → zero init
+            "structural",          # Structural design → center of bounds
+            "aerodynamic",         # Aero shape → zero init
+            "topology",            # Topology opt → typically uniform density
+            "general"              # General → center of bounds
+        }
+        if self.domain_hint is not None and self.domain_hint not in valid_domain_hints:
+            # Allow custom hints but log a warning (don't raise error)
+            pass  # Flexible: allow unknown hints for extensibility
 
     @property
     def num_inequality_constraints(self) -> int:
@@ -206,6 +218,9 @@ class NLPProblem:
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'NLPProblem':
         """Deserialize from dictionary."""
+        # Make a copy to avoid mutating input
+        data = dict(data)
+
         # Convert constraint dicts back to objects
         if 'inequality_constraints' in data:
             data['inequality_constraints'] = [
@@ -219,6 +234,10 @@ class NLPProblem:
                 for c in data['equality_constraints']
             ]
 
+        # Remove deprecated initial_point if present (backward compatibility)
+        if 'initial_point' in data:
+            del data['initial_point']
+
         return cls(**data)
 
     def to_json(self) -> str:
@@ -230,14 +249,108 @@ class NLPProblem:
         """Deserialize from JSON."""
         return cls.from_dict(json.loads(json_str))
 
+    @classmethod
+    def from_bounds_spec(
+        cls,
+        problem_id: str,
+        objective_evaluator_id: str,
+        bounds_spec: Union[List[List[float]], Dict[str, Any], BoundsSpec],
+        objective_sense: Literal["minimize", "maximize"] = "minimize",
+        inequality_constraints: List[InequalityConstraint] = None,
+        equality_constraints: List[EqualityConstraint] = None,
+        description: Optional[str] = None,
+        domain_hint: Optional[str] = None
+    ) -> 'NLPProblem':
+        """
+        Create NLPProblem from BoundsSpec (preferred for large variable spaces).
+
+        The Paola Principle: "Optimization complexity is Paola intelligence."
+        This factory method allows compact bounds specification while
+        automatically expanding them to explicit bounds.
+
+        Args:
+            problem_id: Unique problem identifier
+            objective_evaluator_id: Registered evaluator for objective
+            bounds_spec: One of:
+                - List of [lower, upper] pairs (explicit)
+                - Dict with BoundsSpec format
+                - BoundsSpec object
+            objective_sense: "minimize" or "maximize"
+            inequality_constraints: List of inequality constraints
+            equality_constraints: List of equality constraints
+            description: Problem description
+            domain_hint: Hint for initialization (e.g., "shape_optimization")
+
+        Returns:
+            NLPProblem with expanded bounds
+
+        Example:
+            # Uniform bounds for 100 FFD control points
+            problem = NLPProblem.from_bounds_spec(
+                problem_id="wing_ffd",
+                objective_evaluator_id="drag_eval",
+                bounds_spec={"type": "uniform", "lower": -0.05, "upper": 0.05, "dimension": 100},
+                domain_hint="shape_optimization"
+            )
+        """
+        # Parse bounds spec
+        spec = parse_bounds_input(bounds_spec)
+
+        # Expand to explicit bounds
+        expanded_bounds = spec.expand()
+
+        return cls(
+            problem_id=problem_id,
+            objective_evaluator_id=objective_evaluator_id,
+            dimension=len(expanded_bounds),
+            bounds=expanded_bounds,
+            objective_sense=objective_sense,
+            inequality_constraints=inequality_constraints or [],
+            equality_constraints=equality_constraints or [],
+            description=description,
+            domain_hint=domain_hint,
+            bounds_spec=spec.to_dict()
+        )
+
+    def get_bounds_center(self) -> List[float]:
+        """
+        Get center of bounds.
+
+        Used by InitializationManager for gradient-based algorithms.
+
+        Returns:
+            List of center values for each variable
+        """
+        return [(b[0] + b[1]) / 2 for b in self.bounds]
+
+    def get_bounds_width(self) -> List[float]:
+        """
+        Get width of bounds.
+
+        Used by InitializationManager for CMA-ES sigma calculation.
+
+        Returns:
+            List of bound widths for each variable
+        """
+        return [b[1] - b[0] for b in self.bounds]
+
     def __str__(self) -> str:
         """Human-readable representation."""
         lines = [
             f"NLP Problem: {self.problem_id}",
             f"  Objective: {self.objective_sense} {self.objective_evaluator_id}",
             f"  Dimension: {self.dimension}",
-            f"  Bounds: {self.bounds}",
         ]
+
+        # Compact bounds display for large variable spaces
+        if self.dimension <= 5:
+            lines.append(f"  Bounds: {self.bounds}")
+        else:
+            # Show first 2 and last bound with ellipsis
+            lines.append(f"  Bounds: [{self.bounds[0]}, {self.bounds[1]}, ..., {self.bounds[-1]}]")
+
+        if self.domain_hint:
+            lines.append(f"  Domain hint: {self.domain_hint}")
 
         if self.inequality_constraints:
             lines.append(f"  Inequality constraints: {self.num_inequality_constraints}")

@@ -446,14 +446,34 @@ def run_scipy_optimization(
     run_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Run scipy optimization to completion in a single call.
+    [DEPRECATED] Run scipy optimization to completion in a single call.
+
+    DEPRECATION NOTICE: This tool is deprecated. Use run_optimization instead.
+
+    The new run_optimization tool implements The Paola Principle:
+    - Agent specifies INTENT (optimizer="auto", priority="robustness")
+    - Paola handles algorithm selection, initialization, and configuration
+
+    Example migration:
+        # OLD (deprecated):
+        run_scipy_optimization(
+            problem_id="wing",
+            algorithm="SLSQP",
+            bounds=[[...] * 100],
+            initial_design=[...],
+            options='{"maxiter": 200}'
+        )
+
+        # NEW (recommended):
+        run_optimization(
+            problem_id="wing",
+            optimizer="auto",      # or "SLSQP" for specific algorithm
+            priority="balanced",   # "robustness", "speed", "accuracy"
+            max_iterations=200
+        )
 
     This tool runs a full scipy.optimize.minimize optimization from start to finish.
-    Use this when you want to run an optimization without step-by-step interception.
     The optimization runs autonomously and returns final results.
-
-    IMPORTANT: Use start_optimization_run BEFORE calling this tool to create a
-    tracked run. Pass the returned run_id to this tool to record results.
 
     For step-by-step control, use optimizer_create/propose/update instead.
 
@@ -483,6 +503,7 @@ def run_scipy_optimization(
             - n_gradient_evals: int - number of gradient evaluations (if used)
             - optimization_history: List[Dict] - history of iterations
             - convergence_info: Dict - convergence analysis
+            - deprecated: bool - True (indicates this tool is deprecated)
 
     Example:
         result = run_scipy_optimization(
@@ -493,6 +514,13 @@ def run_scipy_optimization(
             options='{"maxiter": 200, "ftol": 1e-9}'
         )
     """
+    import warnings
+    warnings.warn(
+        "run_scipy_optimization is deprecated. Use run_optimization instead. "
+        "See docstring for migration guide.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     from scipy.optimize import minimize
     from paola.tools.evaluator_tools import _get_problem
 
@@ -648,6 +676,8 @@ def run_scipy_optimization(
             "elapsed_time": elapsed,
             "optimization_history": history[-20:] if len(history) > 20 else history,  # Last 20 entries
             "convergence_info": convergence_info,
+            "deprecated": True,
+            "deprecation_notice": "Use run_optimization instead for Paola Principle benefits",
         }
 
     except Exception as e:
@@ -656,6 +686,7 @@ def run_scipy_optimization(
             "success": False,
             "message": f"Error running optimization: {str(e)}",
             "traceback": traceback.format_exc(),
+            "deprecated": True,
         }
 
 
