@@ -400,7 +400,15 @@ class OptunaBackend(OptimizerBackend):
 
             n_evals[0] += 1
             val = objective(x)
-            history.append({"iteration": n_evals[0], "objective": float(val)})
+
+            # Record trial with design vector for proper run tracking
+            # Note: Optuna trials are independent samples, not trajectory steps
+            history.append({
+                "iteration": n_evals[0],
+                "trial": n_evals[0],
+                "objective": float(val),
+                "design": x.tolist(),  # Include design for run recording
+            })
 
             if val < best_f[0]:
                 best_f[0] = val

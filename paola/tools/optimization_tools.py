@@ -213,7 +213,18 @@ def run_optimization(
                                     design=np.array(h["design"]),
                                     objective=h["objective"]
                                 )
-                        run.finalize(result.raw_result, metadata={"elapsed": elapsed})
+                        # Create a standardized result object for finalize
+                        # This ensures compatibility with all backends (SciPy, IPOPT, Optuna)
+                        from types import SimpleNamespace
+                        std_result = SimpleNamespace(
+                            fun=result.final_objective,
+                            x=result.final_design,
+                            success=result.success,
+                            nfev=result.n_function_evals,
+                            nit=result.n_iterations,
+                            message=result.message
+                        )
+                        run.finalize(std_result, metadata={"elapsed": elapsed, "optimizer": optimizer})
             except Exception as e:
                 logger.warning(f"Failed to record run: {e}")
 
