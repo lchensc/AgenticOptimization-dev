@@ -91,6 +91,22 @@ class OptimizationEdge:
                 f"Valid types: {EdgeType.all_types()}"
             )
 
+    @classmethod
+    def create(
+        cls,
+        source: str,
+        target: str,
+        edge_type: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> 'OptimizationEdge':
+        """Factory method to create an edge."""
+        return cls(
+            source=source,
+            target=target,
+            edge_type=edge_type,
+            metadata=metadata or {},
+        )
+
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""
         return {
@@ -301,6 +317,7 @@ class OptimizationGraph:
     graph_id: int
     problem_id: str
     created_at: str                 # ISO timestamp
+    goal: Optional[str] = None      # Natural language optimization goal
 
     # Configuration
     config: Dict[str, Any] = field(default_factory=dict)
@@ -518,6 +535,7 @@ class OptimizationGraph:
             "graph_id": self.graph_id,
             "problem_id": self.problem_id,
             "created_at": self.created_at,
+            "goal": self.goal,
             "config": self.config,
             "nodes": {nid: node.to_dict() for nid, node in self.nodes.items()},
             "edges": [e.to_dict() for e in self.edges],
@@ -550,6 +568,7 @@ class OptimizationGraph:
             graph_id=data["graph_id"],
             problem_id=data["problem_id"],
             created_at=data["created_at"],
+            goal=data.get("goal"),
             config=data.get("config", {}),
             nodes=nodes,
             edges=edges,
@@ -583,8 +602,9 @@ class OptimizationGraph:
         best = self.get_best_node()
         best_str = f"{best.best_objective:.6e}" if best else "N/A"
 
+        title = self.goal if self.goal else self.problem_id
         return (
-            f"Graph #{self.graph_id}: {self.problem_id} | "
+            f"Graph #{self.graph_id}: {title} | "
             f"{len(self.nodes)} nodes | {pattern} | "
             f"best: {best_str}"
         )

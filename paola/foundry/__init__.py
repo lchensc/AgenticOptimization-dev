@@ -2,15 +2,20 @@
 Data Foundry - Foundation for PAOLA optimization data.
 
 The foundry provides a single source of truth for optimization data,
-managing problems, sessions, runs, results with versioning and lineage.
+managing problems, graphs, nodes, results with versioning and lineage.
 
-v0.2.0: Session-based architecture
+v0.3.0: Graph-based architecture
+- Graph = complete optimization task (may involve multiple nodes)
+- Node = single optimizer execution within a graph
+- Edges = relationships between nodes (warm_start, branch, etc.)
+
+v0.2.0: Session-based architecture (legacy)
 - Session = complete optimization task (may involve multiple runs)
 - Run = single optimizer execution within a session
 - Polymorphic components per optimizer family
 
 The foundry module is responsible for:
-- Optimization session lifecycle (create → track runs → finalize)
+- Optimization graph lifecycle (create → track nodes → finalize)
 - Data persistence and retrieval with lineage tracking
 - Problem definition and management
 - Query interfaces for analysis and knowledge extraction
@@ -27,9 +32,15 @@ from .storage import StorageBackend, FileStorage
 # TODO: Remove in v0.3.0 after migrating analysis modules to SessionRecord
 from .run import Run, RunRecord, IterationRecord
 
-# v0.2.0 Schema classes
+# v0.3.0 Graph schema classes
 from .schema import (
-    # Base classes
+    # Graph-based schema (v0.3.0+)
+    EdgeType,
+    OptimizationEdge,
+    OptimizationNode,
+    GraphDecision,
+    OptimizationGraph,
+    # Legacy (v0.2.0, for migration)
     SessionRecord,
     OptimizationRun,
     PaolaDecision,
@@ -61,7 +72,10 @@ from .schema import (
     COMPONENT_REGISTRY,
 )
 
-# Active session management
+# Active graph management (v0.3.0+)
+from .active_graph import ActiveGraph, ActiveNode
+
+# Active session management (v0.2.0 legacy)
 from .active_session import ActiveSession, ActiveRun
 
 # Evaluator system
@@ -93,7 +107,15 @@ __all__ = [
     "Run",
     "RunRecord",
     "IterationRecord",
-    # v0.2.0 Session/Run
+    # v0.3.0 Graph-based architecture
+    "EdgeType",
+    "OptimizationEdge",
+    "OptimizationNode",
+    "GraphDecision",
+    "OptimizationGraph",
+    "ActiveGraph",
+    "ActiveNode",
+    # v0.2.0 Session/Run (legacy)
     "SessionRecord",
     "OptimizationRun",
     "PaolaDecision",
