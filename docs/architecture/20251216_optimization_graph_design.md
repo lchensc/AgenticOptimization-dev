@@ -780,78 +780,147 @@ The agent must **explicitly specify** the parent node when warm-starting. The sy
 
 ```python
 # Agent queries graph state:
-get_graph_info(graph_id=1)
+get_graph_state(graph_id=1)
 # Returns: nodes with their objectives, structure
 
 # Agent decides (explicit):
 "Node n2 has the best result (0.08). I'll warm-start SLSQP from n2."
 
 # Agent specifies exactly:
-run_optimization(graph_id=1, optimizer="scipy:SLSQP", parent_node="n2")
+run_optimization(graph_id=1, optimizer="scipy:SLSQP", parent_node="n2", edge_type="warm_start")
 # System creates node n4, adds edge n2→n4
 ```
 
-### 5.2 Tool Interface
+### 5.2 Final Tool Design (7 Tools)
+
+**Design Decisions** (locked after discussion):
+
+| Choice | Decision |
+|--------|----------|
+| Graph creation | **Explicit** - `start_graph` required before optimization |
+| Parent node | **LLM explicitly specifies** `parent_node` + `edge_type` |
+| Graph state | **Separate** `get_graph_state` tool (graph contains multiple nodes) |
+| Optimizer options | **Keep for now** - remove later if unused |
+
+**Experiment Plan**: Whether exposing graph structure helps or hurts LLM reasoning will be determined by experiments comparing baseline (no graph visualization) vs exposed (graph state in prompts).
+
+#### Graph Lifecycle Tools (4)
 
 ```python
+@tool
+def start_graph(problem_id: str, goal: str = "") -> Dict[str, Any]:
+    """
+    Start a new optimization graph.
+
+    Must be called before any optimization. Creates a graph to track
+    the optimization process.
+
+    Args:
+        problem_id: Problem to optimize (from registered problems)
+        goal: Natural language description of optimization goal
+
+    Returns:
+        success: bool
+        graph_id: ID of the created graph
+        message: str
+
+    Example:
+        result = start_graph(
+            problem_id="rosenbrock_10d",
+            goal="Minimize Rosenbrock function"
+        )
+        # graph_id = 1
+    """
+    ...
+
 @tool
 def run_optimization(
     graph_id: int,
     optimizer: str,
     config: Optional[str] = None,
+    max_iterations: int = 100,
     init_strategy: str = "center",
     parent_node: Optional[str] = None,
+    edge_type: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Execute optimization within a graph.
-
-    Creates a new node, optionally connected to a parent node.
+    Execute optimization within a graph, creating a new node.
 
     Args:
-        graph_id: Active graph ID
+        graph_id: Active graph ID from start_graph
         optimizer: Optimizer spec (e.g., "scipy:SLSQP", "optuna:TPE")
         config: JSON string with optimizer options
+        max_iterations: Maximum iterations (default: 100)
         init_strategy: "center", "random", or "warm_start"
-        parent_node: Node ID to warm-start from (required if init_strategy="warm_start")
+        parent_node: Node ID to continue from (required if init_strategy="warm_start")
+        edge_type: Relationship type if parent_node specified
+            - "warm_start": Use parent's best x as starting point
+            - "restart": Same config, new random start
+            - "refine": Local refinement from parent
+            - "branch": Explore different direction
+            - "explore": Global exploration seeded by parent
 
     Returns:
-        node_id: ID of the created node
+        success: bool
+        node_id: ID of created node (e.g., "n1", "n2")
         best_objective: Best value found
-        best_design: Best solution found
+        best_x: Best solution found
         n_evaluations: Number of function evaluations
+        message: str
 
-    Example:
-        # Fresh start
+    Example (fresh start):
         run_optimization(graph_id=1, optimizer="optuna:TPE", init_strategy="random")
 
-        # Warm-start from previous node
+    Example (warm-start from previous node):
         run_optimization(
             graph_id=1,
             optimizer="scipy:SLSQP",
-            init_strategy="warm_start",
-            parent_node="n1"
+            parent_node="n1",
+            edge_type="warm_start"
         )
     """
     ...
 
 @tool
-def start_graph(problem_id: str, goal: str) -> Dict[str, Any]:
+def get_graph_state(graph_id: int) -> Dict[str, Any]:
     """
-    Start a new optimization graph.
+    Get current state of an optimization graph for decision making.
+
+    Use this to understand what has been tried and decide next steps.
 
     Args:
-        problem_id: Problem to optimize
-        goal: Natural language description of optimization goal
+        graph_id: Graph ID
 
     Returns:
-        graph_id: ID of the created graph
+        success: bool
+        graph_id: int
+        problem_id: str
+        n_nodes: int
+        n_edges: int
+        pattern: str - "empty", "single", "multistart", "chain", "tree", "dag"
+        nodes: List of node summaries
+            - node_id: str
+            - optimizer: str
+            - status: str
+            - best_objective: float
+            - n_evaluations: int
+        best_node: Best node summary (node_id, optimizer, best_objective, best_x)
+        leaf_nodes: Potential continuation points
+
+    Example:
+        state = get_graph_state(graph_id=1)
+        # state["nodes"] shows all runs
+        # state["best_node"] shows the best result
+        # state["leaf_nodes"] shows where you can continue from
     """
     ...
 
 @tool
 def finalize_graph(graph_id: int, success: bool, notes: str = "") -> Dict[str, Any]:
     """
-    Finalize an optimization graph.
+    Finalize optimization graph and persist to storage.
+
+    Call when optimization is complete (successful or not).
 
     Args:
         graph_id: Graph to finalize
@@ -859,23 +928,62 @@ def finalize_graph(graph_id: int, success: bool, notes: str = "") -> Dict[str, A
         notes: Optional notes about the outcome
 
     Returns:
+        success: bool
+        graph_id: int
         final_objective: Best objective found
         total_evaluations: Total function evaluations
-        n_nodes: Number of optimization runs
+        n_nodes: Number of optimization nodes
+        message: str
+    """
+    ...
+```
+
+#### Information Tools (3)
+
+```python
+@tool
+def get_problem_info(problem_id: str) -> Dict[str, Any]:
+    """
+    Get problem characteristics for optimizer selection.
+
+    Use this to understand the problem before choosing an optimizer.
+
+    Args:
+        problem_id: Problem ID
+
+    Returns:
+        dimension: Number of variables
+        bounds: Variable bounds
+        is_constrained: Whether problem has constraints
+        has_gradient: Whether gradient is available
+        description: Problem description
     """
     ...
 
 @tool
-def get_graph_info(graph_id: int) -> Dict[str, Any]:
+def list_optimizers() -> Dict[str, Any]:
     """
-    Get information about an optimization graph.
+    List available optimizer backends.
 
     Returns:
-        status: Current graph status
-        nodes: List of nodes with their status and results
-        best_node: ID of node with best objective
-        best_objective: Best objective value found
-        pattern: Detected graph pattern (chain, tree, etc.)
+        available_backends: List of installed backends
+        backends: Details about each backend
+        recommendation: General guidance on optimizer selection
+    """
+    ...
+
+@tool
+def get_optimizer_options(optimizer: str) -> Dict[str, Any]:
+    """
+    Get detailed options for a specific optimizer.
+
+    Args:
+        optimizer: Optimizer name ("scipy", "ipopt", "optuna")
+
+    Returns:
+        available: Whether optimizer is installed
+        methods: Available methods (for scipy)
+        option_descriptions: Key options and their meanings
     """
     ...
 ```
@@ -1227,18 +1335,30 @@ def migrate_storage(storage: StorageBackend):
 - [ ] Deprecate session methods (warnings)
 - [ ] Unit tests: `tests/test_foundry_graph.py`
 
-### Phase 4: Tools
+### Phase 4: Tools (7 Tools Total)
 
-**Files to modify:**
-- `paola/tools/session_tools.py` → rename to `graph_tools.py`
+**Files to create/modify:**
+- `paola/tools/graph_tools.py` - New file (replaces session_tools.py)
 - `paola/tools/optimization_tools.py` - Update for graphs
 
+**Final Tool Set (locked):**
+
+| Tool | Category | Purpose |
+|------|----------|---------|
+| `start_graph` | Graph Lifecycle | Begin optimization task |
+| `run_optimization` | Graph Lifecycle | Execute optimizer (creates node) |
+| `get_graph_state` | Graph Lifecycle | Query for decision making |
+| `finalize_graph` | Graph Lifecycle | Complete task |
+| `get_problem_info` | Information | Problem characteristics |
+| `list_optimizers` | Information | Available backends |
+| `get_optimizer_options` | Information | Optimizer details |
+
 **Tasks:**
-- [ ] Rename `start_session` → `start_graph`
-- [ ] Rename `finalize_session` → `finalize_graph`
-- [ ] Rename `get_session_info` → `get_graph_info`
-- [ ] Update `run_optimization()` with explicit `parent_node` parameter
-- [ ] Update tool docstrings for agent understanding
+- [ ] Create `graph_tools.py` with `start_graph`, `get_graph_state`, `finalize_graph`
+- [ ] Update `run_optimization()` with `parent_node` + `edge_type` parameters
+- [ ] Keep information tools: `get_problem_info`, `list_optimizers`, `get_optimizer_options`
+- [ ] Update tool docstrings for clear agent understanding
+- [ ] Deprecate `session_tools.py` (keep for migration)
 - [ ] Integration tests: `tests/test_graph_tools.py`
 
 ### Phase 5: CLI
