@@ -42,7 +42,8 @@ AgenticOptimization/
 ├── paola/                                 # Main package
 │   ├── agent/                            # LangGraph agents (conversational, react)
 │   ├── tools/                            # LangChain @tool functions
-│   │   ├── session_tools.py              # Session management (v0.2.0)
+│   │   ├── graph_tools.py                # Graph management (v0.3.0)
+│   │   ├── session_tools.py              # Session management (v0.2.0 legacy)
 │   │   ├── optimization_tools.py         # run_optimization, get_problem_info
 │   │   ├── evaluator_tools.py            # create_nlp_problem, evaluate_function
 │   │   ├── config_tools.py               # Expert escape hatch (config_scipy, etc.)
@@ -50,7 +51,8 @@ AgenticOptimization/
 │   ├── foundry/                          # Data foundation layer
 │   │   ├── schema/                       # Polymorphic components per optimizer family
 │   │   ├── storage/                      # FileStorage backend
-│   │   ├── active_session.py             # In-progress session/run tracking
+│   │   ├── active_graph.py               # In-progress graph/node tracking (v0.3.0)
+│   │   ├── active_session.py             # In-progress session/run tracking (v0.2.0)
 │   │   └── foundry.py                    # OptimizationFoundry main class
 │   ├── optimizers/                       # Optimizer backends (SciPy, IPOPT, Optuna)
 │   ├── cli/                              # Interactive CLI (repl.py, commands.py)
@@ -70,7 +72,47 @@ AgenticOptimization/
 
 ## Key Concepts
 
-### v0.2.0 Session-Based Architecture
+### v0.3.0 Graph-Based Architecture (Current)
+
+**Graph** = Complete optimization task (may involve multiple nodes with different strategies)
+**Node** = Single optimizer execution within a graph
+**Edge** = Relationship between nodes (warm_start, restart, refine, branch, explore)
+
+Design principle: **"Graph externalizes state, agent makes decisions."**
+- The graph helps the agent track state (node IDs, not x0 values)
+- The agent explicitly decides which node to continue from
+- The system does NOT automatically select "best" - that's the agent's decision
+
+```
+Graph #1: "Optimize wing drag"
+│
+├── n1: Global exploration (Optuna TPE)
+│   └── Agent decides: "Found promising region, switch to gradient"
+│
+├── n2: Local refinement from n1 (SLSQP) [warm_start edge]
+│   └── Agent decides: "Stuck at local minimum, try CMA-ES"
+│
+└── n3: Escape local minimum from n2 (CMA-ES) [refine edge]
+    └── Agent decides: "Converged, done"
+
+Graph: success=true, pattern="chain", final_obj=0.05, total_evals=100
+```
+
+**Edge Types:**
+- `warm_start`: Use parent's best_x as starting point
+- `restart`: Fresh start with knowledge of parent result
+- `refine`: Tighten tolerances to polish solution
+- `branch`: Explore alternative from same starting point
+- `explore`: Independent exploration (no dependency)
+
+**Graph Patterns:**
+- `single`: One node only
+- `multistart`: Multiple roots, no edges
+- `chain`: Sequential refinement (n1 → n2 → n3)
+- `tree`: Branching from common ancestors
+- `dag`: General directed acyclic graph
+
+### v0.2.0 Session-Based Architecture (Legacy)
 
 **Session** = Complete optimization task (may involve multiple runs with different optimizers)
 **Run** = Single optimizer execution within a session
@@ -114,12 +156,12 @@ The LLM agent IS the intelligence. It has been trained on IPOPT docs, SciPy refe
               │               │               │
               ▼               ▼               ▼
 ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐
-│ INFORMATION     │ │ EXECUTION       │ │ SESSION         │
+│ INFORMATION     │ │ EXECUTION       │ │ GRAPH           │
 │ TOOLS           │ │ TOOLS           │ │ TOOLS           │
 ├─────────────────┤ ├─────────────────┤ ├─────────────────┤
-│ get_problem_info│ │ run_optimization│ │ start_session   │
-│ list_optimizers │ │ create_nlp_prob │ │ finalize_session│
-│ get_opt_options │ │                 │ │ get_session_info│
+│ get_problem_info│ │ run_optimization│ │ start_graph     │
+│ list_optimizers │ │ create_nlp_prob │ │ get_graph_state │
+│ get_opt_options │ │                 │ │ finalize_graph  │
 └─────────────────┘ └─────────────────┘ └─────────────────┘
                               │
                               ▼
@@ -131,22 +173,29 @@ The LLM agent IS the intelligence. It has been trained on IPOPT docs, SciPy refe
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Core Tools (v0.2.0)
+### Core Tools (v0.3.0)
 
-**Session Management**:
-- `start_session(problem_id, goal)` - Create new optimization session
-- `finalize_session(session_id, success)` - Complete and persist session
-- `get_session_info(session_id)` - Get session status
+**Graph Management** (7 tools total):
+- `start_graph(problem_id, goal)` - Create new optimization graph
+- `get_graph_state(graph_id)` - Get graph state for agent decision-making
+- `finalize_graph(graph_id, success, notes)` - Complete and persist graph
 
 **Optimization Execution**:
-- `run_optimization(session_id, optimizer, config, init_strategy)` - Execute optimization
+- `run_optimization(graph_id, optimizer, config, init_strategy, parent_node, edge_type)` - Execute optimization
+  - `graph_id`: Graph to add node to
   - `optimizer`: "scipy:SLSQP", "scipy:L-BFGS-B", "ipopt", "optuna:TPE"
   - `init_strategy`: "center", "random", "warm_start"
+  - `parent_node`: Node ID to continue from (e.g., "n1")
+  - `edge_type`: Relationship type (warm_start, restart, refine, branch, explore)
   - `config`: JSON string with optimizer-specific options
+
+**Information Tools**:
+- `get_problem_info(problem_id)` - Get problem characteristics for LLM reasoning
+- `list_optimizers()` - List available optimizer backends
+- `get_optimizer_options(optimizer)` - Get optimizer configuration options
 
 **Problem Formulation**:
 - `create_nlp_problem(problem_id, objective_evaluator_id, bounds, constraints)` - Define NLP
-- `get_problem_info(problem_id)` - Get problem characteristics for LLM reasoning
 
 **Expert Escape Hatch** (optional):
 - `config_scipy(...)`, `config_ipopt(...)` - Direct configuration for experts
@@ -185,19 +234,25 @@ The cache prevents re-running expensive simulations when the optimizer revisits 
 
 ## Implementation Status
 
-**Current state**: v0.2.0 - Session-based architecture implemented
+**Current state**: v0.3.0 - Graph-based architecture implemented
 
 **Working features**:
 - CLI with conversational interface (`python -m paola.cli`)
-- Session management (start, run, finalize)
+- Graph management (start, run, get_state, finalize)
 - Multiple optimizer backends (SciPy, IPOPT, Optuna)
 - Evaluator registration system
-- Polymorphic run storage per optimizer family
+- Polymorphic node storage per optimizer family
+- Graph patterns (single, multistart, chain, tree, dag)
+- Edge types for node relationships (warm_start, restart, refine, branch, explore)
+- Agent explicitly specifies parent_node and edge_type
+
+**Legacy support**:
+- Session-based API (v0.2.0) still available for backward compatibility
 
 **In progress**:
 - Knowledge base with RAG retrieval (skeleton implemented)
 - Multi-run analysis
-- Strategic adaptation within sessions
+- Strategic adaptation within graphs
 
 ## Development Principles
 
@@ -205,34 +260,54 @@ When implementing this platform:
 
 1. **The Paola Principle**: Optimization complexity is agent intelligence, not user burden
 2. **LLM IS the Intelligence**: Don't hardcode optimizer selection logic - let LLM reason
-3. **Session-Based**: Every optimization runs within a session for multi-run support
-4. **Tools Not Control Flow**: Platform provides primitives, agent composes strategy
-5. **Observable Everything**: Every action must be observable and explainable
-6. **Cache Everything**: Simulations are expensive, cache all evaluations
-7. **CRITICAL - Minimal Prompting**: Keep system prompts minimal. Trust the LLM's intelligence. Never add verbose guidance without explicit permission
+3. **Graph-Based**: Every optimization runs within a graph for multi-node support
+4. **Graph Externalizes State**: Agent makes decisions, graph tracks node IDs
+5. **Tools Not Control Flow**: Platform provides primitives, agent composes strategy
+6. **Observable Everything**: Every action must be observable and explainable
+7. **Cache Everything**: Simulations are expensive, cache all evaluations
+8. **CRITICAL - Minimal Prompting**: Keep system prompts minimal. Trust the LLM's intelligence. Never add verbose guidance without explicit permission
 
 ## Key Terminology
 
-- **Session**: Complete optimization task (may involve multiple runs)
-- **Run**: Single optimizer execution within a session
+- **Graph**: Complete optimization task (may involve multiple nodes)
+- **Node**: Single optimizer execution within a graph
+- **Edge**: Relationship between nodes (warm_start, restart, refine, branch, explore)
+- **Pattern**: Graph structure (single, multistart, chain, tree, dag)
 - **Optimizer Family**: Category of optimizer (gradient, bayesian, population, cmaes)
 - **Polymorphic Components**: Family-specific data structures (iterations vs trials vs generations)
-- **Warm-start**: Using previous run's result as starting point
+- **Warm-start**: Using parent node's best_x as starting point
 - **The Paola Principle**: "Optimization complexity is Paola intelligence, not user burden"
 - **Expert Escape Hatch**: Optional tools for direct optimizer configuration
 - **Evaluation Cache**: Storage for expensive simulation results
 - **Domain Hint**: Optional problem metadata (e.g., "shape_optimization")
 
+Legacy terms (v0.2.0):
+- **Session**: Complete optimization task (equivalent to Graph)
+- **Run**: Single optimizer execution (equivalent to Node)
+
 ## CLI Commands
 
 ```
-/sessions           - List all optimization sessions
-/show <id>          - Show session details
-/plot <id>          - Plot convergence
-/compare <id1> <id2> - Compare sessions
-/analyze <id>       - AI-powered analysis
-/evals              - List registered evaluators
-/help               - Show all commands
+# Graph Commands (v0.3.0)
+/graphs              - List all optimization graphs
+/graph show <id>     - Show detailed graph information
+/graph plot <id>     - Plot convergence history
+/graph compare <id1> <id2> - Compare graphs side-by-side
+/graph best          - Show best solution across all graphs
+
+# General Commands (auto-detect graph vs session)
+/show <id>           - Show details (prefers graph)
+/plot <id>           - Plot convergence
+/compare <id1> <id2> - Compare
+/best                - Show best solution
+
+# Legacy Session Commands (v0.2.0)
+/sessions            - List all optimization sessions
+
+# Other Commands
+/evals               - List registered evaluators
+/analyze <id>        - AI-powered analysis
+/help                - Show all commands
 ```
 
 ## Value Proposition Summary
@@ -255,6 +330,6 @@ When implementing this platform:
 
 **Technical Moat**:
 - LLM-driven intelligence (not hardcoded rules)
-- Session-based multi-run optimization
+- Graph-based multi-node optimization with explicit agent decisions
 - Polymorphic storage per optimizer family
 - Knowledge base with RAG retrieval
