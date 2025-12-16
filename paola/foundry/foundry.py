@@ -4,6 +4,10 @@ OptimizationFoundry - Data foundation for optimization.
 The foundry provides a single source of truth for optimization data,
 managing problems, graphs, results with versioning and lineage.
 
+v0.3.1: Two-tier graph storage
+- GraphRecord (Tier 1): LLM-ready, ~1KB, strategy-focused
+- GraphDetail (Tier 2): Full trajectories, for visualization
+
 v0.3.0: Graph-based architecture
 - Graph = complete optimization task (may involve multiple nodes)
 - Node = single optimizer execution
@@ -20,6 +24,8 @@ import re
 
 from .storage import StorageBackend
 from .schema import SessionRecord, OptimizationGraph
+from .schema import GraphRecord, GraphDetail, ProblemSignature
+from .schema.conversion import create_problem_signature
 from .active_session import ActiveSession
 from .active_graph import ActiveGraph
 from .problem import Problem
@@ -149,7 +155,11 @@ class OptimizationFoundry:
 
     def finalize_graph(self, graph_id: int, success: bool) -> Optional[OptimizationGraph]:
         """
-        Finalize graph and persist to storage.
+        Finalize graph and persist to storage (two-tier).
+
+        Saves both:
+        - Tier 1: GraphRecord (~1KB) for LLM learning
+        - Tier 2: GraphDetail (10-100KB) for visualization
 
         Args:
             graph_id: Graph identifier
@@ -165,8 +175,20 @@ class OptimizationFoundry:
         # Finalize graph to get immutable record
         record = graph.finalize(success)
 
-        # Persist to storage
-        self.storage.save_graph(record)
+        # Try to create problem signature from registered problem
+        problem_signature = None
+        problem = self.storage.load_problem(record.problem_id)
+        if problem:
+            problem_signature = create_problem_signature(
+                n_dimensions=problem.dimensions,
+                bounds=problem.bounds,
+                n_constraints=len(problem.constraints) if problem.constraints else 0,
+                constraint_types=[c.get("type", "inequality") for c in (problem.constraints or [])],
+                domain_hint=problem.domain_hint if hasattr(problem, 'domain_hint') else None,
+            )
+
+        # Persist to storage (two-tier)
+        self.storage.save_graph(record, problem_signature)
 
         # Remove from active registry
         del self._active_graphs[graph_id]
@@ -183,12 +205,14 @@ class OptimizationFoundry:
         return self._active_graphs.copy()
 
     # =========================================================================
-    # Graph Storage Queries (Completed Graphs)
+    # Graph Storage Queries (Completed Graphs - Two-Tier)
     # =========================================================================
 
     def load_graph(self, graph_id: int) -> Optional[OptimizationGraph]:
         """
-        Load completed graph from storage.
+        Load completed graph from storage (legacy format).
+
+        For backward compatibility. New code should use load_graph_record().
 
         Args:
             graph_id: Graph identifier
@@ -198,64 +222,118 @@ class OptimizationFoundry:
         """
         return self.storage.load_graph(graph_id)
 
+    def load_graph_record(self, graph_id: int) -> Optional[GraphRecord]:
+        """
+        Load Tier 1 GraphRecord (for LLM queries).
+
+        This is the compact representation optimized for cross-graph learning.
+
+        Args:
+            graph_id: Graph identifier
+
+        Returns:
+            GraphRecord or None if not found
+        """
+        return self.storage.load_graph_record(graph_id)
+
+    def load_graph_detail(self, graph_id: int) -> Optional[GraphDetail]:
+        """
+        Load Tier 2 GraphDetail (for visualization/deep analysis).
+
+        Args:
+            graph_id: Graph identifier
+
+        Returns:
+            GraphDetail or None if not found
+        """
+        return self.storage.load_graph_detail(graph_id)
+
     def load_all_graphs(self) -> List[OptimizationGraph]:
         """
-        Load all graphs from storage.
+        Load all graphs from storage (legacy format).
+
+        DEPRECATED: Use load_all_graph_records() for better performance.
 
         Returns:
             List of all OptimizationGraphs, sorted by graph_id
         """
         return self.storage.load_all_graphs()
 
+    def load_all_graph_records(self) -> List[GraphRecord]:
+        """
+        Load all GraphRecords (Tier 1) from storage.
+
+        This is the preferred method for listing/querying graphs.
+
+        Returns:
+            List of all GraphRecords, sorted by graph_id
+        """
+        return self.storage.load_all_graph_records()
+
     def query_graphs(
         self,
         problem_id: Optional[str] = None,
         success: Optional[bool] = None,
+        n_dimensions: Optional[int] = None,
         limit: int = 100,
-    ) -> List[OptimizationGraph]:
+    ) -> List[GraphRecord]:
         """
-        Query graphs with filters.
+        Query graphs with filters (returns Tier 1 GraphRecords).
 
-        Currently does post-load filtering (loads all, then filters).
-        Future: Push filtering to storage backend for efficiency.
+        This queries the compact GraphRecord format optimized for LLM learning.
 
         Args:
             problem_id: Filter by problem ID (supports wildcards)
             success: Filter by success status
+            n_dimensions: Filter by problem dimensions
             limit: Maximum number of results
 
         Returns:
-            List of matching OptimizationGraphs
+            List of matching GraphRecords
 
         Example:
             # Get all successful graphs on Rosenbrock
-            graphs = foundry.query_graphs(
+            records = foundry.query_graphs(
                 problem_id="rosenbrock*",
                 success=True,
                 limit=10
             )
+
+            # Get graphs for similar-sized problems
+            records = foundry.query_graphs(
+                n_dimensions=50,
+                success=True,
+                limit=5
+            )
         """
-        graphs = self.storage.load_all_graphs()
+        records = self.storage.load_all_graph_records()
 
         # Apply filters
         filtered = []
-        for graph in graphs:
+        for record in records:
             # Problem ID filter (support wildcards)
             if problem_id is not None:
                 if '*' in problem_id:
                     # Wildcard matching
                     pattern = problem_id.replace('*', '.*')
-                    if not re.match(pattern, graph.problem_id):
+                    if not re.match(pattern, record.problem_id):
                         continue
                 else:
-                    if graph.problem_id != problem_id:
+                    if record.problem_id != problem_id:
                         continue
 
             # Success filter
-            if success is not None and graph.success != success:
+            if success is not None and record.success != success:
                 continue
 
-            filtered.append(graph)
+            # Dimensions filter
+            if n_dimensions is not None:
+                if record.problem_signature is None:
+                    continue
+                if record.problem_signature.n_dimensions != n_dimensions:
+                    continue
+
+            filtered.append(record)
 
             # Limit
             if len(filtered) >= limit:

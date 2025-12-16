@@ -7,6 +7,10 @@ v0.3.0: Graph-based architecture
 - OptimizationEdge: Typed relationship between nodes
 - GraphDecision: Strategic decision record
 
+Two-Tier Storage (v0.3.1):
+- GraphRecord (Tier 1): LLM-ready, ~1KB, strategy-focused
+- GraphDetail (Tier 2): Full trajectories, 10-100KB, for visualization
+
 Legacy (v0.2.0, for migration):
 - SessionRecord: Complete optimization task (deprecated)
 - OptimizationRun: Single optimizer execution (deprecated)
@@ -34,6 +38,24 @@ from .graph import (
     OptimizationNode,
     GraphDecision,
     OptimizationGraph,
+)
+
+# Two-tier storage schema (v0.3.1+)
+from .graph_record import (
+    ProblemSignature,
+    NodeSummary,
+    EdgeSummary,
+    GraphRecord,
+)
+from .graph_detail import (
+    ConvergencePoint,
+    XPoint,
+    NodeDetail,
+    GraphDetail,
+)
+from .conversion import (
+    split_graph,
+    create_problem_signature,
 )
 
 # Legacy base classes (v0.2.0, for migration)
@@ -92,6 +114,17 @@ __all__ = [
     "OptimizationNode",
     "GraphDecision",
     "OptimizationGraph",
+    # Two-tier storage (v0.3.1+)
+    "ProblemSignature",
+    "NodeSummary",
+    "EdgeSummary",
+    "GraphRecord",
+    "ConvergencePoint",
+    "XPoint",
+    "NodeDetail",
+    "GraphDetail",
+    "split_graph",
+    "create_problem_signature",
     # Legacy (v0.2.0, for migration)
     "SessionRecord",
     "OptimizationRun",

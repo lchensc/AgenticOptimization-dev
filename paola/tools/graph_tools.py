@@ -320,3 +320,259 @@ def finalize_graph(
             "success": False,
             "message": f"Error finalizing graph: {str(e)}",
         }
+
+
+@tool
+def query_past_graphs(
+    problem_pattern: Optional[str] = None,
+    n_dimensions: Optional[int] = None,
+    success: Optional[bool] = None,
+    limit: int = 5,
+) -> Dict[str, Any]:
+    """
+    Query past optimization graphs for cross-graph learning.
+
+    Use this to find what strategies worked for similar problems.
+    Returns compact summaries optimized for reasoning about:
+    - What optimizer configurations were used
+    - What patterns (chain, multistart) were effective
+    - How efficient the strategy was (evaluations, wall time)
+
+    Args:
+        problem_pattern: Problem ID pattern (e.g., "ackley*", "rosenbrock*")
+        n_dimensions: Filter by problem dimensions (e.g., 50)
+        success: Filter by success status (True for successful only)
+        limit: Maximum results to return (default: 5)
+
+    Returns:
+        Dict with:
+            - success: bool
+            - n_results: int
+            - graphs: List of graph summaries with:
+                - graph_id: int
+                - problem_id: str
+                - problem_signature: {n_dimensions, n_constraints, bounds_range}
+                - pattern: str (chain, multistart, etc.)
+                - strategy: List of optimizer configs used
+                - outcome: {success, final_objective, total_evaluations}
+            - message: str
+
+    Example:
+        # Find what worked for similar high-dimensional problems
+        result = query_past_graphs(n_dimensions=50, success=True)
+
+        # Results might show: "Graph #42 used TPE→L-BFGS-B chain, achieved 0.001"
+        # Agent can reason: "I should try TPE→L-BFGS-B for this 50D problem"
+
+        # Find strategies for a specific problem family
+        result = query_past_graphs(problem_pattern="ackley*", success=True)
+    """
+    try:
+        if _FOUNDRY is None:
+            return {
+                "success": False,
+                "message": "Foundry not initialized.",
+            }
+
+        # Query using foundry (returns GraphRecords)
+        records = _FOUNDRY.query_graphs(
+            problem_id=problem_pattern,
+            success=success,
+            n_dimensions=n_dimensions,
+            limit=limit,
+        )
+
+        # Build compact summaries for LLM
+        graph_summaries = []
+        for record in records:
+            # Build problem signature summary
+            sig_summary = None
+            if record.problem_signature:
+                sig_summary = {
+                    "n_dimensions": record.problem_signature.n_dimensions,
+                    "n_constraints": record.problem_signature.n_constraints,
+                    "bounds_range": list(record.problem_signature.bounds_range),
+                    "domain_hint": record.problem_signature.domain_hint,
+                }
+
+            # Build strategy summary (ordered list of optimizers with configs)
+            strategy = []
+            for node_id in sorted(record.nodes.keys()):
+                node = record.nodes[node_id]
+                strategy.append({
+                    "node_id": node.node_id,
+                    "optimizer": node.optimizer,
+                    "config": node.config,
+                    "init_strategy": node.init_strategy,
+                    "edge_type": node.edge_type,
+                    "n_evaluations": node.n_evaluations,
+                    "start_objective": node.start_objective,
+                    "best_objective": node.best_objective,
+                })
+
+            # Build outcome summary
+            outcome = {
+                "success": record.success,
+                "final_objective": record.final_objective,
+                "total_evaluations": record.total_evaluations,
+                "total_wall_time": record.total_wall_time,
+            }
+
+            graph_summaries.append({
+                "graph_id": record.graph_id,
+                "problem_id": record.problem_id,
+                "goal": record.goal,
+                "problem_signature": sig_summary,
+                "pattern": record.pattern,
+                "strategy": strategy,
+                "outcome": outcome,
+            })
+
+        return {
+            "success": True,
+            "n_results": len(graph_summaries),
+            "graphs": graph_summaries,
+            "message": f"Found {len(graph_summaries)} matching graph(s).",
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error querying graphs: {str(e)}",
+        }
+
+
+@tool
+def get_past_graph(graph_id: int) -> Dict[str, Any]:
+    """
+    Get detailed strategy information from a completed optimization graph.
+
+    Use this to learn from past optimizations and compose better strategies.
+    Returns full configuration details including optimizer configs, init strategies,
+    and edge types - everything needed to understand and replicate the strategy.
+
+    Args:
+        graph_id: Graph ID to retrieve
+
+    Returns:
+        Dict with:
+            - success: bool
+            - graph_id: int
+            - problem_id: str
+            - goal: str (original optimization goal)
+            - problem_signature: Problem characteristics
+                - n_dimensions: int
+                - n_constraints: int
+                - bounds_range: [min, max]
+                - domain_hint: str (if any)
+            - pattern: str (single, multistart, chain, tree, dag)
+            - strategy: List of nodes with full details
+                - node_id: str
+                - optimizer: str
+                - config: Dict (FULL optimizer configuration)
+                - init_strategy: str (center, random, warm_start)
+                - parent_node: str (if any)
+                - edge_type: str (warm_start, restart, refine, branch, explore)
+                - n_evaluations: int
+                - start_objective: float
+                - best_objective: float
+            - edges: List of edge connections
+            - outcome: Final results
+                - success: bool
+                - final_objective: float
+                - total_evaluations: int
+                - total_wall_time: float
+            - message: str
+
+    Example:
+        # Learn from a successful past optimization
+        past = get_past_graph(graph_id=11)
+
+        # Agent sees: Graph #11 used TPE→L-BFGS-B chain on ackley_30d
+        # with TPE config: {max_iterations: 300}
+        # achieved 5.7e-07 in 28591 evals
+
+        # Agent composes improved strategy for same problem:
+        start_graph(problem_id="ackley_30d",
+                    goal="Improve on graph #11 strategy")
+        run_optimization(..., optimizer="optuna:TPE",
+                         config={"max_iterations": 500})  # More exploration
+    """
+    try:
+        if _FOUNDRY is None:
+            return {
+                "success": False,
+                "message": "Foundry not initialized.",
+            }
+
+        # Load GraphRecord (Tier 1)
+        record = _FOUNDRY.load_graph_record(graph_id)
+
+        if record is None:
+            return {
+                "success": False,
+                "message": f"Graph #{graph_id} not found.",
+            }
+
+        # Build problem signature summary
+        sig_summary = None
+        if record.problem_signature:
+            sig_summary = {
+                "n_dimensions": record.problem_signature.n_dimensions,
+                "n_constraints": record.problem_signature.n_constraints,
+                "bounds_range": list(record.problem_signature.bounds_range),
+                "domain_hint": record.problem_signature.domain_hint,
+            }
+
+        # Build detailed strategy (ordered by node_id)
+        strategy = []
+        for node_id in sorted(record.nodes.keys()):
+            node = record.nodes[node_id]
+            strategy.append({
+                "node_id": node.node_id,
+                "optimizer": node.optimizer,
+                "optimizer_family": node.optimizer_family,
+                "config": node.config,  # FULL configuration
+                "init_strategy": node.init_strategy,
+                "parent_node": node.parent_node,
+                "edge_type": node.edge_type,
+                "status": node.status,
+                "n_evaluations": node.n_evaluations,
+                "wall_time": node.wall_time,
+                "start_objective": node.start_objective,
+                "best_objective": node.best_objective,
+            })
+
+        # Build edges list
+        edges = [
+            {"source": e.source, "target": e.target, "edge_type": e.edge_type}
+            for e in record.edges
+        ]
+
+        # Build outcome summary
+        outcome = {
+            "success": record.success,
+            "final_objective": record.final_objective,
+            "total_evaluations": record.total_evaluations,
+            "total_wall_time": record.total_wall_time,
+        }
+
+        return {
+            "success": True,
+            "graph_id": record.graph_id,
+            "problem_id": record.problem_id,
+            "goal": record.goal,
+            "problem_signature": sig_summary,
+            "pattern": record.pattern,
+            "strategy": strategy,
+            "edges": edges,
+            "outcome": outcome,
+            "message": f"Graph #{graph_id}: {record.problem_id}, {len(strategy)} nodes, "
+                       f"pattern={record.pattern}, final_obj={record.final_objective:.2e}",
+        }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Error loading graph: {str(e)}",
+        }

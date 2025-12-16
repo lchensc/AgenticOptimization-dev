@@ -1,6 +1,11 @@
 """Command handlers for CLI - reads from foundry and displays.
 
-v0.3.0: Updated for graph-based architecture.
+v0.3.1: Two-tier graph storage for cross-graph learning.
+- GraphRecord (Tier 1): Compact ~1KB, strategy-focused for LLM queries
+- GraphDetail (Tier 2): Full trajectories 10-100KB, for visualization
+- /graph query command for cross-graph learning
+
+v0.3.0: Graph-based architecture.
 - /graphs shows all optimization graphs
 - Graph = complete optimization task (may contain multiple nodes)
 - Node = single optimizer execution within a graph
@@ -36,9 +41,10 @@ class CommandHandler:
 
     def handle_graphs(self):
         """Display all optimization graphs in table format."""
-        graphs = self.foundry.load_all_graphs()
+        # Use two-tier storage (GraphRecords - Tier 1)
+        records = self.foundry.load_all_graph_records()
 
-        if not graphs:
+        if not records:
             self.console.print("\n[dim]No optimization graphs yet[/dim]\n")
             return
 
@@ -52,28 +58,28 @@ class CommandHandler:
         table.add_column("Evals", justify="right")
         table.add_column("Time", justify="right")
 
-        for graph in graphs:
-            status = "✓" if graph.success else "✗"
-            status_style = "green" if graph.success else "red"
+        for record in records:
+            status = "✓" if record.success else "✗"
+            status_style = "green" if record.success else "red"
 
             # Get optimizers used
             optimizers = set()
-            for node in list(graph.nodes.values())[:3]:
+            for node in list(record.nodes.values())[:3]:
                 opt_name = node.optimizer.split(":")[0]
                 optimizers.add(opt_name)
             opt_str = ", ".join(optimizers)
-            if len(graph.nodes) > 3:
+            if len(record.nodes) > 3:
                 opt_str += "..."
 
             table.add_row(
-                str(graph.graph_id),
-                graph.problem_id,
-                str(len(graph.nodes)),
-                graph.detect_pattern(),
+                str(record.graph_id),
+                record.problem_id,
+                str(len(record.nodes)),
+                record.pattern,
                 f"[{status_style}]{status}[/{status_style}]",
-                f"{graph.final_objective:.6f}" if graph.final_objective else "N/A",
-                str(graph.total_evaluations),
-                f"{graph.total_wall_time:.1f}s"
+                f"{record.final_objective:.6f}" if record.final_objective else "N/A",
+                str(record.total_evaluations),
+                f"{record.total_wall_time:.1f}s"
             )
 
         self.console.print()
@@ -82,23 +88,32 @@ class CommandHandler:
 
     def handle_graph_show(self, graph_id: int):
         """Show detailed graph information."""
-        graph = self.foundry.load_graph(graph_id)
+        # Use two-tier storage
+        record = self.foundry.load_graph_record(graph_id)
+        detail = self.foundry.load_graph_detail(graph_id)
 
-        if not graph:
+        if not record:
             self.console.print(f"\n[red]Graph #{graph_id} not found[/red]\n")
             return
 
         # Status
-        status_text = "✓ Success" if graph.success else "✗ Failed"
-        status_style = "green" if graph.success else "red"
-        best_node = graph.get_best_node()
+        status_text = "✓ Success" if record.success else "✗ Failed"
+        status_style = "green" if record.success else "red"
+
+        # Find best node
+        best_node_id = None
+        best_objective = float('inf')
+        for node_id, node in record.nodes.items():
+            if node.best_objective is not None and node.best_objective < best_objective:
+                best_objective = node.best_objective
+                best_node_id = node_id
 
         # Build ASCII graph structure
-        graph_art = self._build_graph_ascii(graph)
+        graph_art = self._build_graph_ascii_from_record(record)
 
         # Header
-        info = f"""[bold]Graph #{graph.graph_id}[/bold]  {graph.problem_id}  [{status_style}]{status_text}[/{status_style}]
-[dim]{graph.detect_pattern()} pattern • {len(graph.nodes)} nodes • {graph.total_evaluations} evals • {graph.total_wall_time:.1f}s[/dim]
+        info = f"""[bold]Graph #{record.graph_id}[/bold]  {record.problem_id}  [{status_style}]{status_text}[/{status_style}]
+[dim]{record.pattern} pattern • {len(record.nodes)} nodes • {record.total_evaluations} evals • {record.total_wall_time:.1f}s[/dim]
 
 [bold]Structure:[/bold]
 {graph_art}
@@ -106,22 +121,31 @@ class CommandHandler:
 [bold]Nodes:[/bold]"""
 
         # Simple node list
-        for node in graph.nodes.values():
+        for node_id, node in record.nodes.items():
             status_icon = "✓" if node.status == "completed" else "✗"
             style = "green" if node.status == "completed" else "red"
-            is_best = best_node and node.node_id == best_node.node_id
+            is_best = node_id == best_node_id
             best_marker = " [bold green]★ best[/bold green]" if is_best else ""
-            info += f"\n  [{style}]{status_icon}[/{style}] [cyan]{node.node_id}[/cyan]: {node.optimizer} → {node.best_objective:.4e} ({node.n_evaluations} evals){best_marker}"
+            obj_str = f"{node.best_objective:.4e}" if node.best_objective is not None else "N/A"
+            info += f"\n  [{style}]{status_icon}[/{style}] [cyan]{node_id}[/cyan]: {node.optimizer} → {obj_str} ({node.n_evaluations} evals){best_marker}"
 
         # Edges (if any)
-        if graph.edges:
+        if record.edges:
             info += "\n\n[bold]Edges:[/bold]"
-            for edge in graph.edges:
+            for edge in record.edges:
                 info += f"\n  {edge.source} → {edge.target} [dim]({edge.edge_type})[/dim]"
 
-        # Best solution preview
-        if best_node and best_node.best_x:
-            x = best_node.best_x
+        # Best solution preview (from GraphDetail - Tier 2)
+        if detail and best_node_id and best_node_id in detail.nodes:
+            best_x = detail.nodes[best_node_id].best_x
+            if best_x:
+                x_str = ", ".join(f"{xi:.3f}" for xi in best_x[:4])
+                if len(best_x) > 4:
+                    x_str += f", ... ({len(best_x)} dims)"
+                info += f"\n\n[bold]Best x:[/bold] [{x_str}]"
+        elif record.final_x:
+            # Fallback to record's final_x
+            x = record.final_x
             x_str = ", ".join(f"{xi:.3f}" for xi in x[:4])
             if len(x) > 4:
                 x_str += f", ... ({len(x)} dims)"
@@ -182,34 +206,106 @@ class CommandHandler:
 
         return "\n".join(lines)
 
+    def _build_graph_ascii_from_record(self, record) -> str:
+        """Build ASCII art representation of graph structure from GraphRecord."""
+        if not record.nodes:
+            return "  (empty)"
+
+        nodes = list(record.nodes.keys())
+
+        # Single node with no edges
+        if len(nodes) == 1 and not record.edges:
+            return "      (n1)"
+
+        # No edges = multistart pattern
+        if not record.edges:
+            return "  " + "   ".join(f"({n})" for n in nodes)
+
+        # Build parent→children mapping from edges
+        children_map = {}  # node_id → list of children
+        parents_set = set()  # nodes that have parents
+        for edge in record.edges:
+            if edge.source not in children_map:
+                children_map[edge.source] = []
+            children_map[edge.source].append(edge.target)
+            parents_set.add(edge.target)
+
+        # Root nodes are those without parents
+        root_nodes = [n for n in nodes if n not in parents_set]
+
+        lines = []
+
+        def render_node(node_id, prefix="", is_last=True):
+            """Recursively render a node and its children."""
+            if prefix == "":
+                lines.append(f"  ({node_id})")
+            else:
+                connector = "└─" if is_last else "├─"
+                lines.append(f"{prefix}{connector}({node_id})")
+
+            children = children_map.get(node_id, [])
+            for i, child in enumerate(children):
+                is_child_last = (i == len(children) - 1)
+                if prefix == "":
+                    child_prefix = "   "
+                else:
+                    child_prefix = prefix + ("  " if is_last else "│ ")
+                render_node(child, child_prefix, is_child_last)
+
+        for i, root in enumerate(root_nodes):
+            if i > 0:
+                lines.append("")
+            render_node(root)
+
+        return "\n".join(lines) if lines else "  (empty)"
+
     def handle_graph_plot(self, graph_id: int):
         """Plot convergence history for a graph (ASCII in terminal)."""
-        graph = self.foundry.load_graph(graph_id)
+        # Try to load GraphRecord (Tier 1) and GraphDetail (Tier 2)
+        record = self.foundry.load_graph_record(graph_id)
+        detail = self.foundry.load_graph_detail(graph_id)
 
-        if not graph:
+        # If no detail file (old format or missing), fall back to legacy
+        if not detail:
+            graph = self.foundry.load_graph(graph_id)
+            if graph:
+                # Use legacy data extraction (has full progress data)
+                return self._plot_legacy_graph(graph)
+            elif not record:
+                self.console.print(f"\n[red]Graph #{graph_id} not found[/red]\n")
+                return
+            else:
+                # Record exists but no detail and no legacy - can't plot
+                self.console.print(f"\n[yellow]No convergence data available for graph #{graph_id}[/yellow]")
+                self.console.print(f"[dim](Graph was saved without trajectory data)[/dim]\n")
+                return
+
+        if not record:
             self.console.print(f"\n[red]Graph #{graph_id} not found[/red]\n")
             return
 
-        # Collect objectives from all nodes in topological order
+        # Collect objectives from GraphDetail (Tier 2)
         objectives = []
         node_boundaries = []  # Track where each node starts
+        node_optimizers = {}  # Map node_id to optimizer name
 
-        for node_id in graph.topological_sort():
-            node = graph.nodes[node_id]
-            node_start = len(objectives)
+        # Get optimizer names from record
+        for node_id, node_summary in record.nodes.items():
+            node_optimizers[node_id] = node_summary.optimizer
 
-            # Get progress data
-            if hasattr(node, 'progress') and node.progress:
-                progress = node.progress
-                if hasattr(progress, 'iterations'):
-                    for it in progress.iterations:
-                        objectives.append(it.objective)
-                elif hasattr(progress, 'trials'):
-                    for trial in progress.trials:
-                        objectives.append(trial.objective)
+        # Get convergence data from detail
+        if detail:
+            # Sort nodes by node_id (n1, n2, n3...)
+            for node_id in sorted(detail.nodes.keys()):
+                node_detail = detail.nodes[node_id]
+                node_start = len(objectives)
 
-            if len(objectives) > node_start:
-                node_boundaries.append((node_id, node_start, len(objectives)))
+                # Get convergence history
+                for point in node_detail.convergence_history:
+                    objectives.append(point.objective)
+
+                if len(objectives) > node_start:
+                    node_boundaries.append((node_id, node_start, len(objectives)))
 
         if not objectives:
             self.console.print(f"\n[yellow]No iteration data available for graph #{graph_id}[/yellow]\n")
@@ -263,8 +359,94 @@ class CommandHandler:
         x_axis_line += ''.join(x_axis_chars)
 
         # Build node sequence string
-        node_sequence = " → ".join(graph.nodes[nid].optimizer for nid, _, _ in node_boundaries) if node_boundaries else "N/A"
+        node_sequence = " → ".join(node_optimizers.get(nid, nid) for nid, _, _ in node_boundaries) if node_boundaries else "N/A"
 
+        downsampled_note = f" [dim](chart shows {len(objectives_to_plot)} sampled points)[/dim]" if len(objectives_to_plot) < original_length else ""
+
+        info = f"""[bold cyan]Convergence History - Graph #{record.graph_id}[/bold cyan]
+
+[bold]{node_sequence} on {record.problem_id}[/bold]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[cyan]Pattern:[/cyan]      {record.pattern}
+[cyan]Initial Value:[/cyan]  {objectives[0]:.6e}
+[cyan]Final Value:[/cyan]    {objectives[-1]:.6e}
+[cyan]Improvement:[/cyan]    {objectives[0] - objectives[-1]:.6e}
+[cyan]Evaluations:[/cyan]    {original_length}{downsampled_note}
+
+[bold]Objective Value vs Iterations:[/bold]
+
+{chart}
+          {'─' * chart_width}
+[white]{x_axis_line}[/white]
+Iteration"""
+
+        self.console.print()
+        self.console.print(Panel(info, border_style="cyan", padding=(1, 2)))
+        self.console.print()
+
+    def _plot_legacy_graph(self, graph):
+        """Plot convergence for legacy OptimizationGraph format."""
+        # Collect objectives from all nodes in topological order
+        objectives = []
+        node_boundaries = []
+
+        for node_id in graph.topological_sort():
+            node = graph.nodes[node_id]
+            node_start = len(objectives)
+
+            if hasattr(node, 'progress') and node.progress:
+                progress = node.progress
+                if hasattr(progress, 'iterations'):
+                    for it in progress.iterations:
+                        objectives.append(it.objective)
+                elif hasattr(progress, 'trials'):
+                    for trial in progress.trials:
+                        objectives.append(trial.objective)
+
+            if len(objectives) > node_start:
+                node_boundaries.append((node_id, node_start, len(objectives)))
+
+        if not objectives:
+            self.console.print(f"\n[yellow]No iteration data available for graph #{graph.graph_id}[/yellow]\n")
+            return
+
+        # Normalize to fixed chart width
+        max_chart_width = 60
+        original_length = len(objectives)
+
+        if len(objectives) > max_chart_width:
+            step = len(objectives) / max_chart_width
+            objectives_to_plot = [objectives[int(i * step)] for i in range(max_chart_width)]
+        else:
+            objectives_to_plot = objectives
+
+        plot_config = {'height': 15, 'format': '{:8.2e}'}
+
+        try:
+            chart = asciichart.plot(objectives_to_plot, plot_config)
+        except Exception as e:
+            self.console.print(f"\n[red]Error creating plot: {e}[/red]\n")
+            return
+
+        chart_width = len(objectives_to_plot)
+        num_ticks = 5
+        x_axis_line = " " * 10
+        x_axis_chars = [' '] * chart_width
+
+        for i in range(num_ticks):
+            tick_pos = int(i * (chart_width - 1) / (num_ticks - 1))
+            tick_label = str(int(i * (original_length - 1) / (num_ticks - 1)))
+            label_start = max(0, tick_pos - len(tick_label) // 2)
+            if label_start + len(tick_label) > chart_width:
+                label_start = chart_width - len(tick_label)
+            for j, char in enumerate(tick_label):
+                char_pos = label_start + j
+                if 0 <= char_pos < chart_width:
+                    x_axis_chars[char_pos] = char
+
+        x_axis_line += ''.join(x_axis_chars)
+        node_sequence = " → ".join(graph.nodes[nid].optimizer for nid, _, _ in node_boundaries) if node_boundaries else "N/A"
         downsampled_note = f" [dim](chart shows {len(objectives_to_plot)} sampled points)[/dim]" if len(objectives_to_plot) < original_length else ""
 
         info = f"""[bold cyan]Convergence History - Graph #{graph.graph_id}[/bold cyan]
@@ -291,33 +473,34 @@ Iteration"""
 
     def handle_graph_best(self):
         """Show best solution across all graphs."""
-        graphs = self.foundry.load_all_graphs()
+        # Use two-tier storage (GraphRecords)
+        records = self.foundry.load_all_graph_records()
 
-        if not graphs:
+        if not records:
             self.console.print("\n[dim]No optimization graphs yet[/dim]\n")
             return
 
         # Find best graph (minimum objective value)
-        valid_graphs = [g for g in graphs if g.final_objective is not None]
-        if not valid_graphs:
+        valid_records = [r for r in records if r.final_objective is not None]
+        if not valid_records:
             self.console.print("\n[dim]No completed optimization graphs[/dim]\n")
             return
 
-        best_graph = min(valid_graphs, key=lambda g: g.final_objective)
+        best_record = min(valid_records, key=lambda r: r.final_objective)
 
         # Get optimizers used
-        optimizers = ", ".join(set(n.optimizer for n in best_graph.nodes.values()))
+        optimizers = ", ".join(set(n.optimizer for n in best_record.nodes.values()))
 
         info = f"""[bold green]Best Solution Across All Graphs[/bold green]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-[cyan]Graph ID:[/cyan]    #{best_graph.graph_id}
-[cyan]Problem:[/cyan]     {best_graph.problem_id}
-[cyan]Pattern:[/cyan]     {best_graph.detect_pattern()}
+[cyan]Graph ID:[/cyan]    #{best_record.graph_id}
+[cyan]Problem:[/cyan]     {best_record.problem_id}
+[cyan]Pattern:[/cyan]     {best_record.pattern}
 [cyan]Optimizers:[/cyan]  {optimizers}
-[cyan]Objective:[/cyan]   [bold green]{best_graph.final_objective:.6e}[/bold green] ✓
-[cyan]Evaluations:[/cyan] {best_graph.total_evaluations}
-[cyan]Time:[/cyan]        {best_graph.total_wall_time:.2f}s"""
+[cyan]Objective:[/cyan]   [bold green]{best_record.final_objective:.6e}[/bold green] ✓
+[cyan]Evaluations:[/cyan] {best_record.total_evaluations}
+[cyan]Time:[/cyan]        {best_record.total_wall_time:.2f}s"""
 
         self.console.print()
         self.console.print(Panel(info, border_style="green", padding=(1, 2)))
@@ -329,34 +512,34 @@ Iteration"""
             self.console.print("\n[red]Need at least 2 graphs to compare[/red]\n")
             return
 
-        # Load all graphs
-        graphs = []
+        # Load all graph records (Tier 1)
+        records = []
         for graph_id in graph_ids:
-            graph = self.foundry.load_graph(graph_id)
-            if graph is None:
+            record = self.foundry.load_graph_record(graph_id)
+            if record is None:
                 self.console.print(f"\n[red]Graph #{graph_id} not found[/red]\n")
                 return
-            graphs.append(graph)
+            records.append(record)
 
         # Create comparison table
-        table = Table(title=f"Comparison: {' vs '.join(f'Graph #{g.graph_id}' for g in graphs)}")
+        table = Table(title=f"Comparison: {' vs '.join(f'Graph #{r.graph_id}' for r in records)}")
         table.add_column("Metric", style="cyan")
 
-        for graph in graphs:
-            optimizers = ", ".join(set(n.optimizer.split(":")[0] for n in list(graph.nodes.values())[:2]))
-            if len(graph.nodes) > 2:
+        for record in records:
+            optimizers = ", ".join(set(n.optimizer.split(":")[0] for n in list(record.nodes.values())[:2]))
+            if len(record.nodes) > 2:
                 optimizers += "..."
-            table.add_column(f"#{graph.graph_id} ({optimizers})", justify="right")
+            table.add_column(f"#{record.graph_id} ({optimizers})", justify="right")
 
         # Add rows for each metric
         metrics = [
-            ("Problem", [g.problem_id for g in graphs]),
-            ("Pattern", [g.detect_pattern() for g in graphs]),
-            ("Objective", [f"{g.final_objective:.6e}" if g.final_objective else "N/A" for g in graphs]),
-            ("Nodes", [str(len(g.nodes)) for g in graphs]),
-            ("Evaluations", [str(g.total_evaluations) for g in graphs]),
-            ("Time (s)", [f"{g.total_wall_time:.2f}" for g in graphs]),
-            ("Success", ["✓" if g.success else "✗" for g in graphs]),
+            ("Problem", [r.problem_id for r in records]),
+            ("Pattern", [r.pattern for r in records]),
+            ("Objective", [f"{r.final_objective:.6e}" if r.final_objective else "N/A" for r in records]),
+            ("Nodes", [str(len(r.nodes)) for r in records]),
+            ("Evaluations", [str(r.total_evaluations) for r in records]),
+            ("Time (s)", [f"{r.total_wall_time:.2f}" for r in records]),
+            ("Success", ["✓" if r.success else "✗" for r in records]),
         ]
 
         for metric_name, values in metrics:
@@ -384,6 +567,103 @@ Iteration"""
 
         self.console.print()
         self.console.print(table)
+        self.console.print()
+
+    def handle_graph_query(
+        self,
+        problem_pattern: str = None,
+        n_dimensions: int = None,
+        success: bool = None,
+        limit: int = 5,
+    ):
+        """
+        Query past optimization graphs for cross-graph learning.
+
+        Args:
+            problem_pattern: Problem ID pattern (e.g., "ackley*", "rosenbrock*")
+            n_dimensions: Filter by problem dimensions
+            success: Filter by success status (True for successful only)
+            limit: Maximum results to return
+        """
+        # Query graphs
+        records = self.foundry.query_graphs(
+            problem_id=problem_pattern,
+            n_dimensions=n_dimensions,
+            success=success,
+            limit=limit,
+        )
+
+        if not records:
+            filters = []
+            if problem_pattern:
+                filters.append(f"problem='{problem_pattern}'")
+            if n_dimensions:
+                filters.append(f"dims={n_dimensions}")
+            if success is not None:
+                filters.append(f"success={success}")
+            filter_str = ", ".join(filters) if filters else "none"
+            self.console.print(f"\n[dim]No graphs found matching filters: {filter_str}[/dim]\n")
+            return
+
+        # Create results table
+        table = Table(title=f"Query Results ({len(records)} graphs)")
+        table.add_column("ID", style="cyan", justify="right")
+        table.add_column("Problem")
+        table.add_column("Dims", justify="right")
+        table.add_column("Pattern")
+        table.add_column("Strategy")
+        table.add_column("Objective", justify="right")
+        table.add_column("Status")
+
+        for record in records:
+            # Get dimensions from problem signature
+            dims = "?"
+            if record.problem_signature:
+                dims = str(record.problem_signature.n_dimensions)
+
+            # Build strategy string (optimizers used in sequence)
+            strategy_parts = []
+            for node_id in sorted(record.nodes.keys()):
+                node = record.nodes[node_id]
+                opt_short = node.optimizer.split(":")[-1]  # Get method name
+                strategy_parts.append(opt_short)
+            strategy = " → ".join(strategy_parts[:3])
+            if len(strategy_parts) > 3:
+                strategy += " ..."
+
+            # Status
+            status = "✓" if record.success else "✗"
+            status_style = "green" if record.success else "red"
+
+            table.add_row(
+                str(record.graph_id),
+                record.problem_id,
+                dims,
+                record.pattern,
+                strategy,
+                f"{record.final_objective:.4e}" if record.final_objective else "N/A",
+                f"[{status_style}]{status}[/{status_style}]",
+            )
+
+        self.console.print()
+        self.console.print(table)
+
+        # Show summary insights
+        successful = [r for r in records if r.success]
+        if successful:
+            best = min(successful, key=lambda r: r.final_objective or float('inf'))
+            self.console.print()
+            self.console.print(f"[dim]Best successful: Graph #{best.graph_id} → {best.final_objective:.4e}[/dim]")
+
+            # Show common patterns among successful graphs
+            patterns = {}
+            for r in successful:
+                p = r.pattern
+                patterns[p] = patterns.get(p, 0) + 1
+            if patterns:
+                most_common = max(patterns.items(), key=lambda x: x[1])
+                self.console.print(f"[dim]Most common pattern: {most_common[0]} ({most_common[1]}/{len(successful)} successful)[/dim]")
+
         self.console.print()
 
     # =========================================================================

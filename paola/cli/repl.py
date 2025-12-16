@@ -15,7 +15,7 @@ from ..tools.optimizer_tools import run_scipy_optimization
 from ..tools.evaluator_tools import create_nlp_problem
 from ..tools.observation_tools import analyze_convergence
 from ..tools.session_tools import start_session, finalize_session, get_active_sessions, get_session_info, set_foundry
-from ..tools.graph_tools import start_graph, get_graph_state, finalize_graph, set_foundry as set_graph_foundry
+from ..tools.graph_tools import start_graph, get_graph_state, finalize_graph, query_past_graphs, get_past_graph, set_foundry as set_graph_foundry
 from ..tools.analysis import analyze_convergence as analyze_convergence_new, analyze_efficiency, get_all_metrics, analyze_run_with_ai
 from ..tools.knowledge_tools import store_optimization_insight, retrieve_optimization_knowledge, list_all_knowledge
 from ..callbacks import CallbackManager
@@ -116,10 +116,12 @@ class AgenticOptREPL:
             # Problem formulation
             create_nlp_problem,  # NLP problems from registered evaluators
 
-            # Graph management (v0.3.0 - recommended)
+            # Graph management (v0.3.1 - recommended)
             start_graph,  # Start new optimization graph
             get_graph_state,  # Get graph state for decision making
             finalize_graph,  # Finalize and persist graph
+            query_past_graphs,  # Query past graphs for cross-graph learning
+            get_past_graph,  # Get detailed strategy from a specific past graph
 
             # Session management (v0.2.0 - legacy)
             start_session,
@@ -205,7 +207,7 @@ class AgenticOptREPL:
         """Display welcome message."""
         welcome = Panel(
             Text.from_markup(
-                "[bold cyan]PAOLA[/bold cyan] v0.3.0 - Agentic Optimization Platform\n\n"
+                "[bold cyan]PAOLA[/bold cyan] v0.3.1 - Agentic Optimization Platform\n\n"
                 "[dim]AI-powered optimization with conversational interface[/dim]\n\n"
                 "Commands: /help | /graphs | /evals | /exit\n"
                 "Or just type your goal in natural language"
@@ -342,8 +344,42 @@ class AgenticOptREPL:
                     self.command_handler.handle_graph_plot(graph_id)
                 except ValueError:
                     self.console.print("[red]Graph ID must be a number[/red]")
+            elif cmd_parts[1].lower() == 'query':
+                # Parse query options: /graph query [problem=pattern] [dims=N] [success=true/false] [limit=N]
+                problem_pattern = None
+                n_dimensions = None
+                success = None
+                limit = 5
+
+                for part in cmd_parts[2:]:
+                    if '=' in part:
+                        key, value = part.split('=', 1)
+                        key = key.lower()
+                        if key == 'problem':
+                            problem_pattern = value
+                        elif key == 'dims':
+                            try:
+                                n_dimensions = int(value)
+                            except ValueError:
+                                self.console.print(f"[red]dims must be a number, got: {value}[/red]")
+                                return True
+                        elif key == 'success':
+                            success = value.lower() in ('true', '1', 'yes')
+                        elif key == 'limit':
+                            try:
+                                limit = int(value)
+                            except ValueError:
+                                self.console.print(f"[red]limit must be a number, got: {value}[/red]")
+                                return True
+
+                self.command_handler.handle_graph_query(
+                    problem_pattern=problem_pattern,
+                    n_dimensions=n_dimensions,
+                    success=success,
+                    limit=limit,
+                )
             else:
-                self.console.print("[red]Usage: /graph [show|plot|compare|best] <id>[/red]")
+                self.console.print("[red]Usage: /graph [show|plot|compare|best|query] <id|options>[/red]")
         elif cmd == '/sessions':
             self.command_handler.handle_sessions()
         elif cmd == '/show':
@@ -474,12 +510,15 @@ class AgenticOptREPL:
   /evals                     - List all registered evaluators
   /eval <id>                 - Show detailed evaluator configuration
 
-[bold]Graph Commands (v0.3.0):[/bold]
+[bold]Graph Commands (v0.3.1):[/bold]
   /graphs                    - List all optimization graphs
   /graph show <id>           - Show detailed graph information
   /graph plot <id>           - Plot convergence for graph
   /graph compare <id1> <id2> - Side-by-side comparison of graphs
   /graph best                - Show best solution across all graphs
+  /graph query [options]     - Query past graphs for cross-graph learning
+                               Options: problem=pattern dims=N success=true/false limit=N
+                               Example: /graph query problem=ackley* dims=30 success=true
 
 [bold]Inspection Commands:[/bold]
   /show <id>                 - Show detailed results (graph or session)

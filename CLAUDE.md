@@ -72,7 +72,36 @@ AgenticOptimization/
 
 ## Key Concepts
 
-### v0.3.0 Graph-Based Architecture (Current)
+### v0.3.1 Two-Tier Graph Storage (Current)
+
+Two-tier storage separates LLM-learning data from debug/visualization data:
+
+**Tier 1: GraphRecord (~1KB)** - What LLM learns from
+- Problem signature (dimensions, constraints, bounds)
+- Strategy pattern (chain, multistart, tree)
+- Node summaries with FULL optimizer config
+- Start/best objectives per node
+- Outcome and decisions
+
+**Tier 2: GraphDetail (10-100KB)** - For visualization/debugging
+- Convergence history (objective vs iteration)
+- Full x trajectories
+- Initial and final solutions
+
+```
+.paola_runs/
+├── graphs/                     # Tier 1: GraphRecord
+│   └── graph_0001.json         # ~1KB, LLM-ready
+└── details/                    # Tier 2: GraphDetail
+    └── graph_0001_detail.json  # 10-100KB, trajectories
+```
+
+**Cross-Graph Learning** (enabled by Tier 1):
+- `query_past_graphs()` tool queries successful past graphs
+- Agent learns what strategies worked for similar problems
+- Full config stored so agent can replicate successful approaches
+
+### v0.3.0 Graph-Based Architecture
 
 **Graph** = Complete optimization task (may involve multiple nodes with different strategies)
 **Node** = Single optimizer execution within a graph
@@ -173,14 +202,15 @@ The LLM agent IS the intelligence. It has been trained on IPOPT docs, SciPy refe
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Core Tools (v0.3.0)
+### Core Tools (v0.3.1)
 
-**Graph Management** (7 tools total):
+**Graph Management** (4 tools):
 - `start_graph(problem_id, goal)` - Create new optimization graph
 - `get_graph_state(graph_id)` - Get graph state for agent decision-making
 - `finalize_graph(graph_id, success, notes)` - Complete and persist graph
+- `query_past_graphs(problem_pattern, n_dimensions, success, limit)` - Query past graphs for learning
 
-**Optimization Execution**:
+**Optimization Execution** (1 tool):
 - `run_optimization(graph_id, optimizer, config, init_strategy, parent_node, edge_type)` - Execute optimization
   - `graph_id`: Graph to add node to
   - `optimizer`: "scipy:SLSQP", "scipy:L-BFGS-B", "ipopt", "optuna:TPE"
@@ -189,7 +219,7 @@ The LLM agent IS the intelligence. It has been trained on IPOPT docs, SciPy refe
   - `edge_type`: Relationship type (warm_start, restart, refine, branch, explore)
   - `config`: JSON string with optimizer-specific options
 
-**Information Tools**:
+**Information Tools** (3 tools):
 - `get_problem_info(problem_id)` - Get problem characteristics for LLM reasoning
 - `list_optimizers()` - List available optimizer backends
 - `get_optimizer_options(optimizer)` - Get optimizer configuration options
