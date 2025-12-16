@@ -15,6 +15,7 @@ from ..tools.optimizer_tools import run_scipy_optimization
 from ..tools.evaluator_tools import create_nlp_problem
 from ..tools.observation_tools import analyze_convergence
 from ..tools.session_tools import start_session, finalize_session, get_active_sessions, get_session_info, set_foundry
+from ..tools.graph_tools import start_graph, get_graph_state, finalize_graph, set_foundry as set_graph_foundry
 from ..tools.analysis import analyze_convergence as analyze_convergence_new, analyze_efficiency, get_all_metrics, analyze_run_with_ai
 from ..tools.knowledge_tools import store_optimization_insight, retrieve_optimization_knowledge, list_all_knowledge
 from ..callbacks import CallbackManager
@@ -60,6 +61,7 @@ class AgenticOptREPL:
 
         # Set global foundry for tools
         set_foundry(self.foundry)
+        set_graph_foundry(self.foundry)
 
         # Command handler (reads from foundry)
         self.command_handler = CommandHandler(self.foundry, self.console)
@@ -109,12 +111,17 @@ class AgenticOptREPL:
             explain_config_option,
         )
 
-        # Tools - agent explicitly manages sessions (v0.2.0)
+        # Tools - agent explicitly manages graphs (v0.3.0)
         self.tools = [
             # Problem formulation
             create_nlp_problem,  # NLP problems from registered evaluators
 
-            # Session management (v0.2.0)
+            # Graph management (v0.3.0 - recommended)
+            start_graph,  # Start new optimization graph
+            get_graph_state,  # Get graph state for decision making
+            finalize_graph,  # Finalize and persist graph
+
+            # Session management (v0.2.0 - legacy)
             start_session,
             finalize_session,
             get_active_sessions,
@@ -198,9 +205,9 @@ class AgenticOptREPL:
         """Display welcome message."""
         welcome = Panel(
             Text.from_markup(
-                "[bold cyan]PAOLA[/bold cyan] v0.2.0 - Agentic Optimization Platform\n\n"
+                "[bold cyan]PAOLA[/bold cyan] v0.3.0 - Agentic Optimization Platform\n\n"
                 "[dim]AI-powered optimization with conversational interface[/dim]\n\n"
-                "Commands: /help | /evals | /sessions | /exit\n"
+                "Commands: /help | /graphs | /evals | /exit\n"
                 "Or just type your goal in natural language"
             ),
             border_style="cyan",
@@ -309,48 +316,101 @@ class AgenticOptREPL:
             self._show_model_info()
         elif cmd == '/models':
             self._select_model()
+        elif cmd == '/graphs':
+            self.command_handler.handle_graphs()
+        elif cmd == '/graph':
+            # Alias for /graphs
+            if len(cmd_parts) == 1:
+                self.command_handler.handle_graphs()
+            elif cmd_parts[1].lower() == 'show' and len(cmd_parts) > 2:
+                try:
+                    graph_id = int(cmd_parts[2])
+                    self.command_handler.handle_graph_show(graph_id)
+                except ValueError:
+                    self.console.print("[red]Graph ID must be a number[/red]")
+            elif cmd_parts[1].lower() == 'best':
+                self.command_handler.handle_graph_best()
+            elif cmd_parts[1].lower() == 'compare' and len(cmd_parts) > 3:
+                try:
+                    graph_ids = [int(id) for id in cmd_parts[2:]]
+                    self.command_handler.handle_graph_compare(graph_ids)
+                except ValueError:
+                    self.console.print("[red]Graph IDs must be numbers[/red]")
+            elif cmd_parts[1].lower() == 'plot' and len(cmd_parts) > 2:
+                try:
+                    graph_id = int(cmd_parts[2])
+                    self.command_handler.handle_graph_plot(graph_id)
+                except ValueError:
+                    self.console.print("[red]Graph ID must be a number[/red]")
+            else:
+                self.console.print("[red]Usage: /graph [show|plot|compare|best] <id>[/red]")
         elif cmd == '/sessions':
             self.command_handler.handle_sessions()
         elif cmd == '/show':
+            # Try graph first, then session
             if len(cmd_parts) < 2:
-                self.console.print("[red]Usage: /show <session_id>[/red]")
+                self.console.print("[red]Usage: /show <id> (shows graph by default, use /session show <id> for sessions)[/red]")
             else:
                 try:
-                    session_id = int(cmd_parts[1])
-                    self.command_handler.handle_show(session_id)
+                    item_id = int(cmd_parts[1])
+                    # Try graph first
+                    graph = self.foundry.load_graph(item_id)
+                    if graph:
+                        self.command_handler.handle_graph_show(item_id)
+                    else:
+                        # Fall back to session
+                        self.command_handler.handle_show(item_id)
                 except ValueError:
-                    self.console.print("[red]Session ID must be a number[/red]")
+                    self.console.print("[red]ID must be a number[/red]")
         elif cmd == '/plot':
             if len(cmd_parts) < 2:
-                self.console.print("[red]Usage: /plot <session_id> OR /plot compare <session1> <session2> ...[/red]")
+                self.console.print("[red]Usage: /plot <id> OR /plot compare <id1> <id2> ...[/red]")
             elif cmd_parts[1].lower() == 'compare':
-                # /plot compare <session1> <session2> ...
                 if len(cmd_parts) < 4:
-                    self.console.print("[red]Usage: /plot compare <session1> <session2> [session3...][/red]")
+                    self.console.print("[red]Usage: /plot compare <id1> <id2> [id3...][/red]")
                 else:
                     try:
-                        session_ids = [int(id) for id in cmd_parts[2:]]
-                        self.command_handler.handle_plot_compare(session_ids)
+                        ids = [int(id) for id in cmd_parts[2:]]
+                        # Try graph first
+                        if self.foundry.load_graph(ids[0]):
+                            # TODO: Add handle_graph_plot_compare
+                            self.console.print("[yellow]Graph comparison plot not yet implemented, using session compare[/yellow]")
+                            self.command_handler.handle_plot_compare(ids)
+                        else:
+                            self.command_handler.handle_plot_compare(ids)
                     except ValueError:
-                        self.console.print("[red]Session IDs must be numbers[/red]")
+                        self.console.print("[red]IDs must be numbers[/red]")
             else:
-                # /plot <session_id>
                 try:
-                    session_id = int(cmd_parts[1])
-                    self.command_handler.handle_plot(session_id)
+                    item_id = int(cmd_parts[1])
+                    # Try graph first
+                    graph = self.foundry.load_graph(item_id)
+                    if graph:
+                        self.command_handler.handle_graph_plot(item_id)
+                    else:
+                        self.command_handler.handle_plot(item_id)
                 except ValueError:
-                    self.console.print("[red]Session ID must be a number[/red]")
+                    self.console.print("[red]ID must be a number[/red]")
         elif cmd == '/compare':
-            if len(cmd_parts) < 3:  # Need at least 2 session IDs
-                self.console.print("[red]Usage: /compare <session1> <session2> [session3...][/red]")
+            if len(cmd_parts) < 3:
+                self.console.print("[red]Usage: /compare <id1> <id2> [id3...][/red]")
             else:
                 try:
-                    session_ids = [int(id) for id in cmd_parts[1:]]
-                    self.command_handler.handle_compare(session_ids)
+                    ids = [int(id) for id in cmd_parts[1:]]
+                    # Try graph first
+                    if self.foundry.load_graph(ids[0]):
+                        self.command_handler.handle_graph_compare(ids)
+                    else:
+                        self.command_handler.handle_compare(ids)
                 except ValueError:
-                    self.console.print("[red]Session IDs must be numbers[/red]")
+                    self.console.print("[red]IDs must be numbers[/red]")
         elif cmd == '/best':
-            self.command_handler.handle_best()
+            # Try graph first
+            graphs = self.foundry.load_all_graphs()
+            if graphs:
+                self.command_handler.handle_graph_best()
+            else:
+                self.command_handler.handle_best()
         elif cmd == '/analyze':
             if len(cmd_parts) < 2:
                 self.console.print("[red]Usage: /analyze <session_id> [focus][/red]")
@@ -414,15 +474,24 @@ class AgenticOptREPL:
   /evals                     - List all registered evaluators
   /eval <id>                 - Show detailed evaluator configuration
 
+[bold]Graph Commands (v0.3.0):[/bold]
+  /graphs                    - List all optimization graphs
+  /graph show <id>           - Show detailed graph information
+  /graph plot <id>           - Plot convergence for graph
+  /graph compare <id1> <id2> - Side-by-side comparison of graphs
+  /graph best                - Show best solution across all graphs
+
 [bold]Inspection Commands:[/bold]
-  /sessions                  - List all optimization sessions
-  /show <id>                 - Show detailed results for session (with metrics)
+  /show <id>                 - Show detailed results (graph or session)
+  /plot <id>                 - Plot convergence
+  /plot compare <id1> <id2>  - Overlay convergence curves
+  /compare <id1> <id2>       - Side-by-side comparison
+  /best                      - Show best solution
   /analyze <id> [focus]      - AI-powered strategic analysis (costs ~$0.02-0.05)
                                Focus: convergence, efficiency, algorithm, overall (default)
-  /plot <id>                 - Plot convergence for session
-  /plot compare <id1> <id2>  - Overlay convergence curves for multiple sessions
-  /compare <id1> <id2>       - Side-by-side comparison of sessions
-  /best                      - Show best solution across all sessions
+
+[bold]Legacy Session Commands (v0.2.0):[/bold]
+  /sessions                  - List all optimization sessions
   /knowledge                 - List knowledge base (skeleton - not yet implemented)
   /knowledge show <id>       - Show detailed insight (skeleton)
 
