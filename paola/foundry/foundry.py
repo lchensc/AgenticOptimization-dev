@@ -1,10 +1,14 @@
 """
-OptimizationFoundry - Data foundation for optimization sessions.
+OptimizationFoundry - Data foundation for optimization.
 
 The foundry provides a single source of truth for optimization data,
-managing problems, sessions, results with versioning and lineage.
+managing problems, graphs, results with versioning and lineage.
 
-v0.2.0: Session-based architecture
+v0.3.0: Graph-based architecture
+- Graph = complete optimization task (may involve multiple nodes)
+- Node = single optimizer execution
+
+v0.2.0: Session-based architecture (legacy)
 - Session = complete optimization task (may involve multiple runs)
 - Run = single optimizer execution
 
@@ -15,8 +19,9 @@ from typing import Dict, Optional, List
 import re
 
 from .storage import StorageBackend
-from .schema import SessionRecord
+from .schema import SessionRecord, OptimizationGraph
 from .active_session import ActiveSession
+from .active_graph import ActiveGraph
 from .problem import Problem
 from .evaluator_storage import EvaluatorStorage
 from .evaluator_schema import EvaluatorConfig
@@ -24,43 +29,47 @@ from .evaluator_schema import EvaluatorConfig
 
 class OptimizationFoundry:
     """
-    Data foundation for optimization sessions.
+    Data foundation for optimization.
 
     The foundry provides a single source of truth for optimization data,
-    managing problems, sessions, results with versioning and lineage.
+    managing problems, graphs, results with versioning and lineage.
 
-    v0.2.0 Design:
+    v0.3.0 Design:
+    - Graph = complete optimization task (may involve multiple nodes)
+    - Node = single optimizer execution within a graph
     - Uses dependency injection (pass storage backend)
     - No singleton (each instance is independent)
-    - Manages active sessions (in-memory)
-    - Sessions contain multiple runs (optimizer executions)
+    - Manages active graphs (in-memory)
     - Delegates persistence to storage backend
 
-    Example:
+    Example (v0.3.0 Graph API):
         # Initialize foundry
         storage = FileStorage(base_dir=".paola_runs")
         foundry = OptimizationFoundry(storage=storage)
 
-        # Create session
-        session = foundry.create_session(
+        # Create graph
+        graph = foundry.create_graph(
             problem_id="rosenbrock_10d",
-            config={"goal": "minimize"}
+            goal="Minimize Rosenbrock function"
         )
 
-        # Start a run within session
-        run = session.start_run(
+        # Start a node within graph
+        node = graph.start_node(
             optimizer="scipy:SLSQP",
+            config={},
             initialization=GradientInitialization(...)
         )
 
         # Record iterations
-        run.record_iteration({"iteration": 1, "objective": 0.5, ...})
+        node.record_iteration({"iteration": 1, "objective": 0.5, ...})
 
-        # Complete run
-        session.complete_run(progress, result, best_obj, best_design)
+        # Complete node
+        graph.complete_node(progress, result, best_obj, best_x)
 
-        # Finalize session
-        record = foundry.finalize_session(session.session_id, success=True)
+        # Finalize graph
+        record = foundry.finalize_graph(graph.graph_id, success=True)
+
+    Legacy (v0.2.0 Session API still supported for migration)
     """
 
     def __init__(self, storage: StorageBackend):
@@ -71,12 +80,192 @@ class OptimizationFoundry:
             storage: Storage backend (FileStorage, SQLiteStorage, etc.)
         """
         self.storage = storage
-        self._active_sessions: Dict[int, ActiveSession] = {}
+        self._active_graphs: Dict[int, ActiveGraph] = {}
+        self._active_sessions: Dict[int, ActiveSession] = {}  # Legacy (v0.2.0)
 
         # Initialize evaluator storage
         self.evaluator_storage = EvaluatorStorage(storage)
 
-    # ===== Session Lifecycle Management =====
+    # =========================================================================
+    # Graph Lifecycle Management (v0.3.0+)
+    # =========================================================================
+
+    def create_graph(
+        self,
+        problem_id: str,
+        goal: Optional[str] = None,
+        config: Optional[Dict] = None,
+    ) -> ActiveGraph:
+        """
+        Create new optimization graph.
+
+        This creates an active graph handle that can contain multiple
+        optimizer nodes. The graph is persisted when finalized.
+
+        Args:
+            problem_id: Problem identifier
+            goal: Natural language optimization goal
+            config: Graph configuration
+
+        Returns:
+            ActiveGraph: Active graph handle
+
+        Example:
+            graph = foundry.create_graph(
+                problem_id="rosenbrock_10d",
+                goal="Minimize the Rosenbrock function"
+            )
+        """
+        # Get next graph ID from storage
+        graph_id = self.storage.get_next_graph_id()
+
+        # Create active graph
+        graph = ActiveGraph(
+            graph_id=graph_id,
+            problem_id=problem_id,
+            goal=goal,
+            config=config,
+        )
+
+        # Register as active
+        self._active_graphs[graph_id] = graph
+
+        return graph
+
+    def get_graph(self, graph_id: int) -> Optional[ActiveGraph]:
+        """
+        Get active graph by ID.
+
+        Only returns graphs that are currently active (in-progress).
+        For completed graphs, use load_graph().
+
+        Args:
+            graph_id: Graph identifier
+
+        Returns:
+            ActiveGraph if active, None otherwise
+        """
+        return self._active_graphs.get(graph_id)
+
+    def finalize_graph(self, graph_id: int, success: bool) -> Optional[OptimizationGraph]:
+        """
+        Finalize graph and persist to storage.
+
+        Args:
+            graph_id: Graph identifier
+            success: Whether optimization was successful
+
+        Returns:
+            OptimizationGraph if graph found, None otherwise
+        """
+        graph = self._active_graphs.get(graph_id)
+        if graph is None:
+            return None
+
+        # Finalize graph to get immutable record
+        record = graph.finalize(success)
+
+        # Persist to storage
+        self.storage.save_graph(record)
+
+        # Remove from active registry
+        del self._active_graphs[graph_id]
+
+        return record
+
+    def get_active_graphs(self) -> Dict[int, ActiveGraph]:
+        """
+        Get all active (in-progress) graphs.
+
+        Returns:
+            Dict mapping graph_id to ActiveGraph
+        """
+        return self._active_graphs.copy()
+
+    # =========================================================================
+    # Graph Storage Queries (Completed Graphs)
+    # =========================================================================
+
+    def load_graph(self, graph_id: int) -> Optional[OptimizationGraph]:
+        """
+        Load completed graph from storage.
+
+        Args:
+            graph_id: Graph identifier
+
+        Returns:
+            OptimizationGraph or None if not found
+        """
+        return self.storage.load_graph(graph_id)
+
+    def load_all_graphs(self) -> List[OptimizationGraph]:
+        """
+        Load all graphs from storage.
+
+        Returns:
+            List of all OptimizationGraphs, sorted by graph_id
+        """
+        return self.storage.load_all_graphs()
+
+    def query_graphs(
+        self,
+        problem_id: Optional[str] = None,
+        success: Optional[bool] = None,
+        limit: int = 100,
+    ) -> List[OptimizationGraph]:
+        """
+        Query graphs with filters.
+
+        Currently does post-load filtering (loads all, then filters).
+        Future: Push filtering to storage backend for efficiency.
+
+        Args:
+            problem_id: Filter by problem ID (supports wildcards)
+            success: Filter by success status
+            limit: Maximum number of results
+
+        Returns:
+            List of matching OptimizationGraphs
+
+        Example:
+            # Get all successful graphs on Rosenbrock
+            graphs = foundry.query_graphs(
+                problem_id="rosenbrock*",
+                success=True,
+                limit=10
+            )
+        """
+        graphs = self.storage.load_all_graphs()
+
+        # Apply filters
+        filtered = []
+        for graph in graphs:
+            # Problem ID filter (support wildcards)
+            if problem_id is not None:
+                if '*' in problem_id:
+                    # Wildcard matching
+                    pattern = problem_id.replace('*', '.*')
+                    if not re.match(pattern, graph.problem_id):
+                        continue
+                else:
+                    if graph.problem_id != problem_id:
+                        continue
+
+            # Success filter
+            if success is not None and graph.success != success:
+                continue
+
+            filtered.append(graph)
+
+            # Limit
+            if len(filtered) >= limit:
+                break
+
+        return filtered
+
+    # =========================================================================
+    # Session Lifecycle Management (v0.2.0 Legacy)
+    # =========================================================================
 
     def create_session(
         self,
@@ -370,7 +559,18 @@ class OptimizationFoundry:
         """
         return self.evaluator_storage.get_statistics()
 
-    # ===== Utilities =====
+    # =========================================================================
+    # Utilities
+    # =========================================================================
+
+    def clear_active_graphs(self) -> None:
+        """
+        Clear all active graphs (for testing).
+
+        Warning: This removes graphs from registry without finalizing them.
+        Only use in testing scenarios.
+        """
+        self._active_graphs.clear()
 
     def clear_active_sessions(self) -> None:
         """
@@ -381,7 +581,16 @@ class OptimizationFoundry:
         """
         self._active_sessions.clear()
 
-    # ===== Deprecated v0.1.0 API (for backward compatibility) =====
+    def clear_all_active(self) -> None:
+        """
+        Clear all active graphs and sessions (for testing).
+        """
+        self._active_graphs.clear()
+        self._active_sessions.clear()
+
+    # =========================================================================
+    # Deprecated v0.1.0 API (for backward compatibility)
+    # =========================================================================
 
     def load_run(self, run_id: int):
         """
@@ -429,4 +638,9 @@ class OptimizationFoundry:
 
     def __repr__(self) -> str:
         """String representation."""
-        return f"OptimizationFoundry(active_sessions={len(self._active_sessions)}, storage={type(self.storage).__name__})"
+        return (
+            f"OptimizationFoundry("
+            f"active_graphs={len(self._active_graphs)}, "
+            f"active_sessions={len(self._active_sessions)}, "
+            f"storage={type(self.storage).__name__})"
+        )

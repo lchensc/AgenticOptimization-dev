@@ -426,6 +426,108 @@ class TestActiveGraph:
             graph.finalize(success=True)
 
 
+class TestFoundryGraphAPI:
+    """Tests for Foundry graph API."""
+
+    @pytest.fixture
+    def temp_foundry(self):
+        """Create temporary foundry."""
+        temp_dir = tempfile.mkdtemp()
+        storage = FileStorage(base_dir=temp_dir)
+        from paola.foundry import OptimizationFoundry
+        foundry = OptimizationFoundry(storage=storage)
+        yield foundry
+        shutil.rmtree(temp_dir)
+
+    def test_create_graph(self, temp_foundry):
+        """Test creating a graph through foundry."""
+        graph = temp_foundry.create_graph(
+            problem_id="test_problem",
+            goal="Minimize test function",
+        )
+
+        assert graph.graph_id == 1
+        assert graph.problem_id == "test_problem"
+        assert graph.goal == "Minimize test function"
+
+    def test_get_active_graph(self, temp_foundry):
+        """Test getting active graph."""
+        graph = temp_foundry.create_graph(problem_id="test")
+
+        retrieved = temp_foundry.get_graph(graph.graph_id)
+        assert retrieved is graph
+
+    def test_finalize_graph(self, temp_foundry):
+        """Test finalizing graph through foundry."""
+        graph = temp_foundry.create_graph(
+            problem_id="test",
+            goal="Test optimization",
+        )
+        init = make_gradient_init([0.5])
+        progress = make_gradient_progress()
+        result = make_gradient_result()
+
+        graph.start_node(optimizer="scipy:L-BFGS-B", config={}, initialization=init)
+        graph.complete_node(progress, result, 0.3, [0.3])
+
+        record = temp_foundry.finalize_graph(graph.graph_id, success=True)
+
+        assert record is not None
+        assert record.graph_id == 1
+        assert record.success is True
+        assert temp_foundry.get_graph(graph.graph_id) is None
+
+    def test_load_graph(self, temp_foundry):
+        """Test loading finalized graph."""
+        graph = temp_foundry.create_graph(problem_id="test")
+        init = make_gradient_init([0.5])
+        progress = make_gradient_progress()
+        result = make_gradient_result()
+
+        graph.start_node(optimizer="scipy:L-BFGS-B", config={}, initialization=init)
+        graph.complete_node(progress, result, 0.3, [0.3])
+        temp_foundry.finalize_graph(graph.graph_id, success=True)
+
+        loaded = temp_foundry.load_graph(1)
+        assert loaded is not None
+        assert loaded.graph_id == 1
+
+    def test_load_all_graphs(self, temp_foundry):
+        """Test loading all graphs."""
+        for i in range(3):
+            graph = temp_foundry.create_graph(problem_id=f"test_{i}")
+            init = make_gradient_init([0.5])
+            progress = make_gradient_progress()
+            result = make_gradient_result()
+
+            graph.start_node(optimizer="scipy:L-BFGS-B", config={}, initialization=init)
+            graph.complete_node(progress, result, 0.1, [0.1])
+            temp_foundry.finalize_graph(graph.graph_id, success=True)
+
+        graphs = temp_foundry.load_all_graphs()
+        assert len(graphs) == 3
+
+    def test_query_graphs(self, temp_foundry):
+        """Test querying graphs with filters."""
+        for i in range(3):
+            graph = temp_foundry.create_graph(problem_id=f"rosenbrock_{i}")
+            init = make_gradient_init([0.5])
+            progress = make_gradient_progress()
+            result = make_gradient_result()
+
+            graph.start_node(optimizer="scipy:L-BFGS-B", config={}, initialization=init)
+            graph.complete_node(progress, result, 0.1, [0.1])
+            temp_foundry.finalize_graph(graph.graph_id, success=(i % 2 == 0))
+
+        # Query with wildcard
+        all_rosenbrock = temp_foundry.query_graphs(problem_id="rosenbrock*")
+        assert len(all_rosenbrock) == 3
+
+        # Query successful only
+        successful = temp_foundry.query_graphs(success=True)
+        assert len(successful) == 2
+
+
 class TestGraphStorage:
     """Tests for graph storage."""
 
