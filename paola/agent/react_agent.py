@@ -545,6 +545,6 @@ def update_context(context: dict, tool_results: list) -> dict:
 
     # Tool results are already persisted by the platform
     # Context here is just for agent's working memory
-    # Most updates happen in tools (start_optimization_run, run_scipy_optimization, etc.)
+    # Most updates happen in tools (start_graph, run_optimization, etc.)
 
     return new_context

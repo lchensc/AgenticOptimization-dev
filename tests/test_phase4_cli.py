@@ -92,73 +92,18 @@ def test_agent_prompts():
     """Test agent prompts are properly separated."""
     print("Testing agent prompts...")
 
-    from paola.agent.prompts import (
-        build_optimization_prompt,
-        format_problem,
-        format_history,
-        format_observations,
-        format_tools
-    )
+    from paola.agent.prompts import build_optimization_prompt
 
     # Test build_optimization_prompt
     context = {
         "goal": "Minimize Rosenbrock function",
-        "problem": {},
-        "iteration": 5,
-        "current_objectives": 10.5,
-        "best_objectives": 8.2,
     }
 
     prompt = build_optimization_prompt(context)
     assert "Minimize Rosenbrock function" in prompt
-    assert "Iteration: 5" in prompt
+    assert "Paola" in prompt
+    assert "Instructions" in prompt
     print("✓ build_optimization_prompt works")
-
-    # Test format_problem
-    problem = {
-        "objectives": [{"name": "obj1", "sense": "minimize"}],
-        "variables": [{"name": "x1"}, {"name": "x2"}],
-        "constraints": [{"name": "c1"}]
-    }
-    formatted = format_problem(problem)
-    assert "Objectives" in formatted
-    assert "Variables" in formatted
-    assert "Constraints" in formatted
-    print("✓ format_problem works")
-
-    # Test format_history
-    history = [
-        {"iteration": 1, "objective": 100.0},
-        {"iteration": 2, "objective": 50.0}
-    ]
-    formatted = format_history(history)
-    assert "Iter 1" in formatted
-    assert "Iter 2" in formatted
-    print("✓ format_history works")
-
-    # Test format_observations
-    observations = {
-        "gradient_norm": 1.23e-5,
-        "constraint_violation": 0.0
-    }
-    formatted = format_observations(observations)
-    assert "gradient_norm" in formatted
-    print("✓ format_observations works")
-
-    # Test format_tools
-    class MockTool:
-        def __init__(self, name, desc):
-            self.name = name
-            self.description = desc
-
-    tools = [
-        MockTool("tool1", "Description 1"),
-        MockTool("tool2", "Description 2")
-    ]
-    formatted = format_tools(tools)
-    assert "tool1" in formatted
-    assert "tool2" in formatted
-    print("✓ format_tools works")
 
     print("\n✅ All prompt tests passed!\n")
     return True

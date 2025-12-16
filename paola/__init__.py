@@ -1,7 +1,5 @@
 """
-PAOLA - Platform for Agentic Optimization with Learning and Analysis
-
-The optimization platform that learns from every run.
+Paola - Package for Agentic Optimization with Learning and Analysis
 """
 
 __version__ = "0.1.0"

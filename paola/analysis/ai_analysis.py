@@ -328,9 +328,10 @@ def _estimate_cost(llm_model: str, prompt: str) -> float:
 
     # Rough pricing (per 1M tokens)
     pricing = {
-        "qwen-flash": {"input": 0.10, "output": 0.10},
-        "qwen-plus": {"input": 0.50, "output": 0.50},
-        "qwen-max": {"input": 2.00, "output": 2.00},
+        "qwen-flash": {"input": 0.05, "output": 0.40},
+        "qwen-turbo": {"input": 0.30, "output": 0.60},
+        "qwen-plus": {"input": 0.40, "output": 1.20},
+        "qwen-max": {"input": 1.2, "output": 6.0},
     }
 
     model_pricing = pricing.get(llm_model, {"input": 0.50, "output": 0.50})

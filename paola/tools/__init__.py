@@ -1,13 +1,14 @@
 """
-Agent tools for the agentic optimization platform.
+Agent tools for Paola.
 
 Provides LangChain @tool decorated functions for:
+- Graph management (start_graph, get_graph_state, finalize_graph, query_past_graphs)
+- Optimization execution (run_optimization, get_problem_info, list_available_optimizers)
+- Expert configuration (config_scipy, config_ipopt, config_nlopt, config_optuna)
+- Analysis (analyze_convergence, analyze_efficiency, get_all_metrics, analyze_run_with_ai)
+- Evaluator management (foundry_list_evaluators, foundry_get_evaluator)
+- Knowledge (store_optimization_insight, retrieve_optimization_knowledge)
 - Cache operations (cache_get, cache_store, cache_clear, cache_stats)
-- Database operations (run_db_log, run_db_query)
-- Optimizer operations (optimizer_create, optimizer_propose, optimizer_update, optimizer_restart)
-- Evaluator operations (evaluate_function, compute_gradient)
-- Gate control operations (gate_continue, gate_stop, gate_restart_from, gate_get_history)
-- Observation operations (analyze_convergence, detect_pattern, check_feasibility, get_gradient_quality)
 """
 
 from paola.tools.cache_tools import (

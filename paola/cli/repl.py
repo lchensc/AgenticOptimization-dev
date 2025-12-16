@@ -11,11 +11,8 @@ from langchain_core.messages import HumanMessage
 
 from ..agent.react_agent import build_optimization_agent
 from ..agent.conversational_agent import build_conversational_agent
-from ..tools.optimizer_tools import run_scipy_optimization
 from ..tools.evaluator_tools import create_nlp_problem
-from ..tools.observation_tools import analyze_convergence
-from ..tools.session_tools import start_session, finalize_session, get_active_sessions, get_session_info, set_foundry
-from ..tools.graph_tools import start_graph, get_graph_state, finalize_graph, query_past_graphs, get_past_graph, set_foundry as set_graph_foundry
+from ..tools.graph_tools import start_graph, get_graph_state, finalize_graph, query_past_graphs, get_past_graph, set_foundry
 from ..tools.analysis import analyze_convergence as analyze_convergence_new, analyze_efficiency, get_all_metrics, analyze_run_with_ai
 from ..tools.knowledge_tools import store_optimization_insight, retrieve_optimization_knowledge, list_all_knowledge
 from ..callbacks import CallbackManager
@@ -61,7 +58,6 @@ class AgenticOptREPL:
 
         # Set global foundry for tools
         set_foundry(self.foundry)
-        set_graph_foundry(self.foundry)
 
         # Command handler (reads from foundry)
         self.command_handler = CommandHandler(self.foundry, self.console)
@@ -111,29 +107,23 @@ class AgenticOptREPL:
             explain_config_option,
         )
 
-        # Tools - agent explicitly manages graphs (v0.3.0)
+        # Tools - agent explicitly manages graphs (v0.3.x)
         self.tools = [
             # Problem formulation
-            create_nlp_problem,  # NLP problems from registered evaluators
+            create_nlp_problem,
 
-            # Graph management (v0.3.1 - recommended)
-            start_graph,  # Start new optimization graph
-            get_graph_state,  # Get graph state for decision making
-            finalize_graph,  # Finalize and persist graph
-            query_past_graphs,  # Query past graphs for cross-graph learning
-            get_past_graph,  # Get detailed strategy from a specific past graph
+            # Graph management (v0.3.x)
+            start_graph,
+            get_graph_state,
+            finalize_graph,
+            query_past_graphs,
+            get_past_graph,
 
-            # Session management (v0.2.0 - legacy)
-            start_session,
-            finalize_session,
-            get_active_sessions,
-            get_session_info,
-
-            # LLM-driven optimization (Paola Principle - recommended)
-            run_optimization,  # Execute optimization with LLM-specified config
-            get_problem_info,  # Get problem characteristics for LLM reasoning
-            list_available_optimizers,  # List available backends
-            get_optimizer_options,  # Get optimizer configuration options
+            # Optimization execution
+            run_optimization,
+            get_problem_info,
+            list_available_optimizers,
+            get_optimizer_options,
 
             # Expert configuration (escape hatch)
             config_scipy,
@@ -142,23 +132,20 @@ class AgenticOptREPL:
             config_optuna,
             explain_config_option,
 
-            # Legacy optimization (deprecated - use run_optimization)
-            run_scipy_optimization,
-
-            # Analysis (deterministic - fast & free)
+            # Analysis (deterministic)
             analyze_convergence_new,
             analyze_efficiency,
             get_all_metrics,
 
-            # Analysis (AI-powered - strategic, costs money)
+            # Analysis (AI-powered)
             analyze_run_with_ai,
 
-            # Knowledge (skeleton - not yet implemented)
+            # Knowledge (skeleton)
             store_optimization_insight,
             retrieve_optimization_knowledge,
             list_all_knowledge,
 
-            # Evaluator registration
+            # Evaluator management
             read_file,
             write_file,
             execute_python,
@@ -178,7 +165,7 @@ class AgenticOptREPL:
         while self.running:
             try:
                 # Get user input
-                user_input = self.session.prompt('paola> ').strip()
+                user_input = self.session.prompt('> ').strip()
 
                 if not user_input:
                     continue
@@ -207,10 +194,10 @@ class AgenticOptREPL:
         """Display welcome message."""
         welcome = Panel(
             Text.from_markup(
-                "[bold cyan]PAOLA[/bold cyan] v0.3.1 - Agentic Optimization Platform\n\n"
-                "[dim]AI-powered optimization with conversational interface[/dim]\n\n"
+                "[bold cyan]Paola[/bold cyan] [dim]v0.3.1[/dim]\n"
+                "[dim]Package for agentic optimization with learning and analysis[/dim]\n\n"
                 "Commands: /help | /graphs | /evals | /exit\n"
-                "Or just type your goal in natural language"
+                "Or just tell me what you want to optimize"
             ),
             border_style="cyan",
             padding=(1, 2),
@@ -287,7 +274,9 @@ class AgenticOptREPL:
                 if hasattr(last_message, 'content') and last_message.content:
                     response = last_message.content.strip()
                     if response and not response.upper().startswith("DONE"):
-                        self.console.print(f"\n{response}\n", style="white")
+                        self.console.print()
+                        self.console.print("[bold cyan]Paola:[/bold cyan]", style="white")
+                        self.console.print(f"{response}\n", style="white")
 
         except Exception as e:
             self.console.print(f"\n[bold red]Agent error: {e}[/bold red]\n")
@@ -563,9 +552,8 @@ class AgenticOptREPL:
             ("qwen-flash", "Qwen Flash - cheapest ($0.05/$0.40)"),
             ("qwen-turbo", "Qwen Turbo - fast ($0.30/$0.60)"),
             ("qwen-plus", "Qwen Plus - balanced ($0.40/$1.20)"),
-            ("qwen-max", "Qwen Max - most capable ($20/$60)"),
-            ("claude-3-haiku-20240307", "Claude 3 Haiku - cheapest ($0.25/$1.25)"),
-            ("claude-3-5-haiku-latest", "Claude 3.5 Haiku - fast ($0.80/$4.00)"),
+            ("qwen-max", "Qwen Max - most capable ($1.2/$6)"),
+            ("claude-3-5-haiku-latest", "Claude 3.5 Haiku - fast ($0.80/$4)"),
             ("claude-sonnet-4-20250514", "Claude Sonnet 4 - balanced ($3/$15)"),
         ]
 

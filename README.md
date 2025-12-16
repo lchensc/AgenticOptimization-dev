@@ -1,4 +1,4 @@
-# PAOLA
+# Paola
 
 **Package for Agentic Optimization with Learning and Analysis**
 

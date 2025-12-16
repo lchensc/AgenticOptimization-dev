@@ -1,5 +1,5 @@
 """
-Agent module - Agent implementations for PAOLA.
+Agent module - Agent implementations for Paola.
 
 Provides two agent types:
 - ReAct agent: Autonomous task completion (original)

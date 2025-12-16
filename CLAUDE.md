@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This repository contains **PAOLA (Platform for Agentic Optimization with Learning and Analysis)** - a next-generation engineering optimization system where an autonomous AI agent controls the optimization process, accumulates knowledge from past optimizations, and analyzes multiple runs to achieve reliable convergence.
+This repository contains **Paola (Package for Agentic Optimization with Learning and Analysis)** - a next-generation engineering optimization system where an autonomous AI agent controls the optimization process, accumulates knowledge from past optimizations, and analyzes multiple runs to achieve reliable convergence.
 
 ### Core Innovation
 
-Unlike traditional optimization platforms (HEEDS, ModeFRONTIER, Dakota, pyOptSparse, FADO) that use fixed control loops with user-configured algorithms, PAOLA provides four key innovations:
+Unlike traditional optimization platforms (HEEDS, ModeFRONTIER, Dakota, pyOptSparse, FADO) that use fixed control loops with user-configured algorithms, Paola provides four key innovations:
 
 1. **Agentic Control**: Agent autonomously composes strategies using tool primitives (not fixed loops)
 2. **The Paola Principle**: Optimization complexity is agent intelligence, not user burden
@@ -17,13 +17,13 @@ Unlike traditional optimization platforms (HEEDS, ModeFRONTIER, Dakota, pyOptSpa
 
 **Traditional approach**: Platform prescribes the loop, user configures it (250+ IPOPT options!), no memory between runs
 
-**PAOLA approach**: Agent controls everything, handles all configuration complexity, learns from past optimizations
+**Paola approach**: Agent controls everything, handles all configuration complexity, learns from past optimizations
 
 ### The Paola Principle
 
 > **"Optimization complexity is Paola intelligence, not user burden."**
 
-This principle defines PAOLA's approach to the overwhelming complexity of optimization:
+This principle defines Paola's approach to the overwhelming complexity of optimization:
 
 | What Users Specify | What Paola Handles |
 |-------------------|-------------------|
@@ -342,7 +342,7 @@ Legacy terms (v0.2.0):
 
 ## Value Proposition Summary
 
-**PAOLA: The optimization platform that learns from every run**
+**Paola: The optimization package that learns from every run**
 
 > **"Optimization complexity is Paola intelligence, not user burden."**
 

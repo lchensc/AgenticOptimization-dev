@@ -29,53 +29,54 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-# Model configurations (updated 2025-01-13)
+# Model configurations (updated 2025-12-16)
 # All costs are per 1M tokens in USD
+# Qwen prices from: https://help.aliyun.com/zh/model-studio/billing-for-model-studio
 MODEL_CONFIGS = {
-    # Qwen models (via DashScope) - https://help.aliyun.com/zh/model-studio/getting-started/models
+    # Qwen models (via DashScope)
     "qwen-flash": {
         "full_name": "qwen-flash",
         "provider": "qwen",
-        "cost_input": 0.05,      # $0.05 per 1M tokens
-        "cost_output": 0.4,      # $0.40 per 1M tokens
+        "cost_input": 0.05,
+        "cost_output": 0.40,
         "cost_cache_write": 0.05,
         "cost_cache_read": 0.005,
-        "api_key_env": "DASHSCOPE_API_KEY"
-    },
-    "qwen-plus": {
-        "full_name": "qwen-plus",
-        "provider": "qwen",
-        "cost_input": 0.4,       # $0.40 per 1M tokens
-        "cost_output": 1.2,      # $1.20 per 1M tokens
-        "cost_cache_write": 0.4,
-        "cost_cache_read": 0.04,
         "api_key_env": "DASHSCOPE_API_KEY"
     },
     "qwen-turbo": {
         "full_name": "qwen-turbo",
         "provider": "qwen",
-        "cost_input": 0.3,
-        "cost_output": 0.6,
-        "cost_cache_write": 0.3,
+        "cost_input": 0.30,
+        "cost_output": 0.60,
+        "cost_cache_write": 0.30,
         "cost_cache_read": 0.03,
+        "api_key_env": "DASHSCOPE_API_KEY"
+    },
+    "qwen-plus": {
+        "full_name": "qwen-plus",
+        "provider": "qwen",
+        "cost_input": 0.40,
+        "cost_output": 1.20,
+        "cost_cache_write": 0.40,
+        "cost_cache_read": 0.04,
         "api_key_env": "DASHSCOPE_API_KEY"
     },
     "qwen-max": {
         "full_name": "qwen-max",
         "provider": "qwen",
-        "cost_input": 20.0,
-        "cost_output": 60.0,
-        "cost_cache_write": 20.0,
-        "cost_cache_read": 2.0,
+        "cost_input": 1.2,       # $1.2-3 depending on context length
+        "cost_output": 6.0,      # $6-15 depending on context length
+        "cost_cache_write": 1.2,
+        "cost_cache_read": 0.12,
         "api_key_env": "DASHSCOPE_API_KEY"
     },
     "qwq-32b-preview": {
         "full_name": "qwq-32b-preview",
         "provider": "qwen",
-        "cost_input": 0.35,
-        "cost_output": 1.4,
-        "cost_cache_write": 0.35,
-        "cost_cache_read": 0.035,
+        "cost_input": 0.28,      # ¥0.002/1K (Qwen 2.5-32B pricing)
+        "cost_output": 0.84,     # ¥0.006/1K
+        "cost_cache_write": 0.28,
+        "cost_cache_read": 0.028,
         "api_key_env": "DASHSCOPE_API_KEY"
     },
 
