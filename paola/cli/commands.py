@@ -88,66 +88,99 @@ class CommandHandler:
             self.console.print(f"\n[red]Graph #{graph_id} not found[/red]\n")
             return
 
-        # Build detailed panel
-        status_text = "✓ Complete" if graph.success else "✗ Failed"
+        # Status
+        status_text = "✓ Success" if graph.success else "✗ Failed"
         status_style = "green" if graph.success else "red"
-
-        # List nodes in graph
-        nodes_info = ""
-        for node in graph.nodes.values():
-            node_status = "✓" if node.status == "completed" else "✗"
-            node_style = "green" if node.status == "completed" else "red"
-
-            # Check if node has parent
-            parent_str = ""
-            parent = graph.get_parent_node(node.node_id)
-            if parent:
-                edge = [e for e in graph.edges if e.target == node.node_id][0]
-                parent_str = f" (from {parent} via {edge.edge_type})"
-
-            nodes_info += f"\n  [{node_style}]{node_status}[/{node_style}] {node.node_id}: {node.optimizer} → {node.best_objective:.6e}{parent_str}"
-
-        # Get best node
         best_node = graph.get_best_node()
-        best_info = ""
-        if best_node:
-            best_info = f"\n\n[bold]Best Node:[/bold] {best_node.node_id} ({best_node.optimizer}) = {best_node.best_objective:.6e}"
 
-        info = f"""[bold]Graph #{graph.graph_id}: {graph.problem_id}[/bold]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+        # Build ASCII graph structure
+        graph_art = self._build_graph_ascii(graph)
 
-[cyan]Status:[/cyan]       [{status_style}]{status_text}[/{status_style}]
-[cyan]Pattern:[/cyan]      {graph.detect_pattern()}
-[cyan]Best Objective:[/cyan] {graph.final_objective:.6e}
-[cyan]Total Evaluations:[/cyan] {graph.total_evaluations}
-[cyan]Total Time:[/cyan]   {graph.total_wall_time:.2f}s
-[cyan]Created:[/cyan]      {graph.created_at}
-[cyan]Goal:[/cyan]         {graph.goal or 'N/A'}
+        # Header
+        info = f"""[bold]Graph #{graph.graph_id}[/bold]  {graph.problem_id}  [{status_style}]{status_text}[/{status_style}]
+[dim]{graph.detect_pattern()} pattern • {len(graph.nodes)} nodes • {graph.total_evaluations} evals • {graph.total_wall_time:.1f}s[/dim]
 
-[bold]Nodes ({len(graph.nodes)}):[/bold]{nodes_info}{best_info}
+[bold]Structure:[/bold]
+{graph_art}
 
-[bold]Final Solution (first 5 dimensions):[/bold]"""
+[bold]Nodes:[/bold]"""
 
-        # Show first 5 dimensions of solution from best node
-        x = best_node.best_x if best_node and best_node.best_x else None
-        if x:
-            for i in range(min(5, len(x))):
-                info += f"\n  x[{i}] = {x[i]:.6f}"
+        # Simple node list
+        for node in graph.nodes.values():
+            status_icon = "✓" if node.status == "completed" else "✗"
+            style = "green" if node.status == "completed" else "red"
+            is_best = best_node and node.node_id == best_node.node_id
+            best_marker = " [bold green]★ best[/bold green]" if is_best else ""
+            info += f"\n  [{style}]{status_icon}[/{style}] [cyan]{node.node_id}[/cyan]: {node.optimizer} → {node.best_objective:.4e} ({node.n_evaluations} evals){best_marker}"
 
-            if len(x) > 5:
-                info += f"\n  ... ({len(x) - 5} more dimensions)"
-        else:
-            info += "\n  [dim]No solution available[/dim]"
+        # Edges (if any)
+        if graph.edges:
+            info += "\n\n[bold]Edges:[/bold]"
+            for edge in graph.edges:
+                info += f"\n  {edge.source} → {edge.target} [dim]({edge.edge_type})[/dim]"
 
-        # Show decisions if any
-        if graph.decisions:
-            info += "\n\n[bold]Decisions:[/bold]"
-            for d in graph.decisions[-3:]:  # Last 3 decisions
-                info += f"\n  • {d.decision_type}: {d.reasoning[:50]}..."
+        # Best solution preview
+        if best_node and best_node.best_x:
+            x = best_node.best_x
+            x_str = ", ".join(f"{xi:.3f}" for xi in x[:4])
+            if len(x) > 4:
+                x_str += f", ... ({len(x)} dims)"
+            info += f"\n\n[bold]Best x:[/bold] [{x_str}]"
 
         self.console.print()
         self.console.print(Panel(info, border_style="cyan", padding=(1, 2)))
         self.console.print()
+
+    def _build_graph_ascii(self, graph) -> str:
+        """Build ASCII art representation of graph structure (vertical tree)."""
+        if not graph.nodes:
+            return "  (empty)"
+
+        pattern = graph.detect_pattern()
+        nodes = list(graph.nodes.keys())
+
+        if pattern == "single":
+            return "      (n1)"
+
+        if pattern == "multistart":
+            return "  " + "   ".join(f"({n})" for n in nodes)
+
+        # Use horizontal tree style (cleaner, shows connections properly)
+        # This renders like:
+        #   (n1)
+        #    └─(n2)
+        #       ├─(n3)
+        #       └─(n4)
+
+        lines = []
+        root_nodes = [n for n in nodes if not graph.get_predecessors(n)]
+
+        def render_node(node_id, prefix="", is_last=True):
+            """Recursively render a node and its children."""
+            # Draw connector and node
+            if prefix == "":
+                # Root node
+                lines.append(f"  ({node_id})")
+            else:
+                connector = "└─" if is_last else "├─"
+                lines.append(f"{prefix}{connector}({node_id})")
+
+            # Get children and render them
+            children = graph.get_successors(node_id)
+            for i, child in enumerate(children):
+                is_child_last = (i == len(children) - 1)
+                if prefix == "":
+                    child_prefix = "   "
+                else:
+                    child_prefix = prefix + ("  " if is_last else "│ ")
+                render_node(child, child_prefix, is_child_last)
+
+        for i, root in enumerate(root_nodes):
+            if i > 0:
+                lines.append("")  # Blank line between trees
+            render_node(root)
+
+        return "\n".join(lines)
 
     def handle_graph_plot(self, graph_id: int):
         """Plot convergence history for a graph (ASCII in terminal)."""
