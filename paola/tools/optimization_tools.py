@@ -8,9 +8,10 @@ This module provides tools where:
 - Execution tools execute decisions FROM the LLM
 - The LLM's trained knowledge (IPOPT docs, optimization theory, etc.) IS the intelligence
 
-v0.2.0: Session-based architecture
-- run_optimization requires session_id
-- Records runs with polymorphic components per optimizer family
+v0.3.0: Graph-based architecture
+- run_optimization requires graph_id
+- Agent explicitly specifies parent_node and edge_type
+- Records nodes with polymorphic components per optimizer family
 
 Architecture:
     LLM reasons → selects optimizer → constructs config → calls run_optimization
@@ -31,6 +32,7 @@ from ..optimizers.backends import (
 )
 from ..foundry import (
     COMPONENT_REGISTRY,
+    EdgeType,
     GradientInitialization,
     GradientProgress,
     GradientResult,
@@ -42,32 +44,38 @@ from ..foundry import (
 logger = logging.getLogger(__name__)
 
 
+# =============================================================================
+# Graph-Based Optimization (v0.3.0+)
+# =============================================================================
+
 @tool
 def run_optimization(
-    session_id: int,
+    graph_id: int,
     optimizer: str,
     config: Optional[str] = None,
     max_iterations: int = 100,
     init_strategy: str = "center",
+    parent_node: Optional[str] = None,
+    edge_type: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Execute optimization within a session.
+    Execute optimization within a graph, creating a new node.
 
     The LLM decides which optimizer and configuration to use based on:
     - Problem characteristics (from get_problem_info)
-    - Available backends (from list_available_optimizers)
+    - Available backends (from list_optimizers)
+    - Current graph state (from get_graph_state)
     - Paola's learned knowledge of optimization algorithms
 
     Args:
-        session_id: Session ID from start_session (required)
+        graph_id: Graph ID from start_graph (required)
         optimizer: Backend specification:
-            - "scipy" or "scipy:SLSQP" - SciPy with method
+            - "scipy:SLSQP" - SciPy Sequential Least Squares
             - "scipy:L-BFGS-B" - SciPy L-BFGS-B
             - "scipy:trust-constr" - SciPy trust-constr
             - "ipopt" - IPOPT interior-point optimizer
-            - "optuna" or "optuna:TPE" - Optuna with sampler
+            - "optuna:TPE" - Optuna Tree-structured Parzen Estimator
         config: JSON string with optimizer-specific options.
-            LLM constructs this based on its knowledge.
             SciPy: '{"ftol": 1e-6, "gtol": 1e-5}'
             IPOPT: '{"tol": 1e-6, "mu_strategy": "adaptive"}'
             Optuna: '{"n_trials": 100, "seed": 42}'
@@ -75,35 +83,56 @@ def run_optimization(
         init_strategy: Initialization strategy:
             - "center" - center of bounds (default)
             - "random" - random point within bounds
-            - "warm_start" - warm-start from previous run in session
+            - "warm_start" - use parent_node's best solution (requires parent_node)
+        parent_node: Node ID to continue from (e.g., "n1", "n2")
+            Required if init_strategy="warm_start"
+        edge_type: Relationship type if parent_node specified:
+            - "warm_start" - Use parent's best x as starting point
+            - "restart" - Same config as parent, new random start
+            - "refine" - Local refinement from parent's solution
+            - "branch" - Explore different direction from parent
+            - "explore" - Global exploration seeded by parent
 
     Returns:
         Dict with:
             success: bool
             message: str
-            run_id: int - ID of this run within the session
-            final_design: List[float]
-            final_objective: float
+            node_id: str - ID of created node (e.g., "n1", "n2")
+            best_x: List[float] - Best solution found
+            best_objective: float - Best objective value
             optimizer_used: str
+            optimizer_family: str
             n_iterations: int
-            n_function_evals: int
-            n_gradient_evals: int
+            n_evaluations: int
+            elapsed_time: float
+            parent_node: str or None
 
-    Example:
-        # First start a session
-        session = start_session(problem_id="rosenbrock_10d")
-        # session_id = 1
+    Example (fresh start):
+        # First start a graph
+        start_graph(problem_id="rosenbrock_10d", goal="Minimize")
 
-        # Then run optimization
-        result = run_optimization(
-            session_id=1,
+        # Run with random initialization
+        run_optimization(
+            graph_id=1,
             optimizer="scipy:L-BFGS-B",
-            config='{"ftol": 1e-8}',
-            max_iterations=200
+            init_strategy="random"
+        )
+
+    Example (warm-start from previous node):
+        # Check graph state
+        state = get_graph_state(graph_id=1)
+        # Agent sees: n1 has best_objective=0.08
+
+        # Warm-start from n1
+        run_optimization(
+            graph_id=1,
+            optimizer="scipy:SLSQP",
+            parent_node="n1",
+            edge_type="warm_start"
         )
     """
     from .evaluator_tools import _get_problem
-    from .session_tools import _FOUNDRY
+    from .graph_tools import _FOUNDRY
 
     try:
         # Check foundry
@@ -113,16 +142,16 @@ def run_optimization(
                 "message": "Foundry not initialized. Call set_foundry() first.",
             }
 
-        # Get session
-        session = _FOUNDRY.get_session(session_id)
-        if session is None:
+        # Get graph
+        graph = _FOUNDRY.get_graph(graph_id)
+        if graph is None:
             return {
                 "success": False,
-                "message": f"Session {session_id} not found or already finalized. Use start_session first.",
+                "message": f"Graph {graph_id} not found or already finalized. Use start_graph first.",
             }
 
         # Get problem
-        problem = _get_problem(session.problem_id)
+        problem = _get_problem(graph.problem_id)
 
         # Parse optimizer specification
         parts = optimizer.split(":")
@@ -183,16 +212,38 @@ def run_optimization(
 
         # Determine initialization
         family = COMPONENT_REGISTRY.get_family(optimizer)
-        warm_start_from = None
 
-        if init_strategy == "warm_start" and session.runs:
-            # Use best design from previous run
-            best_run = session.get_best_run()
-            if best_run:
-                x0 = np.array(best_run.best_design)
-                warm_start_from = best_run.run_id
-            else:
-                x0 = np.array(bounds_center)
+        # Validate parent_node and edge_type
+        if init_strategy == "warm_start":
+            if parent_node is None:
+                return {
+                    "success": False,
+                    "message": "parent_node is required when init_strategy='warm_start'",
+                }
+            if edge_type is None:
+                edge_type = EdgeType.WARM_START  # Default edge type
+
+        if parent_node is not None and edge_type is None:
+            return {
+                "success": False,
+                "message": "edge_type is required when parent_node is specified",
+            }
+
+        # Get x0 based on init_strategy
+        if init_strategy == "warm_start" and parent_node:
+            # Get parent node's best solution
+            parent = graph.get_node(parent_node)
+            if parent is None:
+                return {
+                    "success": False,
+                    "message": f"Parent node '{parent_node}' not found in graph",
+                }
+            if parent.best_x is None:
+                return {
+                    "success": False,
+                    "message": f"Parent node '{parent_node}' has no solution to warm-start from",
+                }
+            x0 = np.array(parent.best_x)
         elif init_strategy == "random":
             # Random point within bounds
             lower = np.array([b[0] for b in bounds])
@@ -205,27 +256,29 @@ def run_optimization(
         # Create initialization component based on family
         if family == "gradient":
             initialization = GradientInitialization(
-                specification={"type": init_strategy, "source_run": warm_start_from},
+                specification={"type": init_strategy, "parent_node": parent_node},
                 x0=x0.tolist(),
             )
         elif family == "bayesian":
             initialization = BayesianInitialization(
-                specification={"type": init_strategy},
+                specification={"type": init_strategy, "parent_node": parent_node},
                 warm_start_trials=None,
                 n_initial_random=config_dict.get("n_startup_trials", 10),
             )
         else:
             # Default to gradient-style for unknown families
             initialization = GradientInitialization(
-                specification={"type": init_strategy},
+                specification={"type": init_strategy, "parent_node": parent_node},
                 x0=x0.tolist(),
             )
 
-        # Start run within session
-        active_run = session.start_run(
+        # Start node within graph
+        active_node = graph.start_node(
             optimizer=optimizer,
+            config=config_dict,
             initialization=initialization,
-            warm_start_from=warm_start_from,
+            parent_node=parent_node,
+            edge_type=edge_type,
         )
 
         # Prepare objective function
@@ -256,9 +309,9 @@ def run_optimization(
 
         elapsed = time.time() - start_time
 
-        # Record iterations to active run
+        # Record iterations to active node
         for h in result.history:
-            active_run.record_iteration(h)
+            active_node.record_iteration(h)
 
         # Create progress and result components based on family
         if family == "gradient":
@@ -305,18 +358,18 @@ def run_optimization(
                 termination_reason=result.message,
             )
 
-        # Complete run
-        final_design = (
+        # Complete node
+        best_x = (
             result.final_design.tolist()
             if isinstance(result.final_design, np.ndarray)
             else list(result.final_design)
         )
 
-        completed_run = session.complete_run(
+        completed_node = graph.complete_node(
             progress=progress,
             result=result_component,
             best_objective=result.final_objective,
-            best_design=final_design,
+            best_x=best_x,
             success=result.success,
         )
 
@@ -324,16 +377,16 @@ def run_optimization(
         return {
             "success": result.success,
             "message": result.message,
-            "run_id": completed_run.run_id,
-            "final_design": final_design,
-            "final_objective": float(result.final_objective),
+            "node_id": completed_node.node_id,
+            "best_x": best_x,
+            "best_objective": float(result.final_objective),
             "optimizer_used": optimizer,
             "optimizer_family": family,
             "n_iterations": result.n_iterations,
-            "n_function_evals": result.n_function_evals,
+            "n_evaluations": result.n_function_evals,
             "n_gradient_evals": result.n_gradient_evals,
             "elapsed_time": elapsed,
-            "warm_started_from": warm_start_from,
+            "parent_node": parent_node,
         }
 
     except Exception as e:
@@ -345,19 +398,31 @@ def run_optimization(
         }
 
 
+# =============================================================================
+# Information Tools
+# =============================================================================
+
 @tool
 def get_problem_info(problem_id: str) -> Dict[str, Any]:
     """
-    Get problem characteristics for LLM reasoning.
+    Get problem characteristics for optimizer selection.
 
-    Use this tool to understand a problem before deciding on optimizer
+    Use this to understand a problem before deciding on optimizer
     selection and configuration.
 
     Args:
-        problem_id: Problem ID (from create_nlp_problem)
+        problem_id: Problem ID (from registered problems)
 
     Returns:
-        Dict with problem characteristics
+        Dict with:
+            success: bool
+            problem_id: str
+            dimension: int - Number of variables
+            bounds: List - Variable bounds (truncated if >10)
+            bounds_summary: str - Human-readable bounds description
+            is_constrained: bool - Has constraints
+            has_gradient: bool - Gradient available
+            description: str - Problem description
     """
     from .evaluator_tools import _get_problem
 
@@ -458,14 +523,18 @@ def get_problem_info(problem_id: str) -> Dict[str, Any]:
 
 
 @tool
-def list_available_optimizers() -> Dict[str, Any]:
+def list_optimizers() -> Dict[str, Any]:
     """
     List available optimizer backends and their capabilities.
 
-    Use this tool to discover what optimizers are installed.
+    Use this to discover what optimizers are installed.
 
     Returns:
-        Dict with backend information
+        Dict with:
+            success: bool
+            available_backends: List[str] - Installed backends
+            backends: Dict - Details about each backend
+            recommendation: str - General guidance
     """
     backends = list_backends()
 
@@ -491,7 +560,11 @@ def get_optimizer_options(optimizer: str) -> Dict[str, Any]:
         optimizer: Optimizer name ("scipy", "ipopt", "optuna")
 
     Returns:
-        Dict with options and descriptions
+        Dict with:
+            success: bool
+            available: bool - Whether installed
+            methods: List[str] - Available methods (for scipy)
+            option_descriptions: Dict - Key options explained
     """
     backend = get_backend(optimizer)
 
@@ -527,3 +600,220 @@ def get_optimizer_options(optimizer: str) -> Dict[str, Any]:
         }
 
     return info
+
+
+# =============================================================================
+# Legacy Session-Based Tools (v0.2.0 - for backward compatibility)
+# =============================================================================
+
+@tool
+def run_optimization_session(
+    session_id: int,
+    optimizer: str,
+    config: Optional[str] = None,
+    max_iterations: int = 100,
+    init_strategy: str = "center",
+) -> Dict[str, Any]:
+    """
+    LEGACY (v0.2.0): Execute optimization within a session.
+
+    Use run_optimization with graph_id instead for v0.3.0.
+
+    Args:
+        session_id: Session ID from start_session
+        optimizer: Backend specification
+        config: JSON string with optimizer options
+        max_iterations: Maximum iterations
+        init_strategy: "center", "random", or "warm_start"
+
+    Returns:
+        Dict with run results
+    """
+    from .evaluator_tools import _get_problem
+    from .session_tools import _FOUNDRY
+
+    try:
+        if _FOUNDRY is None:
+            return {
+                "success": False,
+                "message": "Foundry not initialized.",
+            }
+
+        session = _FOUNDRY.get_session(session_id)
+        if session is None:
+            return {
+                "success": False,
+                "message": f"Session {session_id} not found. Use start_session first or migrate to graphs.",
+            }
+
+        # Get problem
+        problem = _get_problem(session.problem_id)
+
+        # Parse optimizer specification
+        parts = optimizer.split(":")
+        backend_name = parts[0].lower()
+        method = parts[1] if len(parts) > 1 else None
+
+        backend = get_backend(backend_name)
+        if backend is None:
+            return {
+                "success": False,
+                "message": f"Unknown optimizer backend '{backend_name}'.",
+            }
+
+        if not backend.is_available():
+            return {
+                "success": False,
+                "message": f"Backend '{backend_name}' is not installed.",
+            }
+
+        # Parse config
+        config_dict = {}
+        if config:
+            try:
+                config_dict = json.loads(config)
+            except json.JSONDecodeError as e:
+                return {
+                    "success": False,
+                    "message": f"Invalid config JSON: {e}",
+                }
+
+        if method:
+            config_dict["method"] = method
+        config_dict["max_iterations"] = max_iterations
+
+        # Get bounds
+        if hasattr(problem, "problem"):
+            bounds = problem.problem.bounds
+            bounds_center = problem.problem.get_bounds_center()
+        elif hasattr(problem, "bounds"):
+            bounds = problem.bounds
+            bounds_center = [(b[0] + b[1]) / 2 for b in bounds]
+        else:
+            return {"success": False, "message": "Problem must have bounds"}
+
+        # Initialization
+        family = COMPONENT_REGISTRY.get_family(optimizer)
+        warm_start_from = None
+
+        if init_strategy == "warm_start" and session.runs:
+            best_run = session.get_best_run()
+            if best_run:
+                x0 = np.array(best_run.best_design)
+                warm_start_from = best_run.run_id
+            else:
+                x0 = np.array(bounds_center)
+        elif init_strategy == "random":
+            lower = np.array([b[0] for b in bounds])
+            upper = np.array([b[1] for b in bounds])
+            x0 = lower + np.random.random(len(bounds)) * (upper - lower)
+        else:
+            x0 = np.array(bounds_center)
+
+        # Create initialization component
+        if family == "gradient":
+            initialization = GradientInitialization(
+                specification={"type": init_strategy},
+                x0=x0.tolist(),
+            )
+        elif family == "bayesian":
+            initialization = BayesianInitialization(
+                specification={"type": init_strategy},
+                warm_start_trials=None,
+                n_initial_random=config_dict.get("n_startup_trials", 10),
+            )
+        else:
+            initialization = GradientInitialization(
+                specification={"type": init_strategy},
+                x0=x0.tolist(),
+            )
+
+        # Start run
+        active_run = session.start_run(
+            optimizer=optimizer,
+            initialization=initialization,
+            warm_start_from=warm_start_from,
+        )
+
+        # Run optimization
+        def objective(x):
+            return float(problem.evaluate(x))
+
+        gradient = getattr(problem, "gradient", None)
+        constraints = None
+        if hasattr(problem, "get_scipy_constraints"):
+            constraints = problem.get_scipy_constraints()
+
+        start_time = time.time()
+        result = backend.optimize(
+            objective=objective,
+            bounds=bounds,
+            x0=x0,
+            config=config_dict,
+            constraints=constraints,
+            gradient=gradient,
+        )
+        elapsed = time.time() - start_time
+
+        # Record iterations
+        for h in result.history:
+            active_run.record_iteration(h)
+
+        # Create progress/result components
+        if family == "gradient":
+            progress = GradientProgress()
+            for h in result.history:
+                progress.add_iteration(
+                    iteration=h.get("iteration", 0),
+                    objective=h.get("objective", 0.0),
+                    design=h.get("design", []),
+                )
+            result_component = GradientResult(termination_reason=result.message)
+        else:
+            progress = GradientProgress()
+            for h in result.history:
+                progress.add_iteration(
+                    iteration=h.get("iteration", 0),
+                    objective=h.get("objective", 0.0),
+                    design=h.get("design", []),
+                )
+            result_component = GradientResult(termination_reason=result.message)
+
+        # Complete run
+        final_design = (
+            result.final_design.tolist()
+            if isinstance(result.final_design, np.ndarray)
+            else list(result.final_design)
+        )
+
+        completed_run = session.complete_run(
+            progress=progress,
+            result=result_component,
+            best_objective=result.final_objective,
+            best_design=final_design,
+            success=result.success,
+        )
+
+        return {
+            "success": result.success,
+            "message": result.message,
+            "run_id": completed_run.run_id,
+            "final_design": final_design,
+            "final_objective": float(result.final_objective),
+            "optimizer_used": optimizer,
+            "n_iterations": result.n_iterations,
+            "n_function_evals": result.n_function_evals,
+            "elapsed_time": elapsed,
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "message": f"Error: {str(e)}",
+            "traceback": traceback.format_exc(),
+        }
+
+
+# Backward compatibility alias
+list_available_optimizers = list_optimizers
