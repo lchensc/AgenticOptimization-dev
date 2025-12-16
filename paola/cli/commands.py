@@ -128,8 +128,8 @@ class CommandHandler:
 
 [bold]Final Solution (first 5 dimensions):[/bold]"""
 
-        # Show first 5 dimensions of solution
-        x = graph.final_design
+        # Show first 5 dimensions of solution from best node
+        x = best_node.best_x if best_node and best_node.best_x else None
         if x:
             for i in range(min(5, len(x))):
                 info += f"\n  x[{i}] = {x[i]:.6f}"
@@ -161,7 +161,7 @@ class CommandHandler:
         objectives = []
         node_boundaries = []  # Track where each node starts
 
-        for node_id in graph.get_topological_sort():
+        for node_id in graph.topological_sort():
             node = graph.nodes[node_id]
             node_start = len(objectives)
 
