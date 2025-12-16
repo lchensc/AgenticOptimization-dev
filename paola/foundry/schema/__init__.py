@@ -1,10 +1,16 @@
 """
 Paola Foundry Schema - Polymorphic optimization data structures.
 
-Session/Run Hierarchy:
-- SessionRecord: Complete optimization task (may involve multiple runs)
-- OptimizationRun: Single optimizer execution
-- PaolaDecision: Strategic decision record
+v0.3.0: Graph-based architecture
+- OptimizationGraph: Complete optimization task (THE data model)
+- OptimizationNode: Single optimizer execution
+- OptimizationEdge: Typed relationship between nodes
+- GraphDecision: Strategic decision record
+
+Legacy (v0.2.0, for migration):
+- SessionRecord: Complete optimization task (deprecated)
+- OptimizationRun: Single optimizer execution (deprecated)
+- PaolaDecision: Strategic decision record (deprecated)
 
 Component ABCs:
 - InitializationComponent: How the optimizer was initialized
@@ -21,7 +27,16 @@ Registry:
 - COMPONENT_REGISTRY: Maps optimizers to families, handles deserialization
 """
 
-# Base classes
+# Graph-based schema (v0.3.0+)
+from .graph import (
+    EdgeType,
+    OptimizationEdge,
+    OptimizationNode,
+    GraphDecision,
+    OptimizationGraph,
+)
+
+# Legacy base classes (v0.2.0, for migration)
 from .base import SessionRecord, OptimizationRun, PaolaDecision
 
 # Component ABCs
@@ -71,7 +86,13 @@ from .registry import (
 )
 
 __all__ = [
-    # Base
+    # Graph-based schema (v0.3.0+)
+    "EdgeType",
+    "OptimizationEdge",
+    "OptimizationNode",
+    "GraphDecision",
+    "OptimizationGraph",
+    # Legacy (v0.2.0, for migration)
     "SessionRecord",
     "OptimizationRun",
     "PaolaDecision",
