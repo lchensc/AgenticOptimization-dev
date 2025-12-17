@@ -1,0 +1,432 @@
+# SciPy Optimizer Options Reference
+# Based on scipy.optimize.minimize documentation (SciPy 1.16+)
+# Format: Each method is a category with its options directly listed
+
+# =============================================================================
+# SLSQP - Sequential Least Squares Programming
+# Best for: General constrained optimization with bounds, equality, inequality
+# =============================================================================
+
+SLSQP:
+  ftol:
+    type: float
+    default: 1.0e-6
+    description: >
+      Precision goal for the value of f in the stopping criterion.
+      Optimization terminates when the change in objective falls below this.
+    when_to_adjust: >
+      Tighten to 1e-8 for high-accuracy results. Loosen to 1e-4 for quick exploration.
+
+  maxiter:
+    type: int
+    default: 100
+    description: Maximum number of iterations.
+    when_to_adjust: >
+      Increase to 500-1000 for complex constrained problems.
+
+  eps:
+    type: float
+    default: 1.5e-8
+    description: >
+      Step size for numerical approximation of the Jacobian when gradient
+      is not provided. Smaller values give more accurate gradients but
+      may introduce numerical noise.
+    when_to_adjust: >
+      Increase to 1e-6 if seeing noisy gradient behavior. Decrease for smoother functions.
+
+  disp:
+    type: bool
+    default: false
+    description: Set to true to print convergence messages.
+
+  finite_diff_rel_step:
+    type: float or array
+    default: null
+    description: >
+      Relative step size for finite difference gradient approximation.
+      If null, uses automatic step sizing. Can be array for per-variable steps.
+
+# =============================================================================
+# L-BFGS-B - Limited-memory BFGS with Bounds
+# Best for: Large-scale bound-constrained problems (no general constraints)
+# =============================================================================
+
+L-BFGS-B:
+  maxcor:
+    type: int
+    default: 10
+    description: >
+      Maximum number of variable metric corrections used to define the
+      limited memory matrix. Higher values use more memory but may improve
+      convergence.
+    when_to_adjust: >
+      Increase to 15-20 for difficult problems. Decrease to 5 for memory-limited situations.
+    range: [3, 50]
+
+  ftol:
+    type: float
+    default: 2.2e-9
+    description: >
+      Convergence criterion: iteration stops when
+      (f^k - f^{k+1})/max{|f^k|,|f^{k+1}|,1} <= ftol
+
+  gtol:
+    type: float
+    default: 1.0e-5
+    description: >
+      Gradient tolerance: iteration stops when max{|proj g_i|} <= gtol
+      where proj g is the projected gradient.
+    when_to_adjust: >
+      Tighten to 1e-7 for high accuracy. Loosen to 1e-3 for quick exploration.
+
+  maxiter:
+    type: int
+    default: 15000
+    description: Maximum number of iterations.
+
+  maxfun:
+    type: int
+    default: 15000
+    description: Maximum number of function evaluations.
+
+  maxls:
+    type: int
+    default: 20
+    description: Maximum number of line search steps per iteration.
+    when_to_adjust: >
+      Increase if seeing "abnormal termination in lnsrch" errors.
+
+  eps:
+    type: float or array
+    default: 1.5e-8
+    description: >
+      Absolute step size for numerical gradient approximation when
+      gradient is not provided.
+
+# =============================================================================
+# BFGS - Broyden-Fletcher-Goldfarb-Shanno
+# Best for: Smooth unconstrained problems, fast convergence
+# Note: Does NOT support bounds or constraints
+# =============================================================================
+
+BFGS:
+  gtol:
+    type: float
+    default: 1.0e-5
+    description: Gradient norm must be less than gtol for successful termination.
+    when_to_adjust: >
+      Tighten to 1e-8 for high accuracy. Loosen to 1e-3 for quick results.
+
+  maxiter:
+    type: int
+    default: null
+    description: Maximum number of iterations. If null, defaults to N*200.
+
+  norm:
+    type: float
+    default: inf
+    description: >
+      Order of norm for gradient check. Use inf for max-norm, -inf for min,
+      or any positive number for p-norm.
+
+  eps:
+    type: float or array
+    default: 1.5e-8
+    description: Step size for numerical Jacobian via forward differences.
+
+  xrtol:
+    type: float
+    default: 0
+    description: >
+      Relative tolerance for x. Terminates if step size < xk * xrtol.
+    when_to_adjust: >
+      Set to small positive value (1e-8) to stop when progress stalls.
+
+  c1:
+    type: float
+    default: 1.0e-4
+    description: Parameter for Armijo condition in line search.
+    range: [0, 1]
+
+  c2:
+    type: float
+    default: 0.9
+    description: >
+      Parameter for curvature condition in line search.
+      Must satisfy 0 < c1 < c2 < 1.
+    range: [0, 1]
+
+  hess_inv0:
+    type: array (n,n)
+    default: null
+    description: >
+      Initial inverse Hessian estimate. If null, uses identity matrix.
+      Can speed convergence if good estimate available from previous run.
+    paola_integration: >
+      Could be stored in graph for warm-starting, but typically not needed.
+
+  return_all:
+    type: bool
+    default: false
+    description: If true, return list of solutions at each iteration.
+
+# =============================================================================
+# trust-constr - Trust Region Constrained
+# Best for: Large constrained problems, modern trust-region approach
+# =============================================================================
+
+trust-constr:
+  gtol:
+    type: float
+    default: 1.0e-8
+    description: Tolerance for termination by norm of Lagrangian gradient.
+    when_to_adjust: >
+      Loosen to 1e-6 for faster convergence on difficult problems.
+
+  xtol:
+    type: float
+    default: 1.0e-8
+    description: Tolerance for termination by change of independent variable.
+
+  barrier_tol:
+    type: float
+    default: 1.0e-8
+    description: Threshold for barrier parameter with inequality constraints.
+
+  maxiter:
+    type: int
+    default: 1000
+    description: Maximum number of iterations.
+    when_to_adjust: >
+      Increase to 2000-5000 for complex constrained problems.
+
+  initial_tr_radius:
+    type: float
+    default: 1.0
+    description: >
+      Initial trust radius. Controls maximum step size in early iterations.
+    when_to_adjust: >
+      Decrease to 0.1 for poorly scaled problems. Increase for well-scaled.
+
+  initial_constr_penalty:
+    type: float
+    default: 1.0
+    description: >
+      Initial constraint penalty parameter. Balances objective vs
+      constraint satisfaction.
+
+  initial_barrier_parameter:
+    type: float
+    default: 0.1
+    description: Initial barrier parameter for inequality constraints.
+
+  initial_barrier_tolerance:
+    type: float
+    default: 0.1
+    description: Initial tolerance for barrier subproblem.
+
+  sparse_jacobian:
+    type: bool or null
+    default: null
+    description: >
+      If true, use sparse matrices for constraint Jacobian.
+      Recommended for problems with sparse constraint structure.
+
+  factorization_method:
+    type: string
+    options: ["NormalEquation", "AugmentedSystem", "QRFactorization", "SVDFactorization"]
+    default: null
+    description: >
+      Jacobian factorization method. AugmentedSystem is most stable.
+      SVDFactorization for rank-deficient problems.
+
+  verbose:
+    type: int
+    options: [0, 1, 2, 3]
+    default: 0
+    description: >
+      Verbosity level: 0=silent, 1=summary, 2=iteration info, 3=detailed.
+
+# =============================================================================
+# Nelder-Mead - Simplex Method
+# Best for: Derivative-free optimization, noisy objectives
+# =============================================================================
+
+Nelder-Mead:
+  maxiter:
+    type: int
+    default: N*200
+    description: Maximum number of iterations (N = number of variables).
+    when_to_adjust: >
+      Increase for complex landscapes. This method can be slow.
+
+  maxfev:
+    type: int
+    default: N*200
+    description: Maximum number of function evaluations.
+
+  xatol:
+    type: float
+    default: 1.0e-4
+    description: Absolute error in xopt between iterations for convergence.
+
+  fatol:
+    type: float
+    default: 1.0e-4
+    description: Absolute error in func(xopt) between iterations for convergence.
+
+  adaptive:
+    type: bool
+    default: false
+    description: >
+      Adapt algorithm parameters to problem dimensionality.
+    when_to_use: >
+      Set to true for high-dimensional problems (N > 10).
+    recommendation: >
+      Strongly recommended for N > 10 variables.
+
+  initial_simplex:
+    type: array (N+1, N)
+    default: null
+    description: >
+      Initial simplex vertices. If null, constructed automatically from x0.
+      Custom simplex can improve convergence for known problem structure.
+
+  disp:
+    type: bool
+    default: false
+    description: Set to true to print convergence messages.
+
+# =============================================================================
+# Powell - Conjugate Direction Method
+# Best for: Derivative-free, direction set method
+# =============================================================================
+
+Powell:
+  maxiter:
+    type: int
+    default: N*1000
+    description: Maximum number of iterations (N = number of variables).
+
+  maxfev:
+    type: int
+    default: N*1000
+    description: Maximum number of function evaluations.
+
+  xtol:
+    type: float
+    default: 1.0e-4
+    description: Relative error in solution xopt acceptable for convergence.
+
+  ftol:
+    type: float
+    default: 1.0e-4
+    description: Relative error in func(xopt) acceptable for convergence.
+
+  direc:
+    type: array (N, N)
+    default: null
+    description: >
+      Initial direction vectors. If null, uses coordinate directions.
+      Custom directions can accelerate convergence for known structure.
+
+  disp:
+    type: bool
+    default: false
+    description: Set to true to print convergence messages.
+
+# =============================================================================
+# COBYLA - Constrained Optimization BY Linear Approximations
+# Best for: Derivative-free with inequality constraints
+# Note: Only supports inequality constraints (no equality)
+# =============================================================================
+
+COBYLA:
+  rhobeg:
+    type: float
+    default: 1.0
+    description: >
+      Initial trust region radius. Should be set to reasonable changes
+      in variables.
+    when_to_adjust: >
+      Scale to match variable magnitudes. If variables range 0-100, use rhobeg=10.
+
+  tol:
+    type: float
+    default: 1.0e-4
+    description: >
+      Final accuracy for optimization. Lower bound on trust region size.
+      Not precisely guaranteed.
+
+  maxiter:
+    type: int
+    default: 1000
+    description: Maximum number of function evaluations.
+
+  catol:
+    type: float
+    default: 2.0e-4
+    description: Absolute tolerance for constraint violations.
+    when_to_adjust: >
+      Tighten for strict constraint satisfaction. Loosen for faster convergence.
+
+  f_target:
+    type: float
+    default: null
+    description: >
+      Stop if objective function is less than f_target.
+      Useful when target value is known.
+
+  disp:
+    type: int
+    options: [0, 1, 2, 3]
+    default: 0
+    description: >
+      Output control: 0=none, 1=final message, 2=adds RHO values,
+      3=adds evaluation details.
+
+# =============================================================================
+# CG - Nonlinear Conjugate Gradient
+# Best for: Large-scale unconstrained smooth problems
+# Note: Does NOT support bounds or constraints, requires gradient
+# =============================================================================
+
+CG:
+  gtol:
+    type: float
+    default: 1.0e-5
+    description: Gradient norm must be less than gtol for termination.
+
+  maxiter:
+    type: int
+    default: null
+    description: Maximum number of iterations.
+
+  norm:
+    type: float
+    default: inf
+    description: Order of norm for gradient check (inf=max-norm).
+
+  eps:
+    type: float or array
+    default: 1.5e-8
+    description: Step size for numerical Jacobian approximation.
+
+  c1:
+    type: float
+    default: 1.0e-4
+    description: Armijo condition parameter for line search.
+    range: [0, 1]
+
+  c2:
+    type: float
+    default: 0.4
+    description: >
+      Curvature condition parameter. Must satisfy 0 < c1 < c2 < 1.
+      Smaller c2 for CG (0.4) than BFGS (0.9) ensures sufficient descent.
+    range: [0, 1]
+
+  return_all:
+    type: bool
+    default: false
+    description: If true, return list of solutions at each iteration.

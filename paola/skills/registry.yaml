@@ -8,7 +8,7 @@ categories:
     description: Expertise for optimization backends
     skills:
       - ipopt
-      # - scipy      # TODO: Phase 2
+      - scipy
       # - optuna     # TODO: Phase 2
 
   domains:
@@ -37,3 +37,21 @@ skills:
       - warm-start
       - NLP
       - gradient-based
+
+  scipy:
+    path: optimizers/scipy
+    description: >
+      SciPy optimize.minimize with multiple methods (SLSQP, L-BFGS-B, BFGS,
+      Nelder-Mead, Powell, COBYLA, trust-constr, CG). Good general-purpose
+      choice for small to medium problems.
+    keywords:
+      - scipy
+      - SLSQP
+      - L-BFGS-B
+      - BFGS
+      - Nelder-Mead
+      - Powell
+      - COBYLA
+      - trust-constr
+      - gradient-based
+      - derivative-free

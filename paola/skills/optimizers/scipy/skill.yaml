@@ -1,0 +1,191 @@
+# SciPy Optimizer Skill
+# Paola Skills v1.0
+
+# === METADATA (Level 1 - Always indexed) ===
+name: scipy
+version: "1.0.0"
+category: optimizers
+
+description: >
+  SciPy's optimize.minimize provides multiple optimization methods for different
+  problem types. Includes gradient-based (SLSQP, L-BFGS-B, BFGS), derivative-free
+  (Nelder-Mead, Powell, COBYLA), and trust-region methods.
+
+when_to_use:
+  - Small to medium problems (up to ~1000 variables)
+  - When you need a specific algorithm characteristic
+  - Quick prototyping and testing
+  - Problems where SciPy is already installed (no extra dependencies)
+  - Constrained problems with SLSQP or trust-constr
+  - Bound-constrained problems with L-BFGS-B
+
+when_not_to_use:
+  - Very large-scale problems (1000+ variables with constraints) - use IPOPT
+  - Black-box global optimization - use Optuna
+  - Problems requiring warm-start of multipliers - use IPOPT
+  - Discrete/integer variables - use Optuna
+
+keywords:
+  - scipy
+  - minimize
+  - gradient-based
+  - derivative-free
+  - SLSQP
+  - L-BFGS-B
+  - BFGS
+  - Nelder-Mead
+  - Powell
+  - COBYLA
+  - trust-constr
+
+# === OVERVIEW (Level 2 - Loaded on skill activation) ===
+overview: |
+  ## SciPy Optimization Overview
+
+  SciPy's `scipy.optimize.minimize` provides a unified interface to multiple
+  optimization algorithms. Each method has different capabilities and trade-offs.
+
+  ### Method Selection Guide
+
+  | Problem Type | Recommended Method | Why |
+  |--------------|-------------------|-----|
+  | Unconstrained, smooth, gradient available | BFGS or L-BFGS-B | Fast convergence |
+  | Unconstrained, no gradient | Nelder-Mead or Powell | Derivative-free |
+  | Bound-constrained only | L-BFGS-B | Efficient for bounds |
+  | Equality + inequality constraints | SLSQP | Full constraint support |
+  | Large constrained (100+ vars) | trust-constr | Modern trust-region |
+  | Noisy objective, no gradient | COBYLA | Robust to noise |
+
+  ### Method Capabilities Matrix
+
+  | Method | Bounds | Constraints | Gradient | Hessian |
+  |--------|--------|-------------|----------|---------|
+  | Nelder-Mead | Yes | No | No | No |
+  | Powell | Yes | No | No | No |
+  | CG | No | No | Required | No |
+  | BFGS | No | No | Required | No |
+  | L-BFGS-B | Yes | No | Optional | No |
+  | COBYLA | Yes | Yes (ineq) | No | No |
+  | SLSQP | Yes | Yes | Optional | No |
+  | trust-constr | Yes | Yes | Optional | Optional |
+
+  ### Integration with Paola
+
+  When using `run_optimization(optimizer="scipy:METHOD", ...)`:
+
+  1. **Method syntax**: Use `scipy:SLSQP`, `scipy:L-BFGS-B`, etc.
+
+  2. **Gradient handling**: If your evaluator provides gradients, SciPy will use them.
+     Otherwise, set `jac` option to `'2-point'` or `'3-point'` for numerical approximation.
+
+  3. **Constraints**: For SLSQP and trust-constr, constraints are passed via
+     the problem definition, not the config.
+
+  4. **Warm-starting**: SciPy methods accept x0 from parent node via
+     `init_strategy="warm_start"`, but do not warm-start multipliers
+     (use IPOPT if multiplier warm-start is critical).
+
+  ### Option Categories
+
+  Use `load_skill("scipy", "options.<method>")` for method-specific options:
+
+  | Method | Key Options |
+  |--------|-------------|
+  | SLSQP | ftol, maxiter, eps |
+  | L-BFGS-B | maxcor, ftol, gtol, maxiter, maxls |
+  | BFGS | gtol, maxiter, xrtol, c1, c2 |
+  | trust-constr | gtol, xtol, maxiter, initial_tr_radius |
+  | Nelder-Mead | maxiter, maxfev, xatol, fatol, adaptive |
+  | Powell | xtol, ftol, maxiter, maxfev |
+  | COBYLA | rhobeg, tol, maxiter, catol |
+  | CG | gtol, maxiter, c1, c2 |
+
+# === RESOURCES (Level 3 - Loaded on demand) ===
+resources:
+  options: options.yaml
+
+# === RELATIONSHIPS ===
+related_skills:
+  - ipopt
+  - optuna
+
+# === PAOLA INTEGRATION (Unique to Paola Skills) ===
+paola:
+  optimizer_name: scipy
+  backend: SciPyBackend
+  requires_gradient: depends_on_method
+  supports_constraints: true  # SLSQP, trust-constr, COBYLA
+  supports_warm_start: partial  # x0 only, not multipliers
+
+  methods:
+    SLSQP:
+      gradient: optional
+      constraints: true
+      bounds: true
+      best_for: "General constrained optimization"
+    L-BFGS-B:
+      gradient: optional
+      constraints: false
+      bounds: true
+      best_for: "Large bound-constrained, limited memory"
+    BFGS:
+      gradient: required
+      constraints: false
+      bounds: false
+      best_for: "Smooth unconstrained, fast convergence"
+    trust-constr:
+      gradient: optional
+      constraints: true
+      bounds: true
+      best_for: "Modern trust-region, large constrained"
+    Nelder-Mead:
+      gradient: false
+      constraints: false
+      bounds: true
+      best_for: "Derivative-free, robust to noise"
+    Powell:
+      gradient: false
+      constraints: false
+      bounds: true
+      best_for: "Derivative-free, direction set method"
+    COBYLA:
+      gradient: false
+      constraints: inequality_only
+      bounds: true
+      best_for: "Derivative-free with constraints"
+    CG:
+      gradient: required
+      constraints: false
+      bounds: false
+      best_for: "Large unconstrained, conjugate gradient"
+
+  graph_integration:
+    warm_start_support: |
+      SciPy methods accept x0 from parent node but do NOT warm-start
+      Lagrange multipliers. For problems where multiplier warm-start
+      matters (tight constraints), consider IPOPT instead.
+
+    typical_usage: |
+      - First node: Global exploration with Nelder-Mead or Powell
+      - Refinement: Switch to SLSQP or L-BFGS-B for gradient-based polish
+
+  learning:
+    track_options:
+      - method
+      - maxiter
+      - ftol
+      - gtol
+      - tol
+    success_indicators:
+      - status_equals: 0
+      - message_contains: "Optimization terminated successfully"
+    failure_patterns:
+      - pattern: "Maximum number of iterations"
+        likely_cause: "Slow convergence or difficult problem"
+        suggested_action: "Increase maxiter or try different method"
+      - pattern: "Inequality constraints incompatible"
+        likely_cause: "Infeasible constraint region"
+        suggested_action: "Check constraint definitions"
+      - pattern: "Positive directional derivative"
+        likely_cause: "Poor gradient estimate or numerical issues"
+        suggested_action: "Try numerical gradient with smaller eps"
