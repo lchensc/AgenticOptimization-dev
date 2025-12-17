@@ -1,0 +1,39 @@
+# Paola Skills Registry
+# Global index for skill discovery
+
+version: "1.0"
+
+categories:
+  optimizers:
+    description: Expertise for optimization backends
+    skills:
+      - ipopt
+      # - scipy      # TODO: Phase 2
+      # - optuna     # TODO: Phase 2
+
+  domains:
+    description: Domain-specific optimization expertise
+    skills: []  # TODO: Phase 5
+
+  patterns:
+    description: Optimization patterns and strategies
+    skills: []  # TODO: Future
+
+  learned:
+    description: Knowledge learned from past optimizations
+    skills: []  # Dynamically populated
+
+# Skill quick reference for discovery
+skills:
+  ipopt:
+    path: optimizers/ipopt
+    description: >
+      IPOPT (Interior Point OPTimizer) for large-scale nonlinear optimization.
+      Best for constrained problems, supports warm-starting.
+    keywords:
+      - interior-point
+      - constrained
+      - large-scale
+      - warm-start
+      - NLP
+      - gradient-based

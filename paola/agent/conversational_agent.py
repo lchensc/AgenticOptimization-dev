@@ -264,12 +264,23 @@ def build_conversational_agent(
             messages.append(response)
 
             # Emit reasoning if there's content before tool calls
-            if callback_mgr and response.content:
+            # Handle both string and list content formats
+            reasoning_content = response.content
+            if isinstance(reasoning_content, list):
+                # Claude/some models return list of content blocks
+                reasoning_content = ' '.join(
+                    block.get('text', '') if isinstance(block, dict) else str(block)
+                    for block in reasoning_content
+                )
+
+            if callback_mgr and reasoning_content and str(reasoning_content).strip():
                 callback_mgr.emit(create_event(
                     event_type=EventType.REASONING,
                     iteration=iteration,
-                    data={"reasoning": response.content}
+                    data={"reasoning": reasoning_content}
                 ))
+            else:
+                logger.debug(f"No reasoning content in response (content={type(response.content).__name__})")
 
             # Handle invalid tool calls first - send error feedback for self-correction
             # This is critical for Qwen which may produce malformed tool calls

@@ -1,0 +1,259 @@
+# IPOPT Options Reference
+# Full option documentation for Paola agent
+
+termination:
+  tol:
+    type: float
+    default: 1.0e-8
+    range: [0, .inf]
+    description: >
+      Desired convergence tolerance (relative). The algorithm terminates
+      when the scaled NLP error becomes smaller than this value.
+    when_to_adjust: >
+      Tighten to 1e-10 for high-accuracy engineering design.
+      Loosen to 1e-4 for quick exploration or noisy functions.
+    example_values:
+      high_accuracy: 1.0e-10
+      standard: 1.0e-8
+      exploration: 1.0e-4
+
+  max_iter:
+    type: int
+    default: 3000
+    range: [0, .inf]
+    description: Maximum number of iterations.
+    when_to_adjust: >
+      Increase for complex problems with many constraints.
+      Decrease for quick feasibility checks.
+    example_values:
+      quick: 100
+      standard: 3000
+      thorough: 10000
+
+  acceptable_tol:
+    type: float
+    default: 1.0e-6
+    range: [0, .inf]
+    description: >
+      Acceptable convergence tolerance. If algorithm cannot achieve tol,
+      it may terminate with this looser tolerance after acceptable_iter
+      iterations at acceptable level.
+    when_to_adjust: >
+      Set between tol and 1e-4 to allow graceful termination for
+      difficult problems.
+
+  acceptable_iter:
+    type: int
+    default: 15
+    range: [0, .inf]
+    description: >
+      Number of acceptable iterations before triggering termination
+      at acceptable tolerance level.
+
+  max_wall_time:
+    type: float
+    default: 1.0e20
+    range: [0, .inf]
+    description: Maximum wall-clock time in seconds.
+    when_to_adjust: Use for time-limited optimization runs.
+
+warm_start:
+  warm_start_init_point:
+    type: string
+    options: ["yes", "no"]
+    default: "no"
+    description: >
+      Warm-start initialization. When "yes", IPOPT uses initial values
+      for primal variables and initializes dual variables appropriately.
+    when_to_use: >
+      CRITICAL for Paola: Set to "yes" when using init_strategy="warm_start".
+      The graph edge provides x0, but this flag tells IPOPT to initialize
+      dual variables properly for faster convergence.
+    paola_integration: >
+      Required when edge_type is "warm_start" or "refine".
+
+  warm_start_bound_push:
+    type: float
+    default: 1.0e-3
+    range: [0, 0.5]
+    description: >
+      Minimum distance from initial point to bounds during warm start.
+    when_to_adjust: >
+      Decrease to 1e-6 if parent solution is well within bounds.
+      Increase if getting bound violations at start.
+
+  warm_start_bound_frac:
+    type: float
+    default: 1.0e-3
+    range: [0, 0.5]
+    description: >
+      Similar to warm_start_bound_push but as fraction of bound range.
+
+  warm_start_mult_bound_push:
+    type: float
+    default: 1.0e-3
+    range: [0, .inf]
+    description: >
+      Minimum value for multiplier warm start.
+
+hessian:
+  hessian_approximation:
+    type: string
+    options: ["exact", "limited-memory"]
+    default: "exact"
+    description: How to obtain second-order information.
+    when_to_use: >
+      "exact": When evaluator provides Hessian (fastest convergence).
+      "limited-memory": When no Hessian available (most common in Paola).
+    paola_integration: >
+      Most Paola evaluators don't provide Hessians. Use "limited-memory"
+      as default unless your evaluator explicitly supports Hessian.
+    recommendation: "limited-memory"
+
+  limited_memory_max_history:
+    type: int
+    default: 6
+    range: [0, .inf]
+    description: Number of past iterations for L-BFGS Hessian approximation.
+    when_to_adjust: >
+      Increase to 10-20 for better Hessian approximation and faster convergence.
+      Decrease if memory is constrained.
+    recommendation: 10-20 for engineering optimization
+
+  limited_memory_update_type:
+    type: string
+    options: ["bfgs", "sr1"]
+    default: "bfgs"
+    description: Update formula for limited-memory Hessian.
+    when_to_use: >
+      "bfgs": More stable, recommended for most cases.
+      "sr1": May work better for some problems but less stable.
+
+barrier:
+  mu_strategy:
+    type: string
+    options: ["monotone", "adaptive"]
+    default: "monotone"
+    description: Update strategy for barrier parameter.
+    when_to_use: >
+      "adaptive": More robust, better for difficult problems.
+      "monotone": Faster when problem is well-behaved.
+    recommendation: >
+      Start with "adaptive" for robustness. Switch to "monotone" if
+      convergence is smooth and you want speed.
+
+  mu_init:
+    type: float
+    default: 0.1
+    range: [0, .inf]
+    description: Initial value of the barrier parameter.
+    when_to_adjust: >
+      Decrease for problems starting near solution.
+      Increase (to 1.0) for infeasible starting points.
+
+  mu_max:
+    type: float
+    default: 1.0e5
+    range: [0, .inf]
+    description: Maximum value of the barrier parameter.
+
+  barrier_tol_factor:
+    type: float
+    default: 10
+    range: [0, .inf]
+    description: Factor for barrier tolerance relative to overall tolerance.
+
+scaling:
+  nlp_scaling_method:
+    type: string
+    options: ["none", "user-scaling", "gradient-based", "equilibration-based"]
+    default: "gradient-based"
+    description: Method for scaling the NLP.
+    when_to_use: >
+      "gradient-based": Good default for most problems.
+      "user-scaling": When you provide scaling factors.
+      "equilibration-based": For poorly scaled problems.
+      "none": When problem is already well-scaled.
+
+  obj_scaling_factor:
+    type: float
+    default: 1.0
+    range: [-.inf, .inf]
+    description: Scaling factor for the objective function.
+    when_to_adjust: >
+      Set to -1 for maximization.
+      Adjust magnitude if objective is very large/small compared to constraints.
+
+  nlp_scaling_max_gradient:
+    type: float
+    default: 100.0
+    range: [0, .inf]
+    description: Maximum gradient after NLP scaling.
+    when_to_adjust: >
+      Increase if seeing "scaled gradient too large" warnings.
+
+linear_solver:
+  linear_solver:
+    type: string
+    options: ["mumps", "ma27", "ma57", "ma77", "ma86", "ma97", "pardiso", "pardisomkl"]
+    default: "mumps"
+    description: Linear solver for the KKT system.
+    when_to_use: >
+      "mumps": Good default, freely available with cyipopt.
+      "ma57": Faster for many problems (requires HSL library).
+      "ma97": Best for very large problems (requires HSL library).
+      "pardiso": Good parallel performance (requires license).
+    paola_integration: >
+      MUMPS is included with cyipopt. HSL solvers require separate
+      installation but can be 2-5x faster for large problems.
+
+  linear_system_scaling:
+    type: string
+    options: ["none", "mc19", "slack-based"]
+    default: "mc19"
+    description: Scaling method for the linear system.
+
+output:
+  print_level:
+    type: int
+    default: 5
+    range: [0, 12]
+    description: Output verbosity level.
+    when_to_adjust: >
+      0: No output (production/Paola default).
+      5: Standard progress.
+      8-12: Detailed debugging.
+    paola_integration: Use 0 for clean Paola output.
+
+  print_user_options:
+    type: string
+    options: ["yes", "no"]
+    default: "no"
+    description: Print all user-set options before optimization.
+
+  output_file:
+    type: string
+    default: ""
+    description: File for detailed IPOPT output.
+    when_to_adjust: Set for debugging problematic optimizations.
+
+constraints:
+  constr_viol_tol:
+    type: float
+    default: 1.0e-4
+    range: [0, .inf]
+    description: >
+      Absolute tolerance for constraint violation.
+    when_to_adjust: >
+      Tighten for strict constraint satisfaction.
+      Loosen if having trouble finding feasible point.
+
+  expect_infeasible_problem:
+    type: string
+    options: ["yes", "no"]
+    default: "no"
+    description: >
+      Enable heuristics for infeasible problems.
+    when_to_use: >
+      Set to "yes" if starting from infeasible point or
+      if problem may be infeasible.

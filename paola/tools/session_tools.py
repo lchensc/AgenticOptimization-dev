@@ -182,7 +182,7 @@ def finalize_session(
             "total_evaluations": record.total_evaluations,
             "n_runs": len(record.runs),
             "total_wall_time": record.total_wall_time,
-            "message": f"Session #{session_id} finalized. Best objective: {record.final_objective:.6e}, {len(record.runs)} run(s), {record.total_evaluations} evaluations.",
+            "message": f"Session #{session_id} finalized. Best objective: {f'{record.final_objective:.6e}' if record.final_objective is not None else 'N/A'}, {len(record.runs)} run(s), {record.total_evaluations} evaluations.",
         }
 
     except Exception as e:

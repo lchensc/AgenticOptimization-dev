@@ -843,7 +843,10 @@ try:
             new_tokens = new_input_tokens + stats.output_tokens
 
             # Claude Code style: minimal display
-            print(f"({new_tokens} tokens)")
+            # Use sys.stdout to avoid interfering with Rich console output
+            import sys
+            sys.stdout.write(f"({new_tokens} tokens)\n")
+            sys.stdout.flush()
 
 except ImportError:
     # LangChain not available, skip LangChain callback

@@ -299,6 +299,12 @@ def finalize_graph(
                 "message": f"Failed to finalize graph {graph_id}.",
             }
 
+        # Format final objective (handle None case)
+        if record.final_objective is not None:
+            obj_str = f"{record.final_objective:.6e}"
+        else:
+            obj_str = "N/A"
+
         return {
             "success": True,
             "graph_id": graph_id,
@@ -309,7 +315,7 @@ def finalize_graph(
             "total_wall_time": record.total_wall_time,
             "message": (
                 f"Graph #{graph_id} finalized. "
-                f"Best objective: {record.final_objective:.6e}, "
+                f"Best objective: {obj_str}, "
                 f"{len(record.nodes)} node(s), "
                 f"{record.total_evaluations} evaluations."
             ),
@@ -568,7 +574,8 @@ def get_past_graph(graph_id: int) -> Dict[str, Any]:
             "edges": edges,
             "outcome": outcome,
             "message": f"Graph #{graph_id}: {record.problem_id}, {len(strategy)} nodes, "
-                       f"pattern={record.pattern}, final_obj={record.final_objective:.2e}",
+                       f"pattern={record.pattern}, final_obj="
+                       f"{f'{record.final_objective:.2e}' if record.final_objective is not None else 'N/A'}",
         }
 
     except Exception as e:

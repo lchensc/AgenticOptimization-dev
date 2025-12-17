@@ -35,7 +35,7 @@ class CLICallback:
         """Handle and display event."""
 
         if event.event_type == EventType.REASONING:
-            # Agent thinking - dim style
+            # Agent thinking - always show reasoning regardless of developer mode
             reasoning = event.data.get('reasoning', '')
             # Handle both string and list formats (Claude returns list of content blocks)
             if isinstance(reasoning, list):
@@ -48,6 +48,9 @@ class CLICallback:
                 # Strip numbered prefixes (e.g., "1. First..." -> "First...")
                 reasoning = strip_numbered_prefix(reasoning)
                 if reasoning:
+                    # Flush stdout to ensure proper ordering with print() statements
+                    import sys
+                    sys.stdout.flush()
                     self.console.print(f"💭 {reasoning}", style="dim")
 
         elif event.event_type == EventType.TOOL_CALL:

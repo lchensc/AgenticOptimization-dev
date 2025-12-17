@@ -223,10 +223,13 @@ class IPOPTBackend(OptimizerBackend):
             "supports_constraints": True,
             "supports_bounds": True,
             "requires_gradients": True,
+            "full_passthrough": True,  # All IPOPT options supported
             "key_options": [
                 "tol", "max_iter", "mu_strategy", "mu_init",
-                "linear_solver", "nlp_scaling_method", "print_level"
+                "hessian_approximation", "limited_memory_max_history",
+                "warm_start_init_point", "linear_solver", "print_level"
             ],
+            "skill": "ipopt",  # Paola skill for detailed options
         }
 
     def optimize(
@@ -274,28 +277,32 @@ class IPOPTBackend(OptimizerBackend):
         # Prepare bounds
         ipopt_bounds = [(b[0], b[1]) for b in bounds]
 
-        # Prepare IPOPT options
+        # Prepare IPOPT options - FULL PASSTHROUGH
+        # Pass all config options to IPOPT, with convenience mappings
         options = {}
-        option_mapping = {
-            "tol": "tol",
-            "max_iter": "max_iter",
+
+        # Convenience mappings for common alternative names
+        key_mappings = {
             "maxiter": "max_iter",
-            "mu_strategy": "mu_strategy",
-            "mu_init": "mu_init",
-            "linear_solver": "linear_solver",
-            "nlp_scaling_method": "nlp_scaling_method",
-            "print_level": "print_level",
+            "max_iterations": "max_iter",
         }
 
-        for key, ipopt_key in option_mapping.items():
-            if key in config:
-                options[ipopt_key] = config[key]
+        # Keys to exclude (not IPOPT options)
+        excluded_keys = {"method", "solver", "backend"}
 
-        # Set defaults
+        # Pass through all options
+        for key, value in config.items():
+            if key in excluded_keys:
+                continue
+            # Apply convenience mapping if exists
+            ipopt_key = key_mappings.get(key, key)
+            options[ipopt_key] = value
+
+        # Set defaults only if not provided
         if "max_iter" not in options:
-            options["max_iter"] = config.get("max_iterations", 100)
+            options["max_iter"] = 3000  # IPOPT default
         if "print_level" not in options:
-            options["print_level"] = 0
+            options["print_level"] = 0  # Quiet by default for Paola
 
         try:
             result = minimize_ipopt(

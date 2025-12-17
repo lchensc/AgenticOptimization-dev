@@ -1,0 +1,126 @@
+# IPOPT Optimizer Skill
+# Paola Skills v1.0
+
+# === METADATA (Level 1 - Always indexed) ===
+name: ipopt
+version: "1.0.0"
+category: optimizers
+
+description: >
+  IPOPT (Interior Point OPTimizer) for large-scale nonlinear optimization.
+  Best for problems with many constraints, supports warm-starting.
+
+when_to_use:
+  - Large-scale problems (100+ variables)
+  - Problems with equality and inequality constraints
+  - When warm-starting from previous solutions
+  - When high accuracy is required
+  - Gradient-based optimization with bounds
+
+when_not_to_use:
+  - Simple bound-constrained problems (use scipy:L-BFGS-B instead)
+  - Black-box functions without gradients (use optuna instead)
+  - Very small problems (<10 variables, SciPy has less overhead)
+  - Discrete or integer variables (use optuna or mixed-integer solvers)
+
+keywords:
+  - interior-point
+  - constrained
+  - large-scale
+  - warm-start
+  - NLP
+  - gradient-based
+
+# === OVERVIEW (Level 2 - Loaded on skill activation) ===
+overview: |
+  ## IPOPT Overview
+
+  IPOPT (Interior Point OPTimizer) implements a primal-dual interior-point
+  method with a filter line-search for nonlinear programming.
+
+  ### Key Capabilities
+
+  - **Constraint Handling**: Equality and inequality constraints via barrier method
+  - **Warm-Starting**: Critical for Paola's graph-based multi-node optimization
+  - **Linear Solvers**: MUMPS (default), MA57, MA97, Pardiso for large sparse systems
+  - **Scaling**: Automatic gradient-based scaling or user-provided
+  - **Hessian Options**: Exact, limited-memory BFGS, or approximation
+
+  ### Integration with Paola
+
+  When using `run_optimization(optimizer="ipopt", ...)`:
+
+  1. **Warm-starting**: If using `init_strategy="warm_start"`, you MUST also set
+     `warm_start_init_point: "yes"` in the config. The graph edge provides x0,
+     but IPOPT needs this flag to initialize multipliers properly.
+
+  2. **No Hessian**: If your evaluator doesn't provide Hessian, set
+     `hessian_approximation: "limited-memory"` and consider increasing
+     `limited_memory_max_history` to 10-20.
+
+  3. **Large-scale**: For 1000+ variables, ensure `linear_solver: "mumps"`
+     and consider `nlp_scaling_method: "gradient-based"`.
+
+  ### Option Categories
+
+  Use `load_skill("ipopt", "options.<category>")` for details:
+
+  | Category | Key Options | Use Case |
+  |----------|-------------|----------|
+  | termination | tol, max_iter, acceptable_tol | Convergence control |
+  | warm_start | warm_start_init_point, warm_start_bound_push | Continuing from parent node |
+  | hessian | hessian_approximation, limited_memory_max_history | Second-order info |
+  | barrier | mu_strategy, mu_init | Interior-point method |
+  | scaling | nlp_scaling_method, obj_scaling_factor | Problem conditioning |
+  | linear_solver | linear_solver | Matrix factorization |
+  | output | print_level | Debugging |
+
+# === RESOURCES (Level 3 - Loaded on demand) ===
+resources:
+  options: options.yaml
+
+# === RELATIONSHIPS ===
+related_skills:
+  - scipy
+  - warm_starting
+
+# === PAOLA INTEGRATION (Unique to Paola Skills) ===
+paola:
+  optimizer_name: ipopt
+  backend: IPOPTBackend
+  requires_gradient: preferred
+  supports_constraints: true
+  supports_warm_start: true
+
+  graph_integration:
+    warm_start_requirements:
+      - "Set warm_start_init_point: 'yes' in config"
+      - "Parent node provides x0 via init_strategy='warm_start'"
+      - "Consider warm_start_bound_push for solutions near bounds"
+
+  evaluation_guidance:
+    typical_cost: medium
+    gradient_cost: similar
+    hessian_cost: unavailable
+    recommendation: |
+      Most Paola evaluators don't provide Hessians.
+      Use hessian_approximation="limited-memory" as default.
+
+  learning:
+    track_options:
+      - tol
+      - max_iter
+      - mu_strategy
+      - hessian_approximation
+      - warm_start_init_point
+      - limited_memory_max_history
+    success_indicators:
+      - message_contains: "Optimal Solution Found"
+      - constraint_violation_below: 1.0e-6
+    failure_patterns:
+      - pattern: "Maximum Number of Iterations Exceeded"
+        likely_cause: "Poor scaling or difficult problem"
+        suggested_action: "Try mu_strategy='adaptive', increase limited_memory_max_history"
+      - pattern: "Restoration Failed"
+        likely_cause: "Infeasible problem or bad starting point"
+        suggested_action: "Check constraints, try expect_infeasible_problem='yes'"

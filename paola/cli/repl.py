@@ -90,6 +90,9 @@ class AgenticOptREPL:
             foundry_get_evaluator
         )
 
+        # Import skill tools (Paola Skills infrastructure)
+        from ..skills import get_skill_tools
+
         # Import LLM-driven optimization tools (Paola Principle)
         from ..tools.optimization_tools import (
             run_optimization,
@@ -152,6 +155,9 @@ class AgenticOptREPL:
             foundry_store_evaluator,
             foundry_list_evaluators,
             foundry_get_evaluator,
+
+            # Skill tools (optimization expertise)
+            *get_skill_tools(),
         ]
 
         # Running state
@@ -477,6 +483,13 @@ class AgenticOptREPL:
                 self.command_handler.handle_evaluator_show(cmd_parts[1])
         elif cmd == '/mode':
             self._toggle_developer_mode()
+        elif cmd == '/skills':
+            self._show_skills()
+        elif cmd == '/skill':
+            if len(cmd_parts) < 2:
+                self._show_skills()
+            else:
+                self._show_skill_detail(cmd_parts[1])
         else:
             self.console.print(f"Unknown command: {cmd}. Type /help for available commands.", style="yellow")
 
@@ -498,6 +511,10 @@ class AgenticOptREPL:
   /register_eval <file.py>   - Register evaluators using AI agent (recommended)
   /evals                     - List all registered evaluators
   /eval <id>                 - Show detailed evaluator configuration
+
+[bold]Skills (Optimization Expertise):[/bold]
+  /skills                    - List all available Paola skills
+  /skill <name>              - Show detailed skill information (e.g., /skill ipopt)
 
 [bold]Graph Commands (v0.3.1):[/bold]
   /graphs                    - List all optimization graphs
@@ -628,3 +645,90 @@ class AgenticOptREPL:
             self.console.print("[dim]  - Tool results will be displayed[/dim]\n")
         else:
             self.console.print("\n[bold cyan]Developer mode: OFF[/bold cyan]\n")
+
+    def _show_skills(self):
+        """Display available Paola skills."""
+        from ..skills import SkillIndex
+
+        try:
+            index = SkillIndex()
+            skills = index.list_skills()
+
+            if not skills:
+                self.console.print("\n[dim]No skills found[/dim]\n")
+                return
+
+            self.console.print("\n[bold cyan]Available Paola Skills:[/bold cyan]\n")
+
+            # Group by category
+            by_category = {}
+            for skill in skills:
+                category = skill.get('category', 'unknown')
+                if category not in by_category:
+                    by_category[category] = []
+                by_category[category].append(skill)
+
+            for category, cat_skills in by_category.items():
+                self.console.print(f"[bold]{category}:[/bold]")
+                for skill in cat_skills:
+                    self.console.print(f"  • [yellow]{skill['name']}[/yellow] - {skill.get('description', 'N/A')[:60]}")
+                self.console.print()
+
+            self.console.print("[dim]Use /skill <name> for details, or let the agent use list_skills/load_skill tools[/dim]\n")
+
+        except Exception as e:
+            self.console.print(f"[red]Error listing skills: {e}[/red]\n")
+
+    def _show_skill_detail(self, skill_name: str):
+        """Display detailed information about a skill."""
+        from ..skills import SkillLoader
+
+        try:
+            loader = SkillLoader()
+            metadata = loader.load_metadata(skill_name)
+            overview = loader.load_overview(skill_name)
+
+            self.console.print(f"\n[bold cyan]{metadata['name'].upper()} Skill[/bold cyan]\n")
+            self.console.print(f"[bold]Category:[/bold] {metadata.get('category', 'unknown')}")
+            self.console.print(f"[bold]Description:[/bold] {metadata.get('description', 'N/A')}\n")
+
+            when_to_use = metadata.get('when_to_use', [])
+            if when_to_use:
+                self.console.print("[bold]When to use:[/bold]")
+                if isinstance(when_to_use, list):
+                    for item in when_to_use:
+                        self.console.print(f"  • {item}")
+                else:
+                    self.console.print(f"  {when_to_use}")
+                self.console.print()
+
+            when_not = metadata.get('when_not_to_use', [])
+            if when_not:
+                self.console.print("[bold]When NOT to use:[/bold]")
+                if isinstance(when_not, list):
+                    for item in when_not:
+                        self.console.print(f"  • {item}")
+                else:
+                    self.console.print(f"  {when_not}")
+                self.console.print()
+
+            # Show overview (truncated for display)
+            self.console.print("[bold]Overview:[/bold]")
+            overview_lines = overview.split('\n')[:15]  # First 15 lines
+            for line in overview_lines:
+                self.console.print(f"  {line}")
+            if len(overview.split('\n')) > 15:
+                self.console.print("  [dim]... (use load_skill tool for full content)[/dim]")
+            self.console.print()
+
+            # Show available sections
+            self.console.print("[bold]Available sections:[/bold]")
+            self.console.print("  • overview (loaded above)")
+            self.console.print("  • options - Full option reference")
+            self.console.print("  • options.<category> - Specific option category (e.g., options.warm_start)")
+            self.console.print("  • paola - Paola integration info")
+            self.console.print()
+            self.console.print(f"[dim]Use load_skill(\"{skill_name}\", \"<section>\") for detailed content[/dim]\n")
+
+        except Exception as e:
+            self.console.print(f"[red]Error loading skill '{skill_name}': {e}[/red]\n")

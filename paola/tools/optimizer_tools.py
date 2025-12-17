@@ -423,7 +423,7 @@ def optimizer_restart(
             "cache_reused": reuse_cache,
             "message": (
                 f"Restarted from {restart_from} design. "
-                f"Objective: {restart_obj if restart_obj is not None else 'unknown':.6f}. "
+                f"Objective: {f'{restart_obj:.6f}' if restart_obj is not None else 'unknown'}. "
                 f"Cache {'preserved' if reuse_cache else 'cleared'}."
             ),
         }
