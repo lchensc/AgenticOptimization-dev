@@ -100,14 +100,14 @@ class AgenticOptREPL:
             list_available_optimizers,
         )
 
-        # Import expert configuration tools
-        from ..tools.config_tools import (
-            config_scipy,
-            config_ipopt,
-            config_nlopt,
-            config_optuna,
-            explain_config_option,
-        )
+        # Import expert configuration tools (DISABLED for testing - Skills should cover this)
+        # from ..tools.config_tools import (
+        #     config_scipy,
+        #     config_ipopt,
+        #     config_nlopt,
+        #     config_optuna,
+        #     explain_config_option,
+        # )
 
         # Tools - agent explicitly manages graphs (v0.3.x)
         self.tools = [
@@ -126,12 +126,12 @@ class AgenticOptREPL:
             get_problem_info,
             list_available_optimizers,
 
-            # Expert configuration (escape hatch)
-            config_scipy,
-            config_ipopt,
-            config_nlopt,
-            config_optuna,
-            explain_config_option,
+            # Expert configuration (escape hatch) - DISABLED for testing
+            # config_scipy,
+            # config_ipopt,
+            # config_nlopt,
+            # config_optuna,
+            # explain_config_option,
 
             # Analysis (deterministic)
             analyze_convergence_new,

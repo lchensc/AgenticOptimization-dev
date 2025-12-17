@@ -42,17 +42,18 @@ AgenticOptimization/
 ├── paola/                                 # Main package
 │   ├── agent/                            # LangGraph agents (conversational, react)
 │   ├── tools/                            # LangChain @tool functions
-│   │   ├── graph_tools.py                # Graph management (v0.3.0)
-│   │   ├── session_tools.py              # Session management (v0.2.0 legacy)
+│   │   ├── graph_tools.py                # Graph management (v0.3.x)
 │   │   ├── optimization_tools.py         # run_optimization, get_problem_info
 │   │   ├── evaluator_tools.py            # create_nlp_problem, evaluate_function
-│   │   ├── config_tools.py               # Expert escape hatch (config_scipy, etc.)
 │   │   └── analysis.py                   # Metrics and AI analysis
+│   ├── skills/                           # Optimizer expertise (IPOPT, SciPy, Optuna, NLopt)
+│   │   ├── data/                         # YAML skill definitions
+│   │   ├── tools.py                      # list_skills, load_skill, query_skills
+│   │   └── loader.py                     # Progressive disclosure loader
 │   ├── foundry/                          # Data foundation layer
 │   │   ├── schema/                       # Polymorphic components per optimizer family
 │   │   ├── storage/                      # FileStorage backend
-│   │   ├── active_graph.py               # In-progress graph/node tracking (v0.3.0)
-│   │   ├── active_session.py             # In-progress session/run tracking (v0.2.0)
+│   │   ├── active_graph.py               # In-progress graph/node tracking (v0.3.x)
 │   │   └── foundry.py                    # OptimizationFoundry main class
 │   ├── optimizers/                       # Optimizer backends (SciPy, IPOPT, Optuna)
 │   ├── cli/                              # Interactive CLI (repl.py, commands.py)
@@ -219,16 +220,17 @@ The LLM agent IS the intelligence. It has been trained on IPOPT docs, SciPy refe
   - `edge_type`: Relationship type (warm_start, restart, refine, branch, explore)
   - `config`: JSON string with optimizer-specific options
 
-**Information Tools** (3 tools):
+**Information Tools** (2 tools):
 - `get_problem_info(problem_id)` - Get problem characteristics for LLM reasoning
 - `list_optimizers()` - List available optimizer backends
-- `get_optimizer_options(optimizer)` - Get optimizer configuration options
 
 **Problem Formulation**:
 - `create_nlp_problem(problem_id, objective_evaluator_id, bounds, constraints)` - Define NLP
 
-**Expert Escape Hatch** (optional):
-- `config_scipy(...)`, `config_ipopt(...)` - Direct configuration for experts
+**Skills** (optimizer expertise via progressive disclosure):
+- `list_skills()` - Discover available optimizer skills
+- `load_skill(name, section)` - Load detailed configuration knowledge
+- `query_skills(query)` - Search across skills for specific topics
 
 ### Evaluation Cache (Critical for Efficiency)
 
@@ -260,24 +262,23 @@ The cache prevents re-running expensive simulations when the optimizer revisits 
 **Tool architecture design**:
 - The Paola Principle implementation
 - Compact bounds specification
-- Expert escape hatch pattern
+- Skills infrastructure for optimizer expertise
 
 ## Implementation Status
 
-**Current state**: v0.3.0 - Graph-based architecture implemented
+**Current state**: v0.3.1 - Graph-based architecture with Skills
 
 **Working features**:
 - CLI with conversational interface (`python -m paola.cli`)
 - Graph management (start, run, get_state, finalize)
 - Multiple optimizer backends (SciPy, IPOPT, Optuna)
+- Skills infrastructure for optimizer expertise (progressive disclosure)
 - Evaluator registration system
 - Polymorphic node storage per optimizer family
 - Graph patterns (single, multistart, chain, tree, dag)
 - Edge types for node relationships (warm_start, restart, refine, branch, explore)
 - Agent explicitly specifies parent_node and edge_type
-
-**Legacy support**:
-- Session-based API (v0.2.0) still available for backward compatibility
+- Two-tier graph storage for cross-graph learning
 
 **In progress**:
 - Knowledge base with RAG retrieval (skeleton implemented)
@@ -305,34 +306,32 @@ When implementing this platform:
 - **Pattern**: Graph structure (single, multistart, chain, tree, dag)
 - **Optimizer Family**: Category of optimizer (gradient, bayesian, population, cmaes)
 - **Polymorphic Components**: Family-specific data structures (iterations vs trials vs generations)
+- **Skills**: Progressive-disclosure optimizer expertise (IPOPT, SciPy, Optuna, NLopt)
 - **Warm-start**: Using parent node's best_x as starting point
 - **The Paola Principle**: "Optimization complexity is Paola intelligence, not user burden"
-- **Expert Escape Hatch**: Optional tools for direct optimizer configuration
 - **Evaluation Cache**: Storage for expensive simulation results
 - **Domain Hint**: Optional problem metadata (e.g., "shape_optimization")
-
-Legacy terms (v0.2.0):
-- **Session**: Complete optimization task (equivalent to Graph)
-- **Run**: Single optimizer execution (equivalent to Node)
 
 ## CLI Commands
 
 ```
-# Graph Commands (v0.3.0)
+# Graph Commands
 /graphs              - List all optimization graphs
 /graph show <id>     - Show detailed graph information
 /graph plot <id>     - Plot convergence history
 /graph compare <id1> <id2> - Compare graphs side-by-side
 /graph best          - Show best solution across all graphs
+/graph query         - Query past graphs for cross-graph learning
 
-# General Commands (auto-detect graph vs session)
-/show <id>           - Show details (prefers graph)
+# Shortcuts
+/show <id>           - Show graph details
 /plot <id>           - Plot convergence
-/compare <id1> <id2> - Compare
+/compare <id1> <id2> - Compare graphs
 /best                - Show best solution
 
-# Legacy Session Commands (v0.2.0)
-/sessions            - List all optimization sessions
+# Skills
+/skills              - List all optimizer skills
+/skill <name>        - Show skill details (e.g., /skill ipopt)
 
 # Other Commands
 /evals               - List registered evaluators

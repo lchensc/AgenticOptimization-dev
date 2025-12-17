@@ -35,26 +35,23 @@ def _get_index() -> SkillIndex:
 @tool
 def list_skills(category: Optional[str] = None) -> str:
     """
-    List available Paola skills with their descriptions.
+    List available Paola skills for optimizer configuration expertise.
 
-    This is the entry point for discovering what optimization expertise
-    Paola has. Call this first to see what skills are available, then
-    use load_skill() to get detailed knowledge.
+    Use when:
+    - You need to configure a specific optimizer (IPOPT, SciPy, Optuna, NLopt)
+    - The user asks for non-default settings (tolerances, warm-start, scaling)
+    - Optimization is failing and you need diagnostic guidance
+    - You're unsure which optimizer options exist
+
+    Don't use when:
+    - Running simple optimizations with default settings
+    - The problem is straightforward (small dimension, no constraints)
 
     Args:
-        category: Optional filter for skill category
-            - "optimizers": Optimizer expertise (IPOPT, SciPy, Optuna)
-            - "domains": Domain expertise (aerodynamics, structures, MDO)
-            - "patterns": Optimization patterns (warm-starting, multi-fidelity)
-            - "learned": Knowledge from past optimizations
-            - None: List all skills
+        category: Optional filter ("optimizers", "domains", "patterns", "learned")
 
     Returns:
         Formatted list of skills with name, description, and when_to_use
-
-    Example:
-        list_skills()               # All skills
-        list_skills("optimizers")   # Just optimizer skills
     """
     try:
         index = _get_index()
@@ -97,28 +94,25 @@ def list_skills(category: Optional[str] = None) -> str:
 @tool
 def load_skill(skill_name: str, section: str = "overview") -> str:
     """
-    Load detailed knowledge from a Paola skill.
+    Load detailed optimizer configuration knowledge.
 
-    Skills use progressive disclosure - start with "overview" and
-    drill down to specific sections as needed.
+    Use when:
+    - Configuring IPOPT, SciPy, Optuna, or NLopt beyond defaults
+    - You need specific option values (tolerances, max iterations, scaling)
+    - Setting up warm-start from a previous optimization
+    - Diagnosing why optimization failed or converged slowly
+
+    Progressive disclosure (load only what you need):
+    - "overview": Start here - capabilities and common configurations
+    - "options": Full option reference when you need specific settings
+    - "options.<category>": Just one category (e.g., "options.warm_start")
 
     Args:
-        skill_name: Skill to load (e.g., "ipopt", "scipy", "aerodynamics")
-        section: Which section to load
-            - "overview": Main guidance and capabilities (default)
-            - "options": Full option/parameter reference
-            - "options.<category>": Specific option category
-              (e.g., "options.warm_start", "options.hessian")
-            - "paola": Paola integration details (graph edges, learning)
+        skill_name: "ipopt", "scipy", "optuna", or "nlopt"
+        section: "overview" (default), "options", "options.<category>", "paola"
 
     Returns:
-        Skill content formatted for reading
-
-    Example:
-        load_skill("ipopt")                       # Overview
-        load_skill("ipopt", "options")            # All options
-        load_skill("ipopt", "options.warm_start") # Just warm-start options
-        load_skill("ipopt", "paola")              # Paola integration
+        Skill content with configuration guidance
     """
     try:
         loader = _get_loader()
@@ -175,22 +169,21 @@ def load_skill(skill_name: str, section: str = "overview") -> str:
 @tool
 def query_skills(query: str, limit: int = 3) -> str:
     """
-    Search across all Paola skills for relevant knowledge.
+    Search skills when you're unsure which optimizer skill to use.
 
-    Use this when you're not sure which skill has the information,
-    or to find related knowledge across multiple skills.
+    Use when:
+    - You don't know which optimizer has the feature you need
+    - Looking for cross-optimizer knowledge (e.g., "warm-start" across all)
+    - The user mentions a concept but not a specific optimizer
+
+    Prefer load_skill() when you already know the optimizer name.
 
     Args:
-        query: Natural language query describing what you're looking for
-        limit: Maximum number of results (default: 3)
+        query: What you're looking for (e.g., "warm-start", "constraint handling")
+        limit: Max results (default: 3)
 
     Returns:
-        Relevant skills matching the query, ranked by relevance
-
-    Example:
-        query_skills("warm-start configuration")
-        query_skills("how to handle infeasible constraints")
-        query_skills("large-scale optimization")
+        Matching skills ranked by relevance
     """
     try:
         index = _get_index()

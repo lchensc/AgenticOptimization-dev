@@ -4,11 +4,12 @@ Agent tools for Paola.
 Provides LangChain @tool decorated functions for:
 - Graph management (start_graph, get_graph_state, finalize_graph, query_past_graphs)
 - Optimization execution (run_optimization, get_problem_info, list_available_optimizers)
-- Expert configuration (config_scipy, config_ipopt, config_nlopt, config_optuna)
 - Analysis (analyze_convergence, analyze_efficiency, get_all_metrics, analyze_run_with_ai)
 - Evaluator management (foundry_list_evaluators, foundry_get_evaluator)
 - Knowledge (store_optimization_insight, retrieve_optimization_knowledge)
 - Cache operations (cache_get, cache_store, cache_clear, cache_stats)
+
+Note: Expert configuration is now handled via Skills infrastructure (paola.skills).
 """
 
 from paola.tools.cache_tools import (
@@ -41,14 +42,14 @@ from paola.tools.optimization_tools import (
     list_available_optimizers,
 )
 
-# Expert configuration tools (escape hatch)
-from paola.tools.config_tools import (
-    config_scipy,
-    config_ipopt,
-    config_nlopt,
-    config_optuna,
-    explain_config_option,
-)
+# Expert configuration tools - DISABLED, replaced by Skills infrastructure
+# from paola.tools.config_tools import (
+#     config_scipy,
+#     config_ipopt,
+#     config_nlopt,
+#     config_optuna,
+#     explain_config_option,
+# )
 
 from paola.tools.evaluator_tools import (
     evaluate_function,
@@ -118,12 +119,12 @@ __all__ = [
     "run_optimization",
     "get_problem_info",
     "list_available_optimizers",
-    # Expert configuration tools (escape hatch)
-    "config_scipy",
-    "config_ipopt",
-    "config_nlopt",
-    "config_optuna",
-    "explain_config_option",
+    # Expert configuration tools - DISABLED, replaced by Skills
+    # "config_scipy",
+    # "config_ipopt",
+    # "config_nlopt",
+    # "config_optuna",
+    # "explain_config_option",
     # Evaluator tools
     "evaluate_function",
     "compute_gradient",

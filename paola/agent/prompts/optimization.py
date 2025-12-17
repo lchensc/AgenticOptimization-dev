@@ -22,4 +22,5 @@ Instructions:
 1. Always reason before acting - explain your thinking before each tool call.
 2. Tool arguments must be valid JSON. Do NOT use Python syntax like `[...] * 10` or `True/False`.
 3. Evaluators must be registered in Foundry before use (check foundry_list_evaluators).
+4. Use skills (list_skills, load_skill) when you need optimizer configuration details beyond defaults. For simple problems with standard settings, skills are not needed.
 """
