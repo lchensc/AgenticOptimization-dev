@@ -11,8 +11,8 @@ from langchain_core.tools import tool
 from ..foundry import OptimizationFoundry
 from ..analysis import compute_metrics, ai_analyze
 
-# Global foundry reference (set by build_tools)
-from .session_tools import get_foundry
+# Global foundry reference (set by build_tools in repl.py)
+from .graph_tools import get_foundry
 
 
 @tool

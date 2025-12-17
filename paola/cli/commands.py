@@ -9,10 +9,6 @@ v0.3.0: Graph-based architecture.
 - /graphs shows all optimization graphs
 - Graph = complete optimization task (may contain multiple nodes)
 - Node = single optimizer execution within a graph
-
-v0.2.0: Session-based architecture (legacy).
-- /sessions shows all optimization sessions
-- Session = complete optimization task (may contain multiple runs)
 """
 
 from typing import List, Dict, Any
@@ -666,470 +662,28 @@ Iteration"""
 
         self.console.print()
 
-    # =========================================================================
-    # Session Commands (v0.2.0 Legacy)
-    # =========================================================================
+    def handle_graph_analyze(self, graph_id: int, focus: str = 'overall'):
+        """AI-powered analysis of optimization graph (costs money)."""
+        record = self.foundry.load_graph_record(graph_id)
+        detail = self.foundry.load_graph_detail(graph_id)
 
-    def handle_sessions(self):
-        """Display all sessions in table format."""
-        sessions = self.foundry.load_all_sessions()
-
-        if not sessions:
-            self.console.print("\n[dim]No optimization sessions yet[/dim]\n")
+        if not record:
+            self.console.print(f"\n[red]Graph #{graph_id} not found[/red]\n")
             return
 
-        table = Table(title="Optimization Sessions")
-        table.add_column("ID", style="cyan", justify="right")
-        table.add_column("Problem")
-        table.add_column("Runs", justify="right")
-        table.add_column("Status")
-        table.add_column("Best Value", justify="right")
-        table.add_column("Evals", justify="right")
-        table.add_column("Time", justify="right")
-
-        for session in sessions:
-            status = "✓" if session.success else "✗"
-            status_style = "green" if session.success else "red"
-
-            # Get best optimizer from runs
-            optimizers = ", ".join(set(r.optimizer.split(":")[0] for r in session.runs[:3]))
-            if len(session.runs) > 3:
-                optimizers += "..."
-
-            table.add_row(
-                str(session.session_id),
-                session.problem_id,
-                str(len(session.runs)),
-                f"[{status_style}]{status}[/{status_style}]",
-                f"{session.final_objective:.6f}",
-                str(session.total_evaluations),
-                f"{session.total_wall_time:.1f}s"
-            )
-
-        self.console.print()
-        self.console.print(table)
-        self.console.print()
-
-    def handle_show(self, session_id: int):
-        """Show detailed session information."""
-        session = self.foundry.load_session(session_id)
-
-        if not session:
-            self.console.print(f"\n[red]Session #{session_id} not found[/red]\n")
-            return
-
-        # Build detailed panel
-        status_text = "✓ Complete" if session.success else "✗ Failed"
-        status_style = "green" if session.success else "red"
-
-        # List runs in session
-        runs_info = ""
-        for run in session.runs:
-            run_status = "✓" if run.run_success else "✗"
-            run_style = "green" if run.run_success else "red"
-            warm_start = f" (warm from #{run.warm_start_from})" if run.warm_start_from else ""
-            runs_info += f"\n  [{run_style}]{run_status}[/{run_style}] Run #{run.run_id}: {run.optimizer} → {run.best_objective:.6e}{warm_start}"
-
-        info = f"""[bold]Session #{session.session_id}: {session.problem_id}[/bold]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-[cyan]Status:[/cyan]       [{status_style}]{status_text}[/{status_style}]
-[cyan]Best Objective:[/cyan] {session.final_objective:.6e}
-[cyan]Total Evaluations:[/cyan] {session.total_evaluations}
-[cyan]Total Time:[/cyan]   {session.total_wall_time:.2f}s
-[cyan]Created:[/cyan]      {session.created_at}
-
-[bold]Runs ({len(session.runs)}):[/bold]{runs_info}
-
-[bold]Final Solution (first 5 dimensions):[/bold]"""
-
-        # Show first 5 dimensions of solution
-        x = session.final_design
-        for i in range(min(5, len(x))):
-            info += f"\n  x[{i}] = {x[i]:.6f}"
-
-        if len(x) > 5:
-            info += f"\n  ... ({len(x) - 5} more dimensions)"
-
-        # Show decisions if any
-        if session.decisions:
-            info += "\n\n[bold]Decisions:[/bold]"
-            for d in session.decisions[-3:]:  # Last 3 decisions
-                info += f"\n  • {d.decision_type}: {d.reasoning[:50]}..."
-
-        self.console.print()
-        self.console.print(Panel(info, border_style="cyan", padding=(1, 2)))
-        self.console.print()
-
-    def handle_plot(self, session_id: int):
-        """Plot convergence history (ASCII in terminal)."""
-        session = self.foundry.load_session(session_id)
-
-        if not session:
-            self.console.print(f"\n[red]Session #{session_id} not found[/red]\n")
-            return
-
-        # Collect objectives from all runs in session
-        objectives = []
-        for run in session.runs:
-            # Get progress data (iterations/trials)
-            progress = run.progress
-            if hasattr(progress, 'iterations'):
-                for it in progress.iterations:
-                    objectives.append(it.objective)
-            elif hasattr(progress, 'trials'):
-                for trial in progress.trials:
-                    objectives.append(trial.objective)
-
-        if not objectives:
-            self.console.print(f"\n[yellow]No iteration data available for session #{session_id}[/yellow]\n")
-            return
-
-        # Normalize to fixed chart width for terminal display
-        max_chart_width = 60  # Fits in 80-char terminal with Y-axis labels
-        original_length = len(objectives)
-
-        if len(objectives) > max_chart_width:
-            # Downsample to max_chart_width points for clean terminal display
-            step = len(objectives) / max_chart_width
-            objectives_to_plot = []
-            for i in range(max_chart_width):
-                idx = int(i * step)
-                objectives_to_plot.append(objectives[idx])
-        else:
-            objectives_to_plot = objectives
-
-        # Create ASCII plot
-        plot_config = {
-            'height': 15,
-            'format': '{:8.2e}',
-        }
-
-        try:
-            chart = asciichart.plot(objectives_to_plot, plot_config)
-        except Exception as e:
-            # Fallback if plotting fails
-            self.console.print(f"\n[red]Error creating plot: {e}[/red]\n")
-            return
-
-        # Create x-axis labels aligned with actual chart width
-        chart_width = len(objectives_to_plot)
-        num_ticks = 5
-
-        # Build x-axis string with labels at exact positions
-        x_axis_line = " " * 10  # Space for Y-axis labels
-        x_axis_chars = [' '] * chart_width
-
-        for i in range(num_ticks):
-            tick_pos = int(i * (chart_width - 1) / (num_ticks - 1))
-            tick_label = str(int(i * (original_length - 1) / (num_ticks - 1)))
-            label_start = tick_pos - len(tick_label) // 2
-            if label_start < 0:
-                label_start = 0
-            if label_start + len(tick_label) > chart_width:
-                label_start = chart_width - len(tick_label)
-            for j, char in enumerate(tick_label):
-                char_pos = label_start + j
-                if 0 <= char_pos < chart_width:
-                    x_axis_chars[char_pos] = char
-
-        x_axis_line += ''.join(x_axis_chars)
-
-        # Build info panel
-        downsampled_note = f" [dim](chart shows {len(objectives_to_plot)} sampled points)[/dim]" if len(objectives_to_plot) < original_length else ""
-
-        optimizers = " → ".join(r.optimizer for r in session.runs)
-
-        info = f"""[bold cyan]Convergence History - Session #{session.session_id}[/bold cyan]
-
-[bold]{optimizers} on {session.problem_id}[/bold]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-[cyan]Initial Value:[/cyan]  {objectives[0]:.6e}
-[cyan]Final Value:[/cyan]    {objectives[-1]:.6e}
-[cyan]Improvement:[/cyan]    {objectives[0] - objectives[-1]:.6e}
-[cyan]Evaluations:[/cyan]    {original_length}{downsampled_note}
-
-[bold]Objective Value vs Iterations:[/bold]
-
-{chart}
-          {'─' * chart_width}
-[white]{x_axis_line}[/white]
-Iteration"""
-
-        self.console.print()
-        self.console.print(Panel(info, border_style="cyan", padding=(1, 2)))
-        self.console.print()
-
-    def handle_best(self):
-        """Show best solution across all sessions."""
-        sessions = self.foundry.load_all_sessions()
-
-        if not sessions:
-            self.console.print("\n[dim]No optimization sessions yet[/dim]\n")
-            return
-
-        # Find best session (minimum objective value)
-        best_session = min(sessions, key=lambda s: s.final_objective)
-
-        optimizers = ", ".join(r.optimizer for r in best_session.runs)
-
-        info = f"""[bold green]Best Solution Across All Sessions[/bold green]
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-[cyan]Session ID:[/cyan]  #{best_session.session_id}
-[cyan]Problem:[/cyan]     {best_session.problem_id}
-[cyan]Optimizers:[/cyan]  {optimizers}
-[cyan]Objective:[/cyan]   [bold green]{best_session.final_objective:.6e}[/bold green] ✓
-[cyan]Evaluations:[/cyan] {best_session.total_evaluations}
-[cyan]Time:[/cyan]        {best_session.total_wall_time:.2f}s"""
-
-        self.console.print()
-        self.console.print(Panel(info, border_style="green", padding=(1, 2)))
-        self.console.print()
-
-    def handle_compare(self, session_ids: List[int]):
-        """Compare multiple sessions side-by-side."""
-        if len(session_ids) < 2:
-            self.console.print("\n[red]Need at least 2 sessions to compare[/red]\n")
-            return
-
-        # Load all sessions
-        sessions = []
-        for session_id in session_ids:
-            session = self.foundry.load_session(session_id)
-            if session is None:
-                self.console.print(f"\n[red]Session #{session_id} not found[/red]\n")
-                return
-            sessions.append(session)
-
-        # Create comparison table
-        table = Table(title=f"Comparison: {' vs '.join(f'Session #{s.session_id}' for s in sessions)}")
-        table.add_column("Metric", style="cyan")
-
-        for session in sessions:
-            # Get optimizers used in session
-            optimizers = ", ".join(set(r.optimizer.split(":")[0] for r in session.runs[:2]))
-            if len(session.runs) > 2:
-                optimizers += "..."
-            table.add_column(f"#{session.session_id} ({optimizers})", justify="right")
-
-        # Add rows for each metric
-        metrics = [
-            ("Problem", [s.problem_id for s in sessions]),
-            ("Objective", [f"{s.final_objective:.6e}" for s in sessions]),
-            ("Runs", [str(len(s.runs)) for s in sessions]),
-            ("Evaluations", [str(s.total_evaluations) for s in sessions]),
-            ("Time (s)", [f"{s.total_wall_time:.2f}" for s in sessions]),
-            ("Success", ["✓" if s.success else "✗" for s in sessions]),
-        ]
-
-        for metric_name, values in metrics:
-            # Highlight best value for numeric metrics
-            if metric_name in ["Objective", "Evaluations", "Time (s)"]:
-                # Find best (minimum for these metrics)
-                numeric_values = []
-                for v in values:
-                    try:
-                        if metric_name == "Success":
-                            numeric_values.append(0)
-                        else:
-                            numeric_values.append(float(v.replace('✓', '0').replace('✗', '1')))
-                    except:
-                        numeric_values.append(float('inf'))
-
-                best_idx = numeric_values.index(min(numeric_values))
-                styled_values = []
-                for i, v in enumerate(values):
-                    if i == best_idx and metric_name != "Success":
-                        styled_values.append(f"[bold green]{v} ✓[/bold green]")
-                    else:
-                        styled_values.append(v)
-                table.add_row(metric_name, *styled_values)
-            else:
-                table.add_row(metric_name, *values)
-
-        self.console.print()
-        self.console.print(table)
-        self.console.print()
-
-    def handle_plot_compare(self, session_ids: List[int]):
-        """Plot convergence comparison for multiple sessions."""
-        if len(session_ids) < 2:
-            self.console.print("\n[red]Need at least 2 sessions to compare[/red]\n")
-            return
-
-        # Load all sessions and extract convergence data
-        sessions_data = []
-        for session_id in session_ids:
-            session = self.foundry.load_session(session_id)
-            if session is None:
-                self.console.print(f"\n[red]Session #{session_id} not found[/red]\n")
-                return
-
-            # Collect objectives from all runs in session
-            objectives = []
-            for run in session.runs:
-                progress = run.progress
-                if hasattr(progress, 'iterations'):
-                    for it in progress.iterations:
-                        objectives.append(it.objective)
-                elif hasattr(progress, 'trials'):
-                    for trial in progress.trials:
-                        objectives.append(trial.objective)
-
-            if not objectives:
-                self.console.print(f"\n[yellow]No iteration data for session #{session_id}[/yellow]\n")
-                return
-
-            sessions_data.append({
-                'session': session,
-                'objectives': objectives
-            })
-
-        # Find max length and pad shorter sequences with their final value
-        max_len = max(len(sd['objectives']) for sd in sessions_data)
-
-        series = []
-        labels = []
-        for sd in sessions_data:
-            session = sd['session']
-            obj = sd['objectives']
-
-            # Pad with final value if needed
-            if len(obj) < max_len:
-                obj = obj + [obj[-1]] * (max_len - len(obj))
-
-            series.append(obj)
-            # Get optimizers used
-            optimizers = ", ".join(set(r.optimizer.split(":")[0] for r in session.runs[:2]))
-            labels.append(f"#{session.session_id} ({optimizers})")
-
-        # Downsample if too many points (to fit terminal width)
-        max_chart_width = 60  # Fits in 80-char terminal with Y-axis labels
-        original_max_len = max_len
-        if max_len > max_chart_width:
-            # Downsample all series to max_chart_width points
-            step = max_len / max_chart_width
-            downsampled_series = []
-            for s in series:
-                downsampled = []
-                for i in range(max_chart_width):
-                    idx = int(i * step)
-                    downsampled.append(s[idx])
-                downsampled_series.append(downsampled)
-            series = downsampled_series
-            max_len = max_chart_width
-
-        # Create multi-line ASCII plot with colors
-        try:
-            plot_config = {
-                'height': 15,
-                'format': '{:8.2e}',
-                'colors': [
-                    asciichart.blue,
-                    asciichart.red,
-                    asciichart.green,
-                    asciichart.yellow,
-                    asciichart.magenta,
-                ][:len(series)]
-            }
-            chart = asciichart.plot(series, plot_config)
-        except Exception as e:
-            self.console.print(f"\n[red]Error creating comparison plot: {e}[/red]\n")
-            return
-
-        # Build legend with colored markers
-        color_styles = ['blue', 'red', 'green', 'yellow', 'magenta']
-        legend_lines = []
-        for i in range(len(sessions_data)):
-            color = color_styles[i % len(color_styles)]
-            legend_lines.append(
-                f"  [{color}]●[/{color}] {labels[i]}: {sessions_data[i]['session'].problem_id} → {sessions_data[i]['objectives'][-1]:.6e}"
-            )
-        legend = "\n".join(legend_lines)
-
-        # Build header with legend
-        downsampled_note = f"\n[dim](Chart shows {max_len} sampled points from {original_max_len} total iterations)[/dim]" if max_len < original_max_len else ""
-
-        header = f"""[bold cyan]Convergence Comparison[/bold cyan]
-
-[bold]Legend:[/bold]
-{legend}{downsampled_note}
-
-[bold]Objective Value vs Iterations:[/bold]"""
-
-        # Create x-axis labels aligned with actual chart width
-        # asciichartpy makes chart width = number of data points
-        chart_width = max_len
-        num_ticks = 5
-
-        # Build x-axis string with labels at exact positions
-        x_axis_line = " " * 10  # Space for Y-axis labels (asciichartpy uses ~10 chars)
-        x_axis_chars = [' '] * chart_width
-
-        for i in range(num_ticks):
-            tick_pos = int(i * (chart_width - 1) / (num_ticks - 1))
-            # Use original_max_len for actual iteration number
-            tick_label = str(int(i * (original_max_len - 1) / (num_ticks - 1)))
-            # Center the label at tick position (shift left by half label length)
-            label_start = tick_pos - len(tick_label) // 2
-            # Ensure label doesn't go out of bounds
-            if label_start < 0:
-                label_start = 0
-            if label_start + len(tick_label) > chart_width:
-                label_start = chart_width - len(tick_label)
-            # Place label characters
-            for j, char in enumerate(tick_label):
-                char_pos = label_start + j
-                if 0 <= char_pos < chart_width:
-                    x_axis_chars[char_pos] = char
-
-        x_axis_line += ''.join(x_axis_chars)
-
-        # Build complete panel content including chart and x-axis
-        separator_line = " " * 10 + "─" * chart_width
-
-        # Create renderable with chart (ANSI colors) and x-axis
-        panel_content = Group(
-            Text.from_markup(header),
-            Text(""),
-            Text.from_ansi(chart),
-            Text(""),
-            Text(separator_line),
-            Text.from_markup(f"[white]{x_axis_line}[/white]"),
-            Text("Iteration")
-        )
-
-        self.console.print()
-        self.console.print(Panel(panel_content, border_style="cyan", padding=(1, 2)))
-        self.console.print()
-
-
-    def handle_analyze(self, session_id: int, focus: str = 'overall'):
-        """AI-powered analysis of optimization session (costs money)."""
-        session = self.foundry.load_session(session_id)
-
-        if not session:
-            self.console.print(f"\n[red]Session #{session_id} not found[/red]\n")
-            return
-
-        # Show basic session metrics
+        # Show basic graph metrics
         self.console.print("\n[cyan]Computing metrics...[/cyan]")
 
-        # Compute basic metrics from session
+        # Compute basic metrics from graph
         objectives = []
-        for run in session.runs:
-            progress = run.progress
-            if hasattr(progress, 'iterations'):
-                for it in progress.iterations:
-                    objectives.append(it.objective)
-            elif hasattr(progress, 'trials'):
-                for trial in progress.trials:
-                    objectives.append(trial.objective)
+        if detail:
+            for node_id in sorted(detail.nodes.keys()):
+                node_detail = detail.nodes[node_id]
+                for point in node_detail.convergence_history:
+                    objectives.append(point.objective)
 
         if not objectives:
-            self.console.print(f"\n[yellow]No iteration data available for session #{session_id}[/yellow]\n")
+            self.console.print(f"\n[yellow]No iteration data available for graph #{graph_id}[/yellow]\n")
             return
 
         # Basic convergence metrics
@@ -1140,8 +694,9 @@ Iteration"""
             last_5 = objectives[-5:]
             is_stalled = abs(max(last_5) - min(last_5)) < 1e-6
 
+        obj_str = f"{record.final_objective:.6e}" if record.final_objective is not None else "N/A"
         self.console.print(f"[dim]Iterations: {n_iters}, Improvement: {improvement:.6e}, Stalled: {is_stalled}[/dim]")
-        self.console.print(f"[dim]Final objective: {session.final_objective:.6e}[/dim]")
+        self.console.print(f"[dim]Final objective: {obj_str}[/dim]")
 
         # Confirm cost
         self.console.print(f"\n[yellow]⚠ AI analysis costs ~$0.02-0.05. Continue? (y/n)[/yellow]")
@@ -1165,24 +720,24 @@ Iteration"""
                 "final": objectives[-1] if objectives else 0.0,
                 "best": min(objectives) if objectives else 0.0,
             },
-            "session": {
-                "n_runs": len(session.runs),
-                "total_evaluations": session.total_evaluations,
-                "total_wall_time": session.total_wall_time,
-                "success": session.success,
+            "graph": {
+                "n_nodes": len(record.nodes),
+                "pattern": record.pattern,
+                "total_evaluations": record.total_evaluations,
+                "total_wall_time": record.total_wall_time,
+                "success": record.success,
             }
         }
 
         try:
-            # Note: ai_analyze needs to be updated for sessions
-            # For now, show a placeholder message
-            self.console.print("\n[yellow]Note: Full AI analysis support for sessions coming soon.[/yellow]")
-            self.console.print(f"\n[bold cyan]Session #{session_id} Summary:[/bold cyan]")
-            self.console.print(f"  Problem: {session.problem_id}")
-            self.console.print(f"  Runs: {len(session.runs)}")
-            self.console.print(f"  Best objective: {session.final_objective:.6e}")
-            self.console.print(f"  Evaluations: {session.total_evaluations}")
-            self.console.print(f"  Status: {'✓ Success' if session.success else '✗ Failed'}")
+            # Note: Full AI analysis to be implemented
+            self.console.print(f"\n[bold cyan]Graph #{graph_id} Summary:[/bold cyan]")
+            self.console.print(f"  Problem: {record.problem_id}")
+            self.console.print(f"  Pattern: {record.pattern}")
+            self.console.print(f"  Nodes: {len(record.nodes)}")
+            self.console.print(f"  Best objective: {obj_str}")
+            self.console.print(f"  Evaluations: {record.total_evaluations}")
+            self.console.print(f"  Status: {'✓ Success' if record.success else '✗ Failed'}")
             self.console.print()
 
         except Exception as e:

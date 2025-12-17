@@ -375,84 +375,46 @@ class AgenticOptREPL:
                 )
             else:
                 self.console.print("[red]Usage: /graph [show|plot|compare|best|query] <id|options>[/red]")
-        elif cmd == '/sessions':
-            self.command_handler.handle_sessions()
         elif cmd == '/show':
-            # Try graph first, then session
             if len(cmd_parts) < 2:
-                self.console.print("[red]Usage: /show <id> (shows graph by default, use /session show <id> for sessions)[/red]")
+                self.console.print("[red]Usage: /show <graph_id>[/red]")
             else:
                 try:
-                    item_id = int(cmd_parts[1])
-                    # Try graph first
-                    graph = self.foundry.load_graph(item_id)
-                    if graph:
-                        self.command_handler.handle_graph_show(item_id)
-                    else:
-                        # Fall back to session
-                        self.command_handler.handle_show(item_id)
+                    graph_id = int(cmd_parts[1])
+                    self.command_handler.handle_graph_show(graph_id)
                 except ValueError:
-                    self.console.print("[red]ID must be a number[/red]")
+                    self.console.print("[red]Graph ID must be a number[/red]")
         elif cmd == '/plot':
             if len(cmd_parts) < 2:
-                self.console.print("[red]Usage: /plot <id> OR /plot compare <id1> <id2> ...[/red]")
-            elif cmd_parts[1].lower() == 'compare':
-                if len(cmd_parts) < 4:
-                    self.console.print("[red]Usage: /plot compare <id1> <id2> [id3...][/red]")
-                else:
-                    try:
-                        ids = [int(id) for id in cmd_parts[2:]]
-                        # Try graph first
-                        if self.foundry.load_graph(ids[0]):
-                            # TODO: Add handle_graph_plot_compare
-                            self.console.print("[yellow]Graph comparison plot not yet implemented, using session compare[/yellow]")
-                            self.command_handler.handle_plot_compare(ids)
-                        else:
-                            self.command_handler.handle_plot_compare(ids)
-                    except ValueError:
-                        self.console.print("[red]IDs must be numbers[/red]")
+                self.console.print("[red]Usage: /plot <graph_id>[/red]")
             else:
                 try:
-                    item_id = int(cmd_parts[1])
-                    # Try graph first
-                    graph = self.foundry.load_graph(item_id)
-                    if graph:
-                        self.command_handler.handle_graph_plot(item_id)
-                    else:
-                        self.command_handler.handle_plot(item_id)
+                    graph_id = int(cmd_parts[1])
+                    self.command_handler.handle_graph_plot(graph_id)
                 except ValueError:
-                    self.console.print("[red]ID must be a number[/red]")
+                    self.console.print("[red]Graph ID must be a number[/red]")
         elif cmd == '/compare':
             if len(cmd_parts) < 3:
-                self.console.print("[red]Usage: /compare <id1> <id2> [id3...][/red]")
+                self.console.print("[red]Usage: /compare <graph_id1> <graph_id2> [graph_id3...][/red]")
             else:
                 try:
-                    ids = [int(id) for id in cmd_parts[1:]]
-                    # Try graph first
-                    if self.foundry.load_graph(ids[0]):
-                        self.command_handler.handle_graph_compare(ids)
-                    else:
-                        self.command_handler.handle_compare(ids)
+                    graph_ids = [int(id) for id in cmd_parts[1:]]
+                    self.command_handler.handle_graph_compare(graph_ids)
                 except ValueError:
-                    self.console.print("[red]IDs must be numbers[/red]")
+                    self.console.print("[red]Graph IDs must be numbers[/red]")
         elif cmd == '/best':
-            # Try graph first
-            graphs = self.foundry.load_all_graphs()
-            if graphs:
-                self.command_handler.handle_graph_best()
-            else:
-                self.command_handler.handle_best()
+            self.command_handler.handle_graph_best()
         elif cmd == '/analyze':
             if len(cmd_parts) < 2:
-                self.console.print("[red]Usage: /analyze <session_id> [focus][/red]")
+                self.console.print("[red]Usage: /analyze <graph_id> [focus][/red]")
                 self.console.print("[dim]Focus options: convergence, efficiency, algorithm, overall (default)[/dim]")
             else:
                 try:
-                    session_id = int(cmd_parts[1])
+                    graph_id = int(cmd_parts[1])
                     focus = cmd_parts[2] if len(cmd_parts) > 2 else "overall"
-                    self.command_handler.handle_analyze(session_id, focus)
+                    self.command_handler.handle_graph_analyze(graph_id, focus)
                 except ValueError:
-                    self.console.print("[red]Session ID must be a number[/red]")
+                    self.console.print("[red]Graph ID must be a number[/red]")
         elif cmd == '/knowledge':
             if len(cmd_parts) == 1:
                 self.command_handler.handle_knowledge_list()
@@ -516,7 +478,7 @@ class AgenticOptREPL:
   /skills                    - List all available Paola skills
   /skill <name>              - Show detailed skill information (e.g., /skill ipopt)
 
-[bold]Graph Commands (v0.3.1):[/bold]
+[bold]Graph Commands:[/bold]
   /graphs                    - List all optimization graphs
   /graph show <id>           - Show detailed graph information
   /graph plot <id>           - Plot convergence for graph
@@ -526,21 +488,19 @@ class AgenticOptREPL:
                                Options: problem=pattern dims=N success=true/false limit=N
                                Example: /graph query problem=ackley* dims=30 success=true
 
-[bold]Inspection Commands:[/bold]
-  /show <id>                 - Show detailed results (graph or session)
+[bold]Shortcuts:[/bold]
+  /show <id>                 - Show detailed graph results
   /plot <id>                 - Plot convergence
-  /plot compare <id1> <id2>  - Overlay convergence curves
   /compare <id1> <id2>       - Side-by-side comparison
-  /best                      - Show best solution
+  /best                      - Show best solution across all graphs
   /analyze <id> [focus]      - AI-powered strategic analysis (costs ~$0.02-0.05)
                                Focus: convergence, efficiency, algorithm, overall (default)
 
-[bold]Legacy Session Commands (v0.2.0):[/bold]
-  /sessions                  - List all optimization sessions
+[bold]Knowledge:[/bold]
   /knowledge                 - List knowledge base (skeleton - not yet implemented)
   /knowledge show <id>       - Show detailed insight (skeleton)
 
-[bold]Session Commands:[/bold]
+[bold]CLI Commands:[/bold]
   /help           - Show this help message
   /exit           - Exit the CLI
   /clear          - Clear conversation history

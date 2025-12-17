@@ -1,7 +1,7 @@
 """
 Paola Foundry Schema - Polymorphic optimization data structures.
 
-v0.3.0: Graph-based architecture
+v0.3.x: Graph-based architecture
 - OptimizationGraph: Complete optimization task (THE data model)
 - OptimizationNode: Single optimizer execution
 - OptimizationEdge: Typed relationship between nodes
@@ -10,11 +10,6 @@ v0.3.0: Graph-based architecture
 Two-Tier Storage (v0.3.1):
 - GraphRecord (Tier 1): LLM-ready, ~1KB, strategy-focused
 - GraphDetail (Tier 2): Full trajectories, 10-100KB, for visualization
-
-Legacy (v0.2.0, for migration):
-- SessionRecord: Complete optimization task (deprecated)
-- OptimizationRun: Single optimizer execution (deprecated)
-- PaolaDecision: Strategic decision record (deprecated)
 
 Component ABCs:
 - InitializationComponent: How the optimizer was initialized
@@ -57,9 +52,6 @@ from .conversion import (
     split_graph,
     create_problem_signature,
 )
-
-# Legacy base classes (v0.2.0, for migration)
-from .base import SessionRecord, OptimizationRun, PaolaDecision
 
 # Component ABCs
 from .components import (
@@ -108,7 +100,7 @@ from .registry import (
 )
 
 __all__ = [
-    # Graph-based schema (v0.3.0+)
+    # Graph-based schema (v0.3.x)
     "EdgeType",
     "OptimizationEdge",
     "OptimizationNode",
@@ -125,10 +117,6 @@ __all__ = [
     "GraphDetail",
     "split_graph",
     "create_problem_signature",
-    # Legacy (v0.2.0, for migration)
-    "SessionRecord",
-    "OptimizationRun",
-    "PaolaDecision",
     # ABCs
     "InitializationComponent",
     "ProgressComponent",

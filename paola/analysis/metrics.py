@@ -1,19 +1,18 @@
 """
 Deterministic metrics computation.
 
-All metrics are computed from RunRecord data - fast, free, reproducible.
+All metrics are computed from run/node data - fast, free, reproducible.
 These metrics serve as:
 1. Display in CLI (/show command)
 2. Real-time monitoring during optimization
 3. Input to AI analysis (ai_analyze)
 """
 
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Union
 import numpy as np
-from ..foundry import RunRecord
 
 
-def compute_metrics(run: RunRecord) -> Dict[str, Any]:
+def compute_metrics(run: Union[Dict, Any]) -> Dict[str, Any]:
     """
     Compute all deterministic metrics for a run.
 
@@ -65,8 +64,17 @@ def compute_metrics(run: RunRecord) -> Dict[str, Any]:
         if metrics["convergence"]["is_stalled"]:
             # Trigger adaptation
     """
-    # Extract iterations from result_data
-    iterations = run.result_data.get("iterations", [])
+    # Extract iterations from result_data (supports dict or object interface)
+    if isinstance(run, dict):
+        result_data = run.get("result_data", {})
+        n_evaluations = run.get("n_evaluations", 0)
+        objective_value = run.get("objective_value", 0.0)
+    else:
+        result_data = getattr(run, "result_data", {}) or {}
+        n_evaluations = getattr(run, "n_evaluations", 0)
+        objective_value = getattr(run, "objective_value", 0.0)
+
+    iterations = result_data.get("iterations", [])
 
     if not iterations:
         # No iteration data, return minimal metrics
@@ -74,11 +82,11 @@ def compute_metrics(run: RunRecord) -> Dict[str, Any]:
             "convergence": {"iterations_total": 0, "rate": 0.0, "is_stalled": False, "improvement_last_10": 0.0},
             "gradient": {"norm": 0.0, "variance": 0.0, "quality": "unknown"},
             "constraints": {"violations": [], "active_count": 0},
-            "efficiency": {"evaluations": run.n_evaluations, "improvement_per_eval": 0.0},
+            "efficiency": {"evaluations": n_evaluations, "improvement_per_eval": 0.0},
             "objective": {
-                "current": run.objective_value,
-                "best": run.objective_value,
-                "worst": run.objective_value,
+                "current": objective_value,
+                "best": objective_value,
+                "worst": objective_value,
                 "improvement_from_start": 0.0,
                 "improvement_rate": 0.0,
             }
@@ -88,7 +96,7 @@ def compute_metrics(run: RunRecord) -> Dict[str, Any]:
         "convergence": _compute_convergence_metrics(iterations),
         "gradient": _compute_gradient_metrics(iterations),
         "constraints": _compute_constraint_metrics(iterations),
-        "efficiency": _compute_efficiency_metrics(run, iterations),
+        "efficiency": _compute_efficiency_metrics(n_evaluations, iterations),
         "objective": _compute_objective_metrics(iterations),
     }
 
@@ -232,18 +240,18 @@ def _compute_constraint_metrics(iterations: List[Dict]) -> Dict[str, Any]:
     }
 
 
-def _compute_efficiency_metrics(run: RunRecord, iterations: List[Dict]) -> Dict[str, Any]:
+def _compute_efficiency_metrics(n_evaluations: int, iterations: List[Dict]) -> Dict[str, Any]:
     """
     Compute efficiency metrics.
 
     Args:
-        run: Run record
+        n_evaluations: Number of function evaluations
         iterations: List of iteration records
 
     Returns:
         Efficiency metrics dict
     """
-    n_evals = run.n_evaluations
+    n_evals = n_evaluations
 
     # Improvement per evaluation
     improvement_per_eval = 0.0

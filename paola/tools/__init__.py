@@ -88,13 +88,15 @@ from paola.tools.registration_tools import (
     ALL_REGISTRATION_TOOLS,
 )
 
-# Session management tools (v0.2.0)
-from paola.tools.session_tools import (
-    start_session,
-    finalize_session,
-    get_active_sessions,
-    get_session_info,
+# Graph management tools (v0.3.x)
+from paola.tools.graph_tools import (
+    start_graph,
+    get_graph_state,
+    finalize_graph,
+    query_past_graphs,
+    get_past_graph,
     set_foundry,
+    get_foundry,
 )
 
 __all__ = [
@@ -153,10 +155,12 @@ __all__ = [
     "foundry_list_evaluators",
     "foundry_get_evaluator",
     "ALL_REGISTRATION_TOOLS",
-    # Session management tools (v0.2.0)
-    "start_session",
-    "finalize_session",
-    "get_active_sessions",
-    "get_session_info",
+    # Graph management tools (v0.3.x)
+    "start_graph",
+    "get_graph_state",
+    "finalize_graph",
+    "query_past_graphs",
+    "get_past_graph",
     "set_foundry",
+    "get_foundry",
 ]

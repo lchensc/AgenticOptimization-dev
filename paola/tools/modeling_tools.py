@@ -13,7 +13,7 @@ from langchain.tools import tool
 
 from ..modeling.parsers import ProblemParser, parse_problem
 from ..modeling.validation import validate_problem, check_initial_feasibility
-from ..tools.session_tools import _FOUNDRY
+from ..tools.graph_tools import get_foundry
 
 
 @tool
@@ -56,7 +56,8 @@ def parse_problem_from_natural_language(description: str) -> Dict[str, Any]:
         # Store in foundry
         problem_id = f"nl_{hash(description) % 100000}"
 
-        if _FOUNDRY is not None:
+        foundry = get_foundry()
+        if foundry is not None:
             # Store problem (create method to be added to foundry)
             # For now, just return the problem data
             pass

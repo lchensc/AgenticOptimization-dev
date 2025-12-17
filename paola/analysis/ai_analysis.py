@@ -10,12 +10,11 @@ Cost: ~$0.02-0.05 per analysis
 Latency: 5-10 seconds
 """
 
-from typing import Dict, Any, Literal, Optional, List
+from typing import Dict, Any, Literal, Optional, List, Union
 from datetime import datetime
 import json
 import re
 
-from ..foundry import RunRecord
 from ..agent.react_agent import initialize_llm
 from langchain_core.messages import HumanMessage
 
@@ -30,7 +29,7 @@ AnalysisFocus = Literal[
 
 
 def ai_analyze(
-    run: RunRecord,
+    run_info: Dict[str, Any],
     deterministic_metrics: Dict[str, Any],
     focus: AnalysisFocus = "overall",
     llm_model: str = "qwen-plus",
@@ -43,7 +42,7 @@ def ai_analyze(
     strategic diagnosis + actionable recommendations.
 
     Args:
-        run: Optimization run record
+        run_info: Run/node info dict with keys like "algorithm", "problem_name", "result_data", "success"
         deterministic_metrics: Pre-computed metrics from compute_metrics()
         focus: What aspect to analyze
         llm_model: LLM to use for reasoning
@@ -80,7 +79,8 @@ def ai_analyze(
 
         # AI if needed (costs money, strategic)
         if metrics["convergence"]["is_stalled"]:
-            insights = ai_analyze(run, metrics, focus="convergence")
+            run_info = {"algorithm": "SLSQP", "problem_name": "rosenbrock", ...}
+            insights = ai_analyze(run_info, metrics, focus="convergence")
 
             # Execute recommendations
             for rec in insights["recommendations"]:
@@ -88,8 +88,9 @@ def ai_analyze(
                     constraint_adjust_bounds(**rec["args"])
     """
     # Check cache (unless force_reanalysis)
-    if not force_reanalysis and run.ai_insights:
-        cached = run.ai_insights
+    ai_insights = run_info.get("ai_insights") if isinstance(run_info, dict) else getattr(run_info, "ai_insights", None)
+    if not force_reanalysis and ai_insights:
+        cached = ai_insights
         if cached.get("metadata", {}).get("focus") == focus:
             # Check if recent (within 1 hour)
             cached_time = datetime.fromisoformat(cached.get("metadata", {}).get("timestamp", "2000-01-01"))
@@ -98,7 +99,7 @@ def ai_analyze(
                 return cached
 
     # Build structured prompt
-    prompt = _build_analysis_prompt(run, deterministic_metrics, focus)
+    prompt = _build_analysis_prompt(run_info, deterministic_metrics, focus)
 
     # Call LLM
     try:
@@ -136,7 +137,7 @@ def ai_analyze(
 
 
 def _build_analysis_prompt(
-    run: RunRecord,
+    run_info: Dict[str, Any],
     metrics: Dict[str, Any],
     focus: AnalysisFocus
 ) -> str:
@@ -154,20 +155,33 @@ def _build_analysis_prompt(
         Structured prompt string
     """
     metrics_formatted = _format_metrics_for_llm(metrics)
-    recent_iters = run.result_data.get("iterations", [])[-10:]
+
+    # Extract info from run_info (supports dict or object interface)
+    if isinstance(run_info, dict):
+        algorithm = run_info.get("algorithm", "unknown")
+        problem_name = run_info.get("problem_name", "unknown")
+        result_data = run_info.get("result_data", {})
+        success = run_info.get("success", False)
+    else:
+        algorithm = getattr(run_info, "algorithm", "unknown")
+        problem_name = getattr(run_info, "problem_name", "unknown")
+        result_data = getattr(run_info, "result_data", {}) or {}
+        success = getattr(run_info, "success", False)
+
+    recent_iters = result_data.get("iterations", [])[-10:]
 
     prompt = f"""You are an expert optimization analyst. Analyze this run and provide strategic recommendations.
 
 PROBLEM:
-- Algorithm: {run.algorithm}
-- Problem: {run.problem_name}
+- Algorithm: {algorithm}
+- Problem: {problem_name}
 
 CURRENT STATUS:
 - Total iterations: {metrics['convergence']['iterations_total']}
 - Current objective: {metrics['objective']['current']:.6f}
 - Best objective: {metrics['objective']['best']:.6f}
 - Improvement from start: {metrics['objective']['improvement_from_start']:.6f}
-- Success: {run.success}
+- Success: {success}
 
 DETERMINISTIC METRICS:
 {metrics_formatted}

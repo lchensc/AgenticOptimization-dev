@@ -12,10 +12,6 @@ v0.3.0: Graph-based architecture
 - Graph = complete optimization task (may involve multiple nodes)
 - Node = single optimizer execution
 
-v0.2.0: Session-based architecture (legacy)
-- Session = complete optimization task (may involve multiple runs)
-- Run = single optimizer execution
-
 Pattern: Dependency injection (testable, explicit)
 """
 
@@ -23,10 +19,9 @@ from typing import Dict, Optional, List
 import re
 
 from .storage import StorageBackend
-from .schema import SessionRecord, OptimizationGraph
+from .schema import OptimizationGraph
 from .schema import GraphRecord, GraphDetail, ProblemSignature
 from .schema.conversion import create_problem_signature
-from .active_session import ActiveSession
 from .active_graph import ActiveGraph
 from .problem import Problem
 from .evaluator_storage import EvaluatorStorage
@@ -40,7 +35,7 @@ class OptimizationFoundry:
     The foundry provides a single source of truth for optimization data,
     managing problems, graphs, results with versioning and lineage.
 
-    v0.3.0 Design:
+    Design:
     - Graph = complete optimization task (may involve multiple nodes)
     - Node = single optimizer execution within a graph
     - Uses dependency injection (pass storage backend)
@@ -48,7 +43,7 @@ class OptimizationFoundry:
     - Manages active graphs (in-memory)
     - Delegates persistence to storage backend
 
-    Example (v0.3.0 Graph API):
+    Example:
         # Initialize foundry
         storage = FileStorage(base_dir=".paola_runs")
         foundry = OptimizationFoundry(storage=storage)
@@ -74,8 +69,6 @@ class OptimizationFoundry:
 
         # Finalize graph
         record = foundry.finalize_graph(graph.graph_id, success=True)
-
-    Legacy (v0.2.0 Session API still supported for migration)
     """
 
     def __init__(self, storage: StorageBackend):
@@ -87,7 +80,6 @@ class OptimizationFoundry:
         """
         self.storage = storage
         self._active_graphs: Dict[int, ActiveGraph] = {}
-        self._active_sessions: Dict[int, ActiveSession] = {}  # Legacy (v0.2.0)
 
         # Initialize evaluator storage
         self.evaluator_storage = EvaluatorStorage(storage)
@@ -342,178 +334,8 @@ class OptimizationFoundry:
         return filtered
 
     # =========================================================================
-    # Session Lifecycle Management (v0.2.0 Legacy)
+    # Problem Management
     # =========================================================================
-
-    def create_session(
-        self,
-        problem_id: str,
-        config: Optional[Dict] = None,
-    ) -> ActiveSession:
-        """
-        Create new optimization session.
-
-        This creates an active session handle that can contain multiple
-        optimizer runs. The session is persisted when finalized.
-
-        Args:
-            problem_id: Problem identifier
-            config: Session configuration (goal, constraints, etc.)
-
-        Returns:
-            ActiveSession: Active session handle
-
-        Example:
-            session = foundry.create_session(
-                problem_id="rosenbrock_10d",
-                config={"goal": "minimize", "max_evaluations": 1000}
-            )
-        """
-        # Get next session ID from storage
-        session_id = self.storage.get_next_session_id()
-
-        # Create active session
-        session = ActiveSession(
-            session_id=session_id,
-            problem_id=problem_id,
-            config=config,
-        )
-
-        # Register as active
-        self._active_sessions[session_id] = session
-
-        return session
-
-    def get_session(self, session_id: int) -> Optional[ActiveSession]:
-        """
-        Get active session by ID.
-
-        Only returns sessions that are currently active (in-progress).
-        For completed sessions, use load_session().
-
-        Args:
-            session_id: Session identifier
-
-        Returns:
-            ActiveSession if active, None otherwise
-        """
-        return self._active_sessions.get(session_id)
-
-    def finalize_session(self, session_id: int, success: bool) -> Optional[SessionRecord]:
-        """
-        Finalize session and persist to storage.
-
-        Args:
-            session_id: Session identifier
-            success: Whether optimization was successful
-
-        Returns:
-            SessionRecord if session found, None otherwise
-        """
-        session = self._active_sessions.get(session_id)
-        if session is None:
-            return None
-
-        # Finalize session to get immutable record
-        record = session.finalize(success)
-
-        # Persist to storage
-        self.storage.save_session(record)
-
-        # Remove from active registry
-        del self._active_sessions[session_id]
-
-        return record
-
-    def get_active_sessions(self) -> Dict[int, ActiveSession]:
-        """
-        Get all active (in-progress) sessions.
-
-        Returns:
-            Dict mapping session_id to ActiveSession
-        """
-        return self._active_sessions.copy()
-
-    # ===== Storage Queries (Completed Sessions) =====
-
-    def load_session(self, session_id: int) -> Optional[SessionRecord]:
-        """
-        Load completed session from storage.
-
-        Args:
-            session_id: Session identifier
-
-        Returns:
-            SessionRecord or None if not found
-        """
-        return self.storage.load_session(session_id)
-
-    def load_all_sessions(self) -> List[SessionRecord]:
-        """
-        Load all sessions from storage.
-
-        Returns:
-            List of all SessionRecords, sorted by session_id
-        """
-        return self.storage.load_all_sessions()
-
-    def query_sessions(
-        self,
-        problem_id: Optional[str] = None,
-        success: Optional[bool] = None,
-        limit: int = 100,
-    ) -> List[SessionRecord]:
-        """
-        Query sessions with filters.
-
-        Currently does post-load filtering (loads all, then filters).
-        Future: Push filtering to storage backend for efficiency.
-
-        Args:
-            problem_id: Filter by problem ID (supports wildcards)
-            success: Filter by success status
-            limit: Maximum number of results
-
-        Returns:
-            List of matching SessionRecords
-
-        Example:
-            # Get all successful sessions on Rosenbrock
-            sessions = foundry.query_sessions(
-                problem_id="rosenbrock*",
-                success=True,
-                limit=10
-            )
-        """
-        sessions = self.storage.load_all_sessions()
-
-        # Apply filters
-        filtered = []
-        for session in sessions:
-            # Problem ID filter (support wildcards)
-            if problem_id is not None:
-                if '*' in problem_id:
-                    # Wildcard matching
-                    pattern = problem_id.replace('*', '.*')
-                    if not re.match(pattern, session.problem_id):
-                        continue
-                else:
-                    if session.problem_id != problem_id:
-                        continue
-
-            # Success filter
-            if success is not None and session.success != success:
-                continue
-
-            filtered.append(session)
-
-            # Limit
-            if len(filtered) >= limit:
-                break
-
-        return filtered
-
-    # ===== Problem Management =====
 
     def register_problem(self, problem: Problem) -> None:
         """
@@ -650,75 +472,10 @@ class OptimizationFoundry:
         """
         self._active_graphs.clear()
 
-    def clear_active_sessions(self) -> None:
-        """
-        Clear all active sessions (for testing).
-
-        Warning: This removes sessions from registry without finalizing them.
-        Only use in testing scenarios.
-        """
-        self._active_sessions.clear()
-
-    def clear_all_active(self) -> None:
-        """
-        Clear all active graphs and sessions (for testing).
-        """
-        self._active_graphs.clear()
-        self._active_sessions.clear()
-
-    # =========================================================================
-    # Deprecated v0.1.0 API (for backward compatibility)
-    # =========================================================================
-
-    def load_run(self, run_id: int):
-        """
-        DEPRECATED: Load run by ID.
-
-        This method is deprecated. Use load_session() instead.
-        In v0.2.0, runs are contained within sessions.
-
-        Args:
-            run_id: Run identifier
-
-        Returns:
-            None (deprecated - no backward compatible storage)
-        """
-        import warnings
-        warnings.warn(
-            "load_run() is deprecated. Use load_session() instead. "
-            "In v0.2.0, runs are contained within sessions.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return None
-
-    def get_run(self, run_id: int):
-        """
-        DEPRECATED: Get active run by ID.
-
-        This method is deprecated. Use get_session() instead.
-        In v0.2.0, runs are managed through sessions.
-
-        Args:
-            run_id: Run identifier
-
-        Returns:
-            None (deprecated)
-        """
-        import warnings
-        warnings.warn(
-            "get_run() is deprecated. Use get_session() instead. "
-            "In v0.2.0, runs are managed through sessions.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        return None
-
     def __repr__(self) -> str:
         """String representation."""
         return (
             f"OptimizationFoundry("
             f"active_graphs={len(self._active_graphs)}, "
-            f"active_sessions={len(self._active_sessions)}, "
             f"storage={type(self.storage).__name__})"
         )
