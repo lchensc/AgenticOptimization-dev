@@ -528,13 +528,13 @@ def list_optimizers() -> Dict[str, Any]:
     List available optimizer backends and their capabilities.
 
     Use this to discover what optimizers are installed.
+    For detailed configuration options, use load_skill(backend_name).
 
     Returns:
         Dict with:
             success: bool
             available_backends: List[str] - Installed backends
-            backends: Dict - Details about each backend
-            recommendation: str - General guidance
+            backends: Dict - Capabilities (each has 'skill' field for options)
     """
     backends = list_backends()
 
@@ -542,12 +542,6 @@ def list_optimizers() -> Dict[str, Any]:
         "success": True,
         "available_backends": get_available_backends(),
         "backends": backends,
-        "recommendation": (
-            "Choose optimizer based on problem characteristics:\n"
-            "- scipy:SLSQP/L-BFGS-B: General purpose, gradient-based\n"
-            "- ipopt: Large-scale constrained NLP (if available)\n"
-            "- optuna:TPE: Black-box, multi-modal, no gradients needed"
-        ),
     }
 
 

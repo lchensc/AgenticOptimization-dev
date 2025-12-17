@@ -109,12 +109,8 @@ class SciPyBackend(OptimizerBackend):
     def get_info(self) -> Dict[str, Any]:
         return {
             "name": "SciPy",
-            "type": "general",
             "methods": list(self.METHODS.keys()),
-            "supports_constraints": True,
-            "supports_bounds": True,
-            "requires_gradients": False,
-            "key_options": ["maxiter", "ftol", "gtol", "disp"],
+            "skill": "scipy",  # Use load_skill("scipy") for capabilities and options
         }
 
     def optimize(
@@ -219,17 +215,7 @@ class IPOPTBackend(OptimizerBackend):
     def get_info(self) -> Dict[str, Any]:
         return {
             "name": "IPOPT",
-            "type": "interior-point",
-            "supports_constraints": True,
-            "supports_bounds": True,
-            "requires_gradients": True,
-            "full_passthrough": True,  # All IPOPT options supported
-            "key_options": [
-                "tol", "max_iter", "mu_strategy", "mu_init",
-                "hessian_approximation", "limited_memory_max_history",
-                "warm_start_init_point", "linear_solver", "print_level"
-            ],
-            "skill": "ipopt",  # Paola skill for detailed options
+            "skill": "ipopt",  # Use load_skill("ipopt") for capabilities and options
         }
 
     def optimize(
@@ -357,12 +343,8 @@ class OptunaBackend(OptimizerBackend):
     def get_info(self) -> Dict[str, Any]:
         return {
             "name": "Optuna",
-            "type": "bayesian",
             "samplers": self.SAMPLERS,
-            "supports_constraints": False,
-            "supports_bounds": True,
-            "requires_gradients": False,
-            "key_options": ["n_trials", "sampler", "seed"],
+            "skill": "optuna",  # Use load_skill("optuna") for capabilities and options
         }
 
     def optimize(
