@@ -325,9 +325,18 @@ class IPOPTBackend(OptimizerBackend):
 
 
 class OptunaBackend(OptimizerBackend):
-    """Optuna Bayesian optimization backend."""
+    """
+    Optuna optimization backend with full sampler and pruner support.
 
-    SAMPLERS = ["TPE", "CMA-ES", "Random", "Grid"]
+    Supports:
+    - Samplers: TPE, CMA-ES, GP, NSGA-II, NSGA-III, QMC, Random, Grid
+    - Pruners: Median, Hyperband, SuccessiveHalving, Threshold, Percentile, Patient
+    - Warm-starting via source_trials (CMA-ES) or enqueue_trial
+    - Advanced sampler/pruner options via config
+    """
+
+    SAMPLERS = ["TPE", "CMA-ES", "GP", "NSGA-II", "NSGA-III", "QMC", "Random", "Grid"]
+    PRUNERS = ["Median", "Hyperband", "SuccessiveHalving", "Threshold", "Percentile", "Patient", "Nop"]
 
     @property
     def name(self) -> str:
@@ -344,8 +353,74 @@ class OptunaBackend(OptimizerBackend):
         return {
             "name": "Optuna",
             "samplers": self.SAMPLERS,
-            "skill": "optuna",  # Use load_skill("optuna") for capabilities and options
+            "pruners": self.PRUNERS,
+            "skill": "optuna",
         }
+
+    def _create_sampler(self, sampler_name: str, seed: Optional[int],
+                        sampler_options: Dict[str, Any], source_trials: Optional[List] = None):
+        """Create sampler with options."""
+        import optuna
+
+        opts = sampler_options.copy() if sampler_options else {}
+        if seed is not None:
+            opts["seed"] = seed
+
+        if sampler_name == "TPE":
+            return optuna.samplers.TPESampler(**opts)
+        elif sampler_name == "CMA-ES":
+            # CMA-ES supports warm-starting via source_trials
+            if source_trials:
+                opts["source_trials"] = source_trials
+            return optuna.samplers.CmaEsSampler(**opts)
+        elif sampler_name == "GP":
+            return optuna.samplers.GPSampler(**opts)
+        elif sampler_name == "NSGA-II":
+            return optuna.samplers.NSGAIISampler(**opts)
+        elif sampler_name == "NSGA-III":
+            return optuna.samplers.NSGAIIISampler(**opts)
+        elif sampler_name == "QMC":
+            return optuna.samplers.QMCSampler(**opts)
+        elif sampler_name == "Random":
+            return optuna.samplers.RandomSampler(**opts)
+        elif sampler_name == "Grid":
+            # Grid sampler requires search_space parameter
+            if "search_space" not in opts:
+                logger.warning("Grid sampler requires search_space, falling back to TPE")
+                return optuna.samplers.TPESampler(seed=seed)
+            return optuna.samplers.GridSampler(**opts)
+        else:
+            logger.warning(f"Unknown sampler '{sampler_name}', using TPE")
+            return optuna.samplers.TPESampler(seed=seed)
+
+    def _create_pruner(self, pruner_name: Optional[str], pruner_options: Dict[str, Any]):
+        """Create pruner with options."""
+        import optuna
+
+        if not pruner_name or pruner_name == "Nop":
+            return optuna.pruners.NopPruner()
+
+        opts = pruner_options.copy() if pruner_options else {}
+
+        if pruner_name == "Median":
+            return optuna.pruners.MedianPruner(**opts)
+        elif pruner_name == "Hyperband":
+            return optuna.pruners.HyperbandPruner(**opts)
+        elif pruner_name == "SuccessiveHalving":
+            return optuna.pruners.SuccessiveHalvingPruner(**opts)
+        elif pruner_name == "Threshold":
+            return optuna.pruners.ThresholdPruner(**opts)
+        elif pruner_name == "Percentile":
+            return optuna.pruners.PercentilePruner(**opts)
+        elif pruner_name == "Patient":
+            # Patient pruner wraps another pruner
+            wrapped = opts.pop("wrapped_pruner", None)
+            if wrapped is None:
+                wrapped = optuna.pruners.MedianPruner()
+            return optuna.pruners.PatientPruner(wrapped_pruner=wrapped, **opts)
+        else:
+            logger.warning(f"Unknown pruner '{pruner_name}', using NopPruner")
+            return optuna.pruners.NopPruner()
 
     def optimize(
         self,
@@ -369,22 +444,35 @@ class OptunaBackend(OptimizerBackend):
                 n_function_evals=0,
             )
 
+        # Extract config options
         sampler_name = config.get("sampler", "TPE")
         n_trials = config.get("n_trials", config.get("max_iterations", 100))
         seed = config.get("seed")
+        sampler_options = config.get("sampler_options", {})
+        pruner_name = config.get("pruner")
+        pruner_options = config.get("pruner_options", {})
 
-        # Create sampler
-        if sampler_name == "TPE":
-            sampler = optuna.samplers.TPESampler(seed=seed)
-        elif sampler_name == "CMA-ES":
-            sampler = optuna.samplers.CmaEsSampler(seed=seed)
-        elif sampler_name == "Random":
-            sampler = optuna.samplers.RandomSampler(seed=seed)
-        else:
-            sampler = optuna.samplers.TPESampler(seed=seed)
+        # Warm-start support
+        source_trials = config.get("source_trials")  # For CMA-ES
+        enqueue_points = config.get("enqueue_points")  # List of dicts with param values
+
+        # Create sampler and pruner
+        try:
+            sampler = self._create_sampler(sampler_name, seed, sampler_options, source_trials)
+            pruner = self._create_pruner(pruner_name, pruner_options)
+        except Exception as e:
+            return OptimizationResult(
+                success=False,
+                message=f"Failed to create sampler/pruner: {str(e)}",
+                final_design=x0,
+                final_objective=float('inf'),
+                n_iterations=0,
+                n_function_evals=0,
+            )
 
         # Track evaluations
         n_evals = [0]
+        n_pruned = [0]
         history = []
         best_x = [x0.copy()]
         best_f = [float('inf')]
@@ -398,13 +486,13 @@ class OptunaBackend(OptimizerBackend):
             n_evals[0] += 1
             val = objective(x)
 
-            # Record trial with design vector for proper run tracking
-            # Note: Optuna trials are independent samples, not trajectory steps
+            # Record trial with design vector
             history.append({
                 "iteration": n_evals[0],
-                "trial": n_evals[0],
+                "trial": trial.number,
                 "objective": float(val),
-                "design": x.tolist(),  # Include design for run recording
+                "design": x.tolist(),
+                "pruned": False,
             })
 
             if val < best_f[0]:
@@ -414,16 +502,46 @@ class OptunaBackend(OptimizerBackend):
             return val
 
         try:
-            study = optuna.create_study(direction="minimize", sampler=sampler)
+            # Create study
+            study = optuna.create_study(
+                direction="minimize",
+                sampler=sampler,
+                pruner=pruner,
+            )
+
+            # Enqueue known good points for warm-starting
+            if enqueue_points:
+                for point in enqueue_points:
+                    if isinstance(point, (list, np.ndarray)):
+                        # Convert array to dict format
+                        params = {f"x{i}": float(v) for i, v in enumerate(point)}
+                    else:
+                        params = point
+                    study.enqueue_trial(params)
+
+            # Run optimization
             study.optimize(optuna_objective, n_trials=n_trials, show_progress_bar=False)
 
+            # Count pruned trials
+            n_pruned[0] = len([t for t in study.trials if t.state == optuna.trial.TrialState.PRUNED])
+
             # Get best result
-            final_x = np.array([study.best_params[f"x{i}"] for i in range(len(bounds))])
-            final_f = study.best_value
+            if study.best_trial is not None:
+                final_x = np.array([study.best_params[f"x{i}"] for i in range(len(bounds))])
+                final_f = study.best_value
+            else:
+                final_x = best_x[0]
+                final_f = best_f[0]
+
+            # Build message with stats
+            completed = len([t for t in study.trials if t.state == optuna.trial.TrialState.COMPLETE])
+            msg = f"Completed {completed} trials"
+            if n_pruned[0] > 0:
+                msg += f", {n_pruned[0]} pruned"
 
             return OptimizationResult(
                 success=True,
-                message=f"Completed {n_trials} trials",
+                message=msg,
                 final_design=final_x,
                 final_objective=float(final_f),
                 n_iterations=n_trials,
