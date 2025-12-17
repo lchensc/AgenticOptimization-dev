@@ -108,11 +108,16 @@ overview: |
      }
      ```
 
-  3. **Warm-starting**: Optuna supports warm-starting via `source_trials` in
+  3. **IMPORTANT - Bounds are NOT set via sampler_options**:
+     Bounds come from the problem definition (`create_nlp_problem`).
+     The sampler operates within these bounds automatically.
+     To change bounds, register a new problem with different bounds.
+
+  4. **Warm-starting**: Optuna supports warm-starting via `source_trials` in
      CMA-ES or by enqueuing known good points. Use `init_strategy="warm_start"`
      with parent node.
 
-  4. **Multi-objective**: For Pareto optimization, use NSGA-II/NSGA-III samplers
+  5. **Multi-objective**: For Pareto optimization, use NSGA-II/NSGA-III samplers
      and return multiple objectives from the evaluator.
 
 # === RESOURCES (Level 3 - Loaded on demand) ===
@@ -224,10 +229,15 @@ paola:
       - Node 3: Final polish with increased budget
 
     search_space_adaptation: |
-      Between nodes, Paola can:
+      To adapt search space between optimizations:
+      - Register a new problem with different bounds using `create_nlp_problem`
+      - Create a new graph for the new problem
+      - Use warm_start to transfer best solution from previous graph
+
+      Common adaptations:
       - Narrow bounds around promising region (improve efficiency)
       - Extend bounds if solution hits boundary
-      - Change parameter types (continuous → categorical for discrete)
+      - Note: bounds are defined at problem creation, NOT via sampler_options
 
   learning:
     track_options:

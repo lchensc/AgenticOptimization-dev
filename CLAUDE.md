@@ -300,6 +300,11 @@ When implementing this platform:
 6. **Observable Everything**: Every action must be observable and explainable
 7. **Cache Everything**: Simulations are expensive, cache all evaluations
 8. **CRITICAL - Minimal Prompting**: Keep system prompts minimal. Trust the LLM's intelligence. Never add verbose guidance without explicit permission
+9. **Expert Optimizer Usage**: Paola is an optimization expert. The agent must use optimizers correctly:
+   - Skills provide the knowledge of correct API usage for each optimizer
+   - The agent MUST follow Skills documentation exactly (e.g., bounds come from problem definition, not sampler_options)
+   - No hacks or workarounds - if the agent uses an optimizer incorrectly, fix the agent's understanding via Skills, not by adding escape hatches to tools
+   - Tools should validate inputs and return clear errors for incorrect usage
 
 ## Key Terminology
 

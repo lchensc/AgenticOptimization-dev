@@ -361,12 +361,24 @@ class OptunaBackend(OptimizerBackend):
             "skill": "optuna",
         }
 
+    # Known invalid options that users commonly try to pass incorrectly
+    INVALID_SAMPLER_OPTIONS = {
+        "bounds": "Bounds are defined at problem creation (create_nlp_problem), not via sampler_options",
+        "maximize": "Direction is determined by Optuna study, not sampler. Use direction='maximize' in study config",
+        "initial_step_size": "Use 'sigma0' for CMA-ES initial standard deviation",
+    }
+
     def _create_sampler(self, sampler_name: str, seed: Optional[int],
                         sampler_options: Dict[str, Any], source_trials: Optional[List] = None):
         """Create sampler with options."""
         import optuna
 
         opts = sampler_options.copy() if sampler_options else {}
+
+        # Validate options and provide helpful error messages
+        for invalid_opt, message in self.INVALID_SAMPLER_OPTIONS.items():
+            if invalid_opt in opts:
+                raise ValueError(f"Invalid sampler option '{invalid_opt}': {message}")
         if seed is not None:
             opts["seed"] = seed
 
