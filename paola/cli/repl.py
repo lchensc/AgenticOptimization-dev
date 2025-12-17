@@ -14,7 +14,6 @@ from ..agent.conversational_agent import build_conversational_agent
 from ..tools.evaluator_tools import create_nlp_problem
 from ..tools.graph_tools import start_graph, get_graph_state, finalize_graph, query_past_graphs, get_past_graph, set_foundry
 from ..tools.analysis import analyze_convergence as analyze_convergence_new, analyze_efficiency, get_all_metrics, analyze_run_with_ai
-from ..tools.knowledge_tools import store_optimization_insight, retrieve_optimization_knowledge, list_all_knowledge
 from ..callbacks import CallbackManager
 from ..foundry import FileStorage, StorageBackend, OptimizationFoundry
 from ..llm import TokenTracker, LangChainTokenCallback, format_session_stats
@@ -140,11 +139,6 @@ class AgenticOptREPL:
 
             # Analysis (AI-powered)
             analyze_run_with_ai,
-
-            # Knowledge (skeleton)
-            store_optimization_insight,
-            retrieve_optimization_knowledge,
-            list_all_knowledge,
 
             # Evaluator management
             read_file,

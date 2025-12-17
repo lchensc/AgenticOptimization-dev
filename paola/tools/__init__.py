@@ -6,7 +6,6 @@ Provides LangChain @tool decorated functions for:
 - Optimization execution (run_optimization, get_problem_info, list_available_optimizers)
 - Analysis (analyze_convergence, analyze_efficiency, get_all_metrics, analyze_run_with_ai)
 - Evaluator management (foundry_list_evaluators, foundry_get_evaluator)
-- Knowledge (store_optimization_insight, retrieve_optimization_knowledge)
 - Cache operations (cache_get, cache_store, cache_clear, cache_stats)
 
 Note: Expert configuration is now handled via Skills infrastructure (paola.skills).
@@ -39,17 +38,6 @@ from paola.tools.evaluator_tools import (
     register_problem,
     clear_problem_registry,
     get_problem_by_id,
-)
-
-from paola.tools.gate_control_tools import (
-    gate_continue,
-    gate_stop,
-    gate_restart_from,
-    gate_get_history,
-    gate_get_statistics,
-    register_gate,
-    clear_gate_registry,
-    get_gate_by_id,
 )
 
 from paola.tools.observation_tools import (
@@ -99,15 +87,6 @@ __all__ = [
     "register_problem",
     "clear_problem_registry",
     "get_problem_by_id",
-    # Gate control tools
-    "gate_continue",
-    "gate_stop",
-    "gate_restart_from",
-    "gate_get_history",
-    "gate_get_statistics",
-    "register_gate",
-    "clear_gate_registry",
-    "get_gate_by_id",
     # Observation tools
     "analyze_convergence",
     "detect_pattern",

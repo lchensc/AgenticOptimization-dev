@@ -39,29 +39,32 @@ This principle defines Paola's approach to the overwhelming complexity of optimi
 
 ```
 AgenticOptimization/
-├── paola/                                 # Main package
+├── paola/                                 # Main package (v0.4.0)
 │   ├── agent/                            # LangGraph agents (conversational, react)
 │   ├── tools/                            # LangChain @tool functions
-│   │   ├── graph_tools.py                # Graph management (v0.3.x)
+│   │   ├── graph_tools.py                # Graph management
 │   │   ├── optimization_tools.py         # run_optimization, get_problem_info
 │   │   ├── evaluator_tools.py            # create_nlp_problem, evaluate_function
+│   │   ├── observation_tools.py          # analyze_convergence, detect_pattern
+│   │   ├── registration_tools.py         # read_file, foundry_store_evaluator
+│   │   ├── cache_tools.py                # Evaluation caching
 │   │   └── analysis.py                   # Metrics and AI analysis
-│   ├── skills/                           # Optimizer expertise (IPOPT, SciPy, Optuna, NLopt)
-│   │   ├── data/                         # YAML skill definitions
+│   ├── skills/                           # Optimizer expertise (IPOPT, SciPy, Optuna)
+│   │   ├── optimizers/                   # YAML skill definitions
 │   │   ├── tools.py                      # list_skills, load_skill, query_skills
 │   │   └── loader.py                     # Progressive disclosure loader
 │   ├── foundry/                          # Data foundation layer
 │   │   ├── schema/                       # Polymorphic components per optimizer family
 │   │   ├── storage/                      # FileStorage backend
-│   │   ├── active_graph.py               # In-progress graph/node tracking (v0.3.x)
-│   │   └── foundry.py                    # OptimizationFoundry main class
+│   │   └── active_graph.py               # In-progress graph/node tracking
 │   ├── optimizers/                       # Optimizer backends (SciPy, IPOPT, Optuna)
+│   ├── backends/                         # Evaluation backends (analytical functions)
+│   ├── callbacks/                        # Event system for real-time monitoring
 │   ├── cli/                              # Interactive CLI (repl.py, commands.py)
-│   ├── knowledge/                        # Knowledge base (skeleton - Phase 3)
+│   ├── llm/                              # Token tracking
 │   └── analysis/                         # Metrics computation
+├── archive/                               # Archived/experimental code
 ├── docs/                                  # Documentation (timestamped)
-│   ├── architecture/                     # Design documents
-│   └── ...                               # Other categories
 ├── tests/                                 # Test suite
 └── CLAUDE.md                             # This file
 ```
@@ -73,7 +76,7 @@ AgenticOptimization/
 
 ## Key Concepts
 
-### v0.3.1 Two-Tier Graph Storage (Current)
+### v0.4.0 Two-Tier Graph Storage (Current)
 
 Two-tier storage separates LLM-learning data from debug/visualization data:
 
@@ -102,7 +105,7 @@ Two-tier storage separates LLM-learning data from debug/visualization data:
 - Agent learns what strategies worked for similar problems
 - Full config stored so agent can replicate successful approaches
 
-### v0.3.0 Graph-Based Architecture
+### Graph-Based Architecture
 
 **Graph** = Complete optimization task (may involve multiple nodes with different strategies)
 **Node** = Single optimizer execution within a graph
@@ -203,7 +206,7 @@ The LLM agent IS the intelligence. It has been trained on IPOPT docs, SciPy refe
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-### Core Tools (v0.3.1)
+### Core Tools (v0.4.0)
 
 **Graph Management** (4 tools):
 - `start_graph(problem_id, goal)` - Create new optimization graph
@@ -266,7 +269,7 @@ The cache prevents re-running expensive simulations when the optimizer revisits 
 
 ## Implementation Status
 
-**Current state**: v0.3.1 - Graph-based architecture with Skills
+**Current state**: v0.4.0 - Graph-based architecture with Skills (refactored)
 
 **Working features**:
 - CLI with conversational interface (`python -m paola.cli`)
@@ -281,9 +284,9 @@ The cache prevents re-running expensive simulations when the optimizer revisits 
 - Two-tier graph storage for cross-graph learning
 
 **In progress**:
-- Knowledge base with RAG retrieval (skeleton implemented)
 - Multi-run analysis
 - Strategic adaptation within graphs
+- Knowledge base with RAG retrieval (future)
 
 ## Development Principles
 

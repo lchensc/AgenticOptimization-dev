@@ -289,53 +289,6 @@ class TestOptimizerBackends:
         assert backend.name == "scipy"
 
 
-class TestConfigTools:
-    """Test expert configuration tools (escape hatch)."""
-
-    def test_config_scipy_json_output(self):
-        """Test config_scipy produces valid JSON."""
-        from paola.tools.config_tools import config_scipy
-        import json
-
-        config_str = config_scipy.invoke({
-            "method": "SLSQP",
-            "maxiter": 500,
-            "ftol": 1e-9
-        })
-
-        config = json.loads(config_str)
-        assert config["method"] == "SLSQP"
-        assert config["options"]["maxiter"] == 500
-        assert config["options"]["ftol"] == 1e-9
-
-    def test_config_ipopt_json_output(self):
-        """Test config_ipopt produces valid JSON."""
-        from paola.tools.config_tools import config_ipopt
-        import json
-
-        config_str = config_ipopt.invoke({
-            "max_iter": 2000,
-            "tol": 1e-8
-        })
-
-        config = json.loads(config_str)
-        assert config["solver"] == "ipopt"
-        assert config["options"]["max_iter"] == 2000
-
-    def test_explain_config_option(self):
-        """Test explain_config_option provides info."""
-        from paola.tools.config_tools import explain_config_option
-
-        result = explain_config_option.invoke({
-            "solver": "scipy",
-            "option_name": "ftol"
-        })
-
-        assert result["success"] == True
-        assert "description" in result
-        assert "typical_values" in result
-
-
 class TestCreateNLPProblemCompactBounds:
     """Test create_nlp_problem with compact bounds specification."""
 
