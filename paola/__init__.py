@@ -2,9 +2,9 @@
 Paola - Package for Agentic Optimization with Learning and Analysis
 """
 
-__version__ = "0.1.0"
+__version__ = "0.3.1"
 
-from .agent import Agent
+from .agent import build_optimization_agent, build_conversational_agent
 from .callbacks import (
     EventType,
     AgentEvent,
@@ -14,7 +14,8 @@ from .callbacks import (
 )
 
 __all__ = [
-    "Agent",
+    "build_optimization_agent",
+    "build_conversational_agent",
     "EventType",
     "AgentEvent",
     "EventCapture",

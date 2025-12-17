@@ -25,31 +25,12 @@ from paola.tools.cache_agent_tools import (
     run_db_query,
 )
 
-from paola.tools.optimizer_tools import (
-    optimizer_create,
-    optimizer_propose,
-    optimizer_update,
-    optimizer_restart,
-    run_scipy_optimization,
-    clear_optimizer_registry,
-    get_optimizer_by_id,
-)
-
-# Intent-based optimization tools (LLM-driven architecture)
+# Optimization tools (LLM-driven architecture)
 from paola.tools.optimization_tools import (
     run_optimization,
     get_problem_info,
     list_available_optimizers,
 )
-
-# Expert configuration tools - DISABLED, replaced by Skills infrastructure
-# from paola.tools.config_tools import (
-#     config_scipy,
-#     config_ipopt,
-#     config_nlopt,
-#     config_optuna,
-#     explain_config_option,
-# )
 
 from paola.tools.evaluator_tools import (
     evaluate_function,
@@ -107,24 +88,10 @@ __all__ = [
     "cache_stats",
     "run_db_log",
     "run_db_query",
-    # Optimizer tools (legacy)
-    "optimizer_create",
-    "optimizer_propose",
-    "optimizer_update",
-    "optimizer_restart",
-    "run_scipy_optimization",  # Deprecated - use run_optimization
-    "clear_optimizer_registry",
-    "get_optimizer_by_id",
-    # Intent-based optimization tools (LLM-driven architecture)
+    # Optimization tools (LLM-driven architecture)
     "run_optimization",
     "get_problem_info",
     "list_available_optimizers",
-    # Expert configuration tools - DISABLED, replaced by Skills
-    # "config_scipy",
-    # "config_ipopt",
-    # "config_nlopt",
-    # "config_optuna",
-    # "explain_config_option",
     # Evaluator tools
     "evaluate_function",
     "compute_gradient",
