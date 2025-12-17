@@ -4,39 +4,66 @@ Evaluator tools for the agentic optimization platform.
 Provides LangChain @tool decorated functions for function evaluation:
 - evaluate_function: Evaluate objective and constraints (with automatic caching)
 - compute_gradient: Compute gradients (analytical or finite-difference)
+
+v0.4.5: Added Pydantic validation for problem_id (handles str/int coercion)
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 import numpy as np
 from langchain_core.tools import tool
 import time
 
 from paola.tools.cache_tools import cache_get, cache_store
+from paola.tools.schemas import (
+    normalize_problem_id,
+    ProblemIdType,
+    EvaluateFunctionArgs,
+    ComputeGradientArgs,
+    GetProblemByIdArgs,
+    DeriveProblemArgs,
+)
 from paola.backends.analytical import get_analytical_function
 
 
-# Global problem registry
-_PROBLEM_REGISTRY: Dict[str, Any] = {}
+# Global problem registry - keyed by int (v0.4.3+)
+_PROBLEM_REGISTRY: Dict[int, Any] = {}
 
 
-def register_problem(problem_id: str, problem: Any):
-    """Register a problem for evaluation."""
-    _PROBLEM_REGISTRY[problem_id] = problem
+def register_problem(problem_id: ProblemIdType, problem: Any) -> None:
+    """Register a problem for evaluation.
+
+    Args:
+        problem_id: Problem ID (str or int, normalized to int)
+        problem: Problem object (NLPEvaluator or similar)
+    """
+    key = normalize_problem_id(problem_id)
+    _PROBLEM_REGISTRY[key] = problem
 
 
-def _get_problem(problem_id: str) -> Any:
-    """Get problem from registry."""
-    if problem_id not in _PROBLEM_REGISTRY:
+def _get_problem(problem_id: ProblemIdType) -> Any:
+    """Get problem from registry.
+
+    Args:
+        problem_id: Problem ID (str or int, normalized to int)
+
+    Returns:
+        Registered problem object
+
+    Raises:
+        ValueError: If problem not found
+    """
+    key = normalize_problem_id(problem_id)
+    if key not in _PROBLEM_REGISTRY:
         raise ValueError(
-            f"Problem '{problem_id}' not registered. "
+            f"Problem {key} not registered. "
             f"Available: {list(_PROBLEM_REGISTRY.keys())}"
         )
-    return _PROBLEM_REGISTRY[problem_id]
+    return _PROBLEM_REGISTRY[key]
 
 
-@tool
+@tool(args_schema=EvaluateFunctionArgs)
 def evaluate_function(
-    problem_id: str,
+    problem_id: ProblemIdType,
     design: List[float],
     use_cache: bool = True,
     compute_constraints: bool = False,
@@ -53,7 +80,7 @@ def evaluate_function(
     reason not to.
 
     Args:
-        problem_id: Problem identifier from formulate_problem
+        problem_id: Problem identifier (int or str, auto-normalized)
         design: Design vector to evaluate
         use_cache: If True, check cache before evaluation (default: True)
         compute_constraints: If True, also evaluate constraints (default: False)
@@ -70,7 +97,7 @@ def evaluate_function(
 
     Example:
         result = evaluate_function(
-            problem_id="rosenbrock_2d",
+            problem_id=1,  # or "1" - both work
             design=[-1.0, 1.0],
             use_cache=True
         )
@@ -78,6 +105,9 @@ def evaluate_function(
         was_cached = result["cache_hit"]
     """
     try:
+        # Normalize problem_id (handles str/int from LLM)
+        problem_id = normalize_problem_id(problem_id)
+
         # Check cache first
         if use_cache:
             cached = cache_get(design=design, problem_id=problem_id)
@@ -146,9 +176,9 @@ def evaluate_function(
         }
 
 
-@tool
+@tool(args_schema=ComputeGradientArgs)
 def compute_gradient(
-    problem_id: str,
+    problem_id: ProblemIdType,
     design: List[float],
     method: str = "analytical",
     use_cache: bool = True,
@@ -165,7 +195,7 @@ def compute_gradient(
     gradients (especially important for adjoint methods in CFD/FEA).
 
     Args:
-        problem_id: Problem identifier
+        problem_id: Problem identifier (int or str, auto-normalized)
         design: Design vector
         method: Gradient method - "analytical" or "finite-difference"
         use_cache: If True, check cache before computation (default: True)
@@ -184,7 +214,7 @@ def compute_gradient(
 
     Example:
         result = compute_gradient(
-            problem_id="rosenbrock_2d",
+            problem_id=1,  # or "1" - both work
             design=[-1.0, 1.0],
             method="analytical"
         )
@@ -192,6 +222,9 @@ def compute_gradient(
         grad_norm = result["gradient_norm"]
     """
     try:
+        # Normalize problem_id (handles str/int from LLM)
+        problem_id = normalize_problem_id(problem_id)
+
         # Check cache first
         if use_cache:
             cached = cache_get(design=design, problem_id=problem_id)
@@ -393,9 +426,17 @@ def clear_problem_registry():
     _PROBLEM_REGISTRY.clear()
 
 
-def get_problem_by_id(problem_id: str) -> Optional[Any]:
-    """Get problem instance by ID."""
-    return _PROBLEM_REGISTRY.get(problem_id)
+def get_problem_by_id(problem_id: ProblemIdType) -> Optional[Any]:
+    """Get problem instance by ID.
+
+    Args:
+        problem_id: Problem ID (str or int, normalized to int)
+
+    Returns:
+        Problem object or None if not found
+    """
+    key = normalize_problem_id(problem_id)
+    return _PROBLEM_REGISTRY.get(key)
 
 
 @tool
@@ -636,9 +677,9 @@ def create_nlp_problem(
         }
 
 
-@tool
+@tool(args_schema=DeriveProblemArgs)
 def derive_problem(
-    parent_problem_id: int,
+    parent_problem_id: ProblemIdType,
     derivation_type: str,
     modifications: str,  # JSON string
     new_name: Optional[str] = None,
@@ -653,7 +694,7 @@ def derive_problem(
     The derived problem maintains lineage to the parent.
 
     Args:
-        parent_problem_id: Numeric ID of the problem to derive from
+        parent_problem_id: Problem ID to derive from (int or str, auto-normalized)
         derivation_type: Type of derivation:
             - "narrow_bounds" - Shrink bounds around a region
             - "widen_bounds" - Expand search space
@@ -677,7 +718,7 @@ def derive_problem(
     Example (narrow bounds after global search):
         # After TPE finds promising region at x=[1.2, 3.4, 5.6]
         derive_problem(
-            parent_problem_id=1,
+            parent_problem_id=1,  # or "1" - both work
             derivation_type="narrow_bounds",
             modifications='{"center": [1.2, 3.4, 5.6], "width_factor": 0.3}',
             reason="Focus on region found by TPE in graph #42",
@@ -686,6 +727,8 @@ def derive_problem(
         )
     """
     try:
+        # Normalize problem_id (handles str/int from LLM)
+        parent_problem_id = normalize_problem_id(parent_problem_id)
         import json as json_module
         from paola.foundry import FileStorage
         from paola.foundry.nlp_schema import NLPProblem

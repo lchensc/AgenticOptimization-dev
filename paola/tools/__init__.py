@@ -9,7 +9,15 @@ Provides LangChain @tool decorated functions for:
 - Cache operations (cache_get, cache_store, cache_clear, cache_stats)
 
 Note: Expert configuration is now handled via Skills infrastructure (paola.skills).
+
+v0.4.5: Added Pydantic validation schemas for type-safe tool arguments.
 """
+
+# Pydantic schemas for tool validation (v0.4.5)
+from paola.tools.schemas import (
+    normalize_problem_id,
+    ProblemIdType,
+)
 
 from paola.tools.cache_tools import (
     cache_get,
@@ -74,6 +82,9 @@ from paola.tools.graph_tools import (
 )
 
 __all__ = [
+    # Pydantic schemas (v0.4.5)
+    "normalize_problem_id",
+    "ProblemIdType",
     # Cache tools
     "cache_get",
     "cache_store",

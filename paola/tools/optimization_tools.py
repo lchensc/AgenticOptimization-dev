@@ -13,6 +13,8 @@ v0.3.0: Graph-based architecture
 - Agent explicitly specifies parent_node and edge_type
 - Records nodes with polymorphic components per optimizer family
 
+v0.4.5: Pydantic validation for problem_id (handles str/int coercion)
+
 Architecture:
     LLM reasons → selects optimizer → constructs config → calls run_optimization
     (Intelligence)                                        (Execution)
@@ -40,6 +42,12 @@ from ..foundry import (
     BayesianProgress,
     BayesianResult,
 )
+from .schemas import (
+    normalize_problem_id,
+    ProblemIdType,
+    RunOptimizationArgs,
+    GetProblemInfoArgs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +56,7 @@ logger = logging.getLogger(__name__)
 # Graph-Based Optimization (v0.3.0+)
 # =============================================================================
 
-@tool
+@tool(args_schema=RunOptimizationArgs)
 def run_optimization(
     graph_id: int,
     optimizer: str,
@@ -57,7 +65,7 @@ def run_optimization(
     init_strategy: str = "center",
     parent_node: Optional[str] = None,
     edge_type: Optional[str] = None,
-    problem_id: Optional[str] = None,
+    problem_id: Optional[ProblemIdType] = None,
 ) -> Dict[str, Any]:
     """
     Execute optimization within a graph, creating a new node.
@@ -174,7 +182,11 @@ def run_optimization(
             }
 
         # Determine which problem to use (v0.4.1 - support problem_id override)
-        actual_problem_id = problem_id if problem_id else graph.problem_id
+        # Normalize problem_id (handles str/int from LLM) - v0.4.5
+        if problem_id is not None:
+            actual_problem_id = normalize_problem_id(problem_id)
+        else:
+            actual_problem_id = graph.problem_id
 
         # Get problem
         problem = _get_problem(actual_problem_id)
@@ -429,8 +441,8 @@ def run_optimization(
 # Information Tools
 # =============================================================================
 
-@tool
-def get_problem_info(problem_id: str) -> Dict[str, Any]:
+@tool(args_schema=GetProblemInfoArgs)
+def get_problem_info(problem_id: ProblemIdType) -> Dict[str, Any]:
     """
     Get problem characteristics for optimizer selection.
 
@@ -438,12 +450,12 @@ def get_problem_info(problem_id: str) -> Dict[str, Any]:
     selection and configuration.
 
     Args:
-        problem_id: Problem ID (from registered problems)
+        problem_id: Problem ID (int or str, auto-normalized)
 
     Returns:
         Dict with:
             success: bool
-            problem_id: str
+            problem_id: int
             dimension: int - Number of variables
             bounds: List - Variable bounds (truncated if >10)
             bounds_summary: str - Human-readable bounds description
@@ -454,6 +466,8 @@ def get_problem_info(problem_id: str) -> Dict[str, Any]:
     from .evaluator_tools import _get_problem
 
     try:
+        # Normalize problem_id (handles str/int from LLM) - v0.4.5
+        problem_id = normalize_problem_id(problem_id)
         problem = _get_problem(problem_id)
 
         nlp_problem = None
