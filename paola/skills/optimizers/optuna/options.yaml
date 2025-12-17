@@ -1,0 +1,582 @@
+# Optuna Optimizer Options Reference
+# Based on Optuna documentation (v4.0+)
+# Format: Each sampler/pruner is a category with its options directly listed
+
+# =============================================================================
+# SAMPLERS
+# =============================================================================
+
+# =============================================================================
+# TPE - Tree-structured Parzen Estimator
+# Best for: General HPO, conditional search spaces, unknown problem structure
+# Default sampler for most Optuna studies
+# =============================================================================
+
+TPE:
+  n_startup_trials:
+    type: int
+    default: 10
+    description: >
+      Number of random trials before TPE starts modeling. During startup,
+      random sampling is used to gather initial data for the estimator.
+    when_to_adjust: >
+      Increase to 20-30 for high-dimensional spaces or noisy objectives.
+      Decrease to 5 for quick exploration with limited budget.
+    range: [1, 100]
+
+  n_ei_candidates:
+    type: int
+    default: 24
+    description: >
+      Number of candidate samples used to calculate Expected Improvement.
+      More candidates = better EI estimate but slower sampling.
+    when_to_adjust: >
+      Increase to 48-96 for complex landscapes. Default is usually sufficient.
+    range: [1, 1000]
+
+  multivariate:
+    type: bool
+    default: false
+    description: >
+      Enable multivariate TPE which models parameter dependencies jointly
+      rather than independently. Improves performance when parameters interact.
+    when_to_use: >
+      Enable when parameters are known to interact (e.g., learning_rate and
+      batch_size, width and height). Adds computational overhead.
+    recommendation: >
+      Try multivariate=true if independent TPE shows poor convergence.
+
+  group:
+    type: bool
+    default: false
+    description: >
+      Use group decomposition with multivariate TPE. Requires multivariate=true.
+      Groups parameters defined in the same conditional scope.
+    when_to_use: >
+      Enable for conditional search spaces where grouped sampling helps.
+
+  constant_liar:
+    type: bool
+    default: false
+    description: >
+      Penalize running trials to avoid suggesting similar parameter configs.
+      Essential for distributed/parallel optimization to encourage diversity.
+    when_to_use: >
+      Enable for parallel optimization with multiple workers.
+    recommendation: >
+      Always enable when running parallel trials.
+
+  prior_weight:
+    type: float
+    default: 1.0
+    description: >
+      Weight of the prior distribution in density estimation.
+      Higher values make the sampler more conservative.
+    when_to_adjust: >
+      Increase for small datasets or noisy objectives. Decrease for
+      well-understood problem landscapes.
+
+  seed:
+    type: int
+    default: null
+    description: Random seed for reproducibility.
+
+  constraints_func:
+    type: callable
+    default: null
+    description: >
+      Function computing constraint violations from trial. Returns sequence
+      of floats where values > 0 indicate violations. Enables constrained
+      optimization within TPE framework.
+
+# =============================================================================
+# CMA-ES - Covariance Matrix Adaptation Evolution Strategy
+# Best for: Continuous optimization, many parameters, evolutionary search
+# Excellent for continuous problems but doesn't handle categoricals
+# =============================================================================
+
+CMA-ES:
+  sigma0:
+    type: float
+    default: null
+    description: >
+      Initial standard deviation for the search distribution.
+      When null, uses min_range/6 where min_range is smallest parameter range.
+    when_to_adjust: >
+      Set to ~1/6 of expected search range. Too large = slow convergence,
+      too small = premature convergence to local minimum.
+    recommendation: >
+      For normalized [0,1] bounds, try sigma0=0.3. For [0,100], try sigma0=15.
+
+  x0:
+    type: dict
+    default: null
+    description: >
+      Initial mean of the search distribution. Dictionary mapping parameter
+      names to initial values. Defaults to midpoint of bounds.
+    when_to_use: >
+      Provide when you have a good starting point from previous optimization.
+
+  n_startup_trials:
+    type: int
+    default: 1
+    description: >
+      Number of random trials before CMA-ES kicks in. Unlike TPE, CMA-ES
+      can start immediately (default=1).
+    when_to_adjust: >
+      Increase to 5-10 for very noisy objectives.
+
+  restart_strategy:
+    type: string
+    options: ["ipop", "bipop", null]
+    default: null
+    description: >
+      Strategy for restarting CMA-ES after convergence:
+      - ipop: Increase population size on restart
+      - bipop: Alternate between large and small populations
+      - null: No restart (single run)
+    when_to_use: >
+      Enable for multi-modal problems where multiple basins exist.
+      ipop is simpler, bipop is more thorough.
+    note: Deprecated in v4.4.0, but still functional.
+
+  popsize:
+    type: int
+    default: null
+    description: >
+      Population size for CMA-ES. When null, uses automatic sizing
+      based on dimensionality: 4 + floor(3 * ln(n)).
+    when_to_adjust: >
+      Increase for difficult multi-modal landscapes. Decrease for
+      faster convergence on unimodal problems.
+
+  use_separable_cma:
+    type: bool
+    default: false
+    description: >
+      Constrain covariance matrix to diagonal form. Much faster for
+      high-dimensional problems where parameters are independent.
+    when_to_use: >
+      Enable for separable functions (parameters don't interact) or
+      when dimensionality > 100.
+
+  with_margin:
+    type: bool
+    default: false
+    description: >
+      Enable margin feature to prevent integer/categorical distributions
+      from converging to a single point.
+    when_to_use: >
+      Enable when search space includes integer parameters.
+
+  lr_adapt:
+    type: bool
+    default: false
+    description: >
+      Activate learning rate adaptation for multimodal or noisy problems.
+    when_to_use: >
+      Enable for noisy objectives or known multimodal landscapes.
+
+  source_trials:
+    type: list
+    default: null
+    description: >
+      List of FrozenTrials for warm-starting CMA-ES. The sampler uses
+      these trials to initialize the search distribution.
+    paola_integration: >
+      Key for graph-based warm-starting. Pass best trials from parent
+      node to warm-start child node's CMA-ES.
+
+  seed:
+    type: int
+    default: null
+    description: Random seed for reproducibility.
+
+# =============================================================================
+# GP - Gaussian Process Sampler
+# Best for: Small number of parameters, need uncertainty estimates
+# Requires scipy and torch
+# =============================================================================
+
+GP:
+  n_startup_trials:
+    type: int
+    default: 10
+    description: >
+      Number of random trials before GP modeling begins.
+      GP needs sufficient data to fit the surrogate model.
+    when_to_adjust: >
+      Increase to 15-20 for noisy objectives. Don't decrease below 5.
+    range: [5, 50]
+
+  deterministic_objective:
+    type: bool
+    default: false
+    description: >
+      When true, fixes noise variance to minimum value.
+      Use for deterministic objective functions.
+    when_to_use: >
+      Enable for simulation-based optimization where same input
+      always gives same output.
+
+  seed:
+    type: int
+    default: null
+    description: Random seed for reproducibility.
+
+  constraints_func:
+    type: callable
+    default: null
+    description: >
+      Function computing constraint violations. Values > 0 indicate violations.
+
+# =============================================================================
+# NSGA-II - Non-dominated Sorting Genetic Algorithm II
+# Best for: Multi-objective optimization, Pareto front discovery
+# =============================================================================
+
+NSGA-II:
+  population_size:
+    type: int
+    default: 50
+    description: >
+      Population count per generation. Larger populations explore more
+      but require more evaluations per generation.
+    when_to_adjust: >
+      Increase to 100-200 for complex Pareto fronts with many objectives.
+      Minimum depends on crossover type (usually >= 4).
+    range: [4, 500]
+
+  mutation_prob:
+    type: float
+    default: null
+    description: >
+      Mutation probability per parameter. When null, defaults to
+      1.0 / len(params) (one mutation per individual on average).
+    when_to_adjust: >
+      Increase for more exploration. Decrease for exploitation.
+    range: [0.0, 1.0]
+
+  crossover_prob:
+    type: float
+    default: 0.9
+    description: >
+      Probability of applying crossover between parents.
+    range: [0.0, 1.0]
+
+  swapping_prob:
+    type: float
+    default: 0.5
+    description: >
+      Probability of swapping each parameter during crossover.
+    range: [0.0, 1.0]
+
+  seed:
+    type: int
+    default: null
+    description: Random seed for reproducibility.
+
+  constraints_func:
+    type: callable
+    default: null
+    description: >
+      Function for constrained multi-objective optimization.
+      Enables constrained-domination for feasibility handling.
+
+# =============================================================================
+# NSGA-III - Non-dominated Sorting Genetic Algorithm III
+# Best for: Many-objective optimization (3+ objectives)
+# Uses reference points for better Pareto front coverage
+# =============================================================================
+
+NSGA-III:
+  population_size:
+    type: int
+    default: 50
+    description: Population count per generation.
+    range: [4, 500]
+
+  mutation_prob:
+    type: float
+    default: null
+    description: Mutation probability per parameter.
+
+  crossover_prob:
+    type: float
+    default: 0.9
+    description: Probability of applying crossover.
+
+  swapping_prob:
+    type: float
+    default: 0.5
+    description: Probability of swapping each parameter during crossover.
+
+  seed:
+    type: int
+    default: null
+    description: Random seed for reproducibility.
+
+  reference_points:
+    type: array
+    default: null
+    description: >
+      Reference points for NSGA-III. When null, generates uniformly
+      distributed reference points based on number of objectives.
+    when_to_use: >
+      Provide custom reference points to bias Pareto front exploration
+      toward specific trade-off regions.
+
+# =============================================================================
+# QMC - Quasi-Monte Carlo Sampler
+# Best for: Systematic space coverage, low-discrepancy exploration
+# =============================================================================
+
+QMC:
+  qmc_type:
+    type: string
+    options: ["sobol", "halton"]
+    default: "sobol"
+    description: >
+      Type of quasi-Monte Carlo sequence:
+      - sobol: Sobol sequence, optimal when n_trials = 2^m
+      - halton: Halton sequence, good for any number of trials
+    when_to_use: >
+      Use sobol for powers of 2 trials (32, 64, 128...).
+      Use halton for arbitrary trial counts.
+
+  scramble:
+    type: bool
+    default: false
+    description: >
+      Apply randomization to the QMC sequence.
+      Adds randomness while maintaining low-discrepancy property.
+    when_to_use: >
+      Enable for multiple independent runs to get different sequences.
+
+  seed:
+    type: int
+    default: null
+    description: >
+      Random seed. Only used when scramble=true.
+      Critical for parallel optimization: all workers must share seed.
+
+# =============================================================================
+# Random - Random Sampler
+# Best for: Baseline comparison, simple exploration
+# =============================================================================
+
+Random:
+  seed:
+    type: int
+    default: null
+    description: Random seed for reproducibility.
+
+# =============================================================================
+# PRUNERS
+# =============================================================================
+
+# =============================================================================
+# MedianPruner
+# Best for: Simple, robust early stopping
+# =============================================================================
+
+MedianPruner:
+  n_startup_trials:
+    type: int
+    default: 5
+    description: >
+      Number of trials to complete before pruning begins.
+      Pruning requires baseline trials for comparison.
+    when_to_adjust: >
+      Increase for noisy objectives to build reliable median estimate.
+
+  n_warmup_steps:
+    type: int
+    default: 0
+    description: >
+      Number of steps within each trial before pruning can occur.
+      Allows early training steps to settle before comparing.
+    when_to_adjust: >
+      Set to 5-10 for neural network training where early epochs are noisy.
+
+  interval_steps:
+    type: int
+    default: 1
+    description: >
+      Pruning check interval. Check every interval_steps steps.
+    when_to_adjust: >
+      Increase for computational efficiency when reporting is frequent.
+
+  n_min_trials:
+    type: int
+    default: 1
+    description: >
+      Minimum number of reported trials to compare against.
+
+# =============================================================================
+# HyperbandPruner
+# Best for: Expensive evaluations, aggressive resource allocation
+# Combines SuccessiveHalving with multiple brackets
+# =============================================================================
+
+HyperbandPruner:
+  min_resource:
+    type: int
+    default: 1
+    description: >
+      Minimum resource (e.g., epochs) allocated to a trial.
+      Trials start with this resource and are promoted if promising.
+    when_to_adjust: >
+      Set based on minimum meaningful evaluation (e.g., 1 epoch for NN).
+
+  max_resource:
+    type: int or "auto"
+    default: "auto"
+    description: >
+      Maximum resource for a single trial. When "auto", uses the
+      maximum step reported in any trial.
+    when_to_adjust: >
+      Set to total budget for full evaluation (e.g., 100 epochs).
+
+  reduction_factor:
+    type: int
+    default: 3
+    description: >
+      Factor by which trials are reduced at each rung.
+      Higher = more aggressive pruning.
+    when_to_adjust: >
+      Use 2 for conservative pruning, 3-4 for aggressive.
+    range: [2, 5]
+
+  bootstrap_count:
+    type: int
+    default: 0
+    description: >
+      Number of trials to run without pruning for bootstrap.
+    when_to_adjust: >
+      Increase for very noisy objectives.
+
+# =============================================================================
+# SuccessiveHalvingPruner
+# Best for: Fair comparison, consistent resource allocation
+# =============================================================================
+
+SuccessiveHalvingPruner:
+  min_resource:
+    type: int
+    default: 1
+    description: Minimum resource allocated to a trial.
+
+  reduction_factor:
+    type: int
+    default: 4
+    description: >
+      Factor by which trials are reduced at each rung.
+    range: [2, 8]
+
+  min_early_stopping_rate:
+    type: int
+    default: 0
+    description: >
+      Minimum early stopping rate. Controls how aggressively
+      to prune in early stages.
+
+  bootstrap_count:
+    type: int
+    default: 0
+    description: Number of trials to run without pruning.
+
+# =============================================================================
+# ThresholdPruner
+# Best for: When target value is known
+# =============================================================================
+
+ThresholdPruner:
+  lower:
+    type: float
+    default: null
+    description: >
+      Prune if intermediate value falls below this threshold.
+      For minimization where lower is worse (e.g., accuracy).
+
+  upper:
+    type: float
+    default: null
+    description: >
+      Prune if intermediate value exceeds this threshold.
+      For minimization where higher is worse (e.g., loss).
+
+  n_warmup_steps:
+    type: int
+    default: 0
+    description: Number of steps before threshold checking begins.
+
+  interval_steps:
+    type: int
+    default: 1
+    description: Threshold check interval.
+
+# =============================================================================
+# PatientPruner
+# Best for: Noisy evaluations, wrapping other pruners
+# =============================================================================
+
+PatientPruner:
+  wrapped_pruner:
+    type: BasePruner
+    description: >
+      The underlying pruner to wrap with patience.
+      PatientPruner delays pruning decisions from the wrapped pruner.
+
+  patience:
+    type: int
+    default: 0
+    description: >
+      Number of consecutive pruning decisions to ignore before
+      actually pruning. Adds tolerance for noisy objectives.
+    when_to_adjust: >
+      Increase for very noisy objectives. 1-3 is typical.
+
+  min_delta:
+    type: float
+    default: 0.0
+    description: >
+      Minimum improvement required to reset patience counter.
+      Prevents pruning when making small but consistent progress.
+
+# =============================================================================
+# PercentilePruner
+# Best for: Keeping top percentile of trials
+# =============================================================================
+
+PercentilePruner:
+  percentile:
+    type: float
+    default: 25.0
+    description: >
+      Percentile threshold. Trials below this percentile are pruned.
+      25.0 means keep top 75% of trials.
+    when_to_adjust: >
+      Decrease (e.g., 10.0) for more aggressive pruning.
+      Increase (e.g., 50.0) for conservative pruning.
+    range: [0.0, 100.0]
+
+  n_startup_trials:
+    type: int
+    default: 5
+    description: Number of trials to complete before pruning.
+
+  n_warmup_steps:
+    type: int
+    default: 0
+    description: Steps within trial before pruning can occur.
+
+  interval_steps:
+    type: int
+    default: 1
+    description: Pruning check interval.
+
+  n_min_trials:
+    type: int
+    default: 1
+    description: Minimum reported trials for comparison.

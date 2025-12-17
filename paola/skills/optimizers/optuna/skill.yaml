@@ -1,0 +1,250 @@
+# Optuna Optimizer Skill
+# Paola Skills v1.0
+
+# === METADATA (Level 1 - Always indexed) ===
+name: optuna
+version: "1.0.0"
+category: optimizers
+
+description: >
+  Optuna is a hyperparameter optimization framework with define-by-run API,
+  supporting multiple samplers (TPE, CMA-ES, GP, NSGA-II/III, QMC), automated
+  pruning, and multi-objective optimization. Particularly strong for HPO, NAS,
+  and black-box optimization.
+
+when_to_use:
+  - Black-box optimization (no gradient available)
+  - Hyperparameter optimization (HPO)
+  - Neural architecture search (NAS)
+  - Multi-objective optimization (Pareto front)
+  - Problems with mixed continuous/categorical/conditional parameters
+  - When early stopping (pruning) can save computation
+  - Parallel/distributed optimization
+
+when_not_to_use:
+  - Problems where gradient is available and cheap - use SciPy/IPOPT
+  - Problems with many equality constraints - use IPOPT/SLSQP
+  - Very small problems (< 5 variables) with smooth objective - gradient methods faster
+  - When you need exact constraint satisfaction - Optuna handles constraints softly
+
+keywords:
+  - optuna
+  - bayesian optimization
+  - TPE
+  - CMA-ES
+  - gaussian process
+  - hyperparameter
+  - pruning
+  - multi-objective
+  - NSGA-II
+  - black-box
+  - derivative-free
+
+# === OVERVIEW (Level 2 - Loaded on skill activation) ===
+overview: |
+  ## Optuna Overview
+
+  Optuna is a next-generation hyperparameter optimization framework with a
+  **define-by-run** API that allows dynamic, conditional search spaces.
+
+  ### Key Concepts
+
+  **Study**: An optimization session containing multiple trials
+  **Trial**: A single evaluation of the objective function
+  **Sampler**: Algorithm for suggesting parameter values
+  **Pruner**: Algorithm for early stopping unpromising trials
+
+  ### Sampler Selection Guide
+
+  | Problem Type | Recommended Sampler | Why |
+  |--------------|---------------------|-----|
+  | General HPO, unknown structure | TPE | Robust default, handles conditionals |
+  | Continuous, few params (< 10) | GP | Best Bayesian modeling |
+  | Continuous, many params | CMA-ES | Efficient for high-dim continuous |
+  | Multi-objective | NSGA-II or NSGA-III | Pareto-optimal solutions |
+  | Systematic coverage | QMC (Sobol/Halton) | Low-discrepancy sampling |
+  | Baseline comparison | Random | No assumptions |
+  | Exhaustive small space | Grid | When space is enumerable |
+
+  ### Sampler Capabilities Matrix
+
+  | Sampler | Continuous | Categorical | Conditional | Multi-Obj |
+  |---------|------------|-------------|-------------|-----------|
+  | TPE | Yes | Yes | Yes | No* |
+  | CMA-ES | Yes | No | No | No |
+  | GP | Yes | Yes | Limited | No |
+  | NSGA-II | Yes | Yes | Yes | Yes |
+  | NSGA-III | Yes | Yes | Yes | Yes |
+  | QMC | Yes | No | No | No |
+  | Random | Yes | Yes | Yes | Yes |
+
+  *TPE can be used with MOTPESampler for multi-objective
+
+  ### Pruner Selection Guide
+
+  | Use Case | Recommended Pruner | Why |
+  |----------|-------------------|-----|
+  | Expensive evaluations | Hyperband | Aggressive early stopping |
+  | Fair comparison needed | SuccessiveHalving | Consistent resource allocation |
+  | Simple, robust | Median | Prune below-median trials |
+  | Known threshold | Threshold | Stop if worse than target |
+  | Noisy evaluations | Patient + Median | Wait before pruning |
+
+  ### Integration with Paola
+
+  When using `run_optimization(optimizer="optuna:SAMPLER", ...)`
+
+  1. **Sampler syntax**: Use `optuna:TPE`, `optuna:CMA-ES`, `optuna:GP`, etc.
+
+  2. **Config options**:
+     ```json
+     {
+       "sampler": "TPE",
+       "n_trials": 100,
+       "seed": 42,
+       "sampler_options": {"n_startup_trials": 10, "multivariate": true},
+       "pruner": "Hyperband",
+       "pruner_options": {"min_resource": 1, "reduction_factor": 3}
+     }
+     ```
+
+  3. **Warm-starting**: Optuna supports warm-starting via `source_trials` in
+     CMA-ES or by enqueuing known good points. Use `init_strategy="warm_start"`
+     with parent node.
+
+  4. **Multi-objective**: For Pareto optimization, use NSGA-II/NSGA-III samplers
+     and return multiple objectives from the evaluator.
+
+# === RESOURCES (Level 3 - Loaded on demand) ===
+resources:
+  options: options.yaml
+
+# === RELATIONSHIPS ===
+related_skills:
+  - scipy
+  - ipopt
+
+# === PAOLA INTEGRATION (Unique to Paola Skills) ===
+paola:
+  optimizer_name: optuna
+  backend: OptunaBackend
+  requires_gradient: false
+  supports_constraints: soft  # Via constraints_func
+  supports_warm_start: true   # CMA-ES source_trials, enqueue_trial
+
+  samplers:
+    TPE:
+      continuous: true
+      categorical: true
+      conditional: true
+      best_for: "General HPO, conditional spaces, unknown problem structure"
+      key_options:
+        - n_startup_trials
+        - multivariate
+        - constant_liar
+    CMA-ES:
+      continuous: true
+      categorical: false
+      conditional: false
+      best_for: "Continuous optimization, evolutionary strategy"
+      key_options:
+        - sigma0
+        - restart_strategy
+        - source_trials
+    GP:
+      continuous: true
+      categorical: true
+      conditional: limited
+      best_for: "Few parameters, need uncertainty estimates"
+      key_options:
+        - n_startup_trials
+        - deterministic_objective
+    NSGA-II:
+      continuous: true
+      categorical: true
+      conditional: true
+      multi_objective: true
+      best_for: "Multi-objective optimization, Pareto front"
+      key_options:
+        - population_size
+        - crossover_prob
+        - mutation_prob
+    NSGA-III:
+      continuous: true
+      categorical: true
+      conditional: true
+      multi_objective: true
+      best_for: "Many-objective optimization (3+ objectives)"
+      key_options:
+        - population_size
+        - reference_points
+    QMC:
+      continuous: true
+      categorical: false
+      conditional: false
+      best_for: "Systematic space coverage, quasi-random exploration"
+      key_options:
+        - qmc_type
+        - scramble
+    Random:
+      continuous: true
+      categorical: true
+      conditional: true
+      best_for: "Baseline comparison, simple exploration"
+      key_options:
+        - seed
+
+  pruners:
+    MedianPruner:
+      best_for: "Simple, robust early stopping"
+      note: "Prune if intermediate value below median of completed trials"
+    HyperbandPruner:
+      best_for: "Expensive evaluations, aggressive pruning"
+      note: "Combines SuccessiveHalving with different budgets"
+    SuccessiveHalvingPruner:
+      best_for: "Fair comparison, consistent resource allocation"
+      note: "Asynchronous SHA for parallel execution"
+    ThresholdPruner:
+      best_for: "When target value is known"
+      note: "Prune if worse than threshold"
+    PatientPruner:
+      best_for: "Noisy evaluations"
+      note: "Wraps another pruner with tolerance"
+
+  graph_integration:
+    warm_start_support: |
+      CMA-ES supports warm-starting via `source_trials` parameter.
+      For other samplers, use `study.enqueue_trial()` to suggest
+      known good points from parent node.
+
+    multi_stage_strategy: |
+      Graph enables powerful multi-stage optimization:
+      - Node 1: Wide exploration with TPE or Random (n_trials=50)
+      - Node 2: Local refinement with CMA-ES from best region
+      - Node 3: Final polish with increased budget
+
+    search_space_adaptation: |
+      Between nodes, Paola can:
+      - Narrow bounds around promising region (improve efficiency)
+      - Extend bounds if solution hits boundary
+      - Change parameter types (continuous → categorical for discrete)
+
+  learning:
+    track_options:
+      - sampler
+      - n_trials
+      - n_startup_trials
+      - pruner
+    success_indicators:
+      - trials_completed_vs_pruned_ratio
+      - convergence_curve_shape
+    failure_patterns:
+      - pattern: "All trials pruned"
+        likely_cause: "Pruner too aggressive or poor initial space"
+        suggested_action: "Increase n_startup_trials or relax pruner"
+      - pattern: "No improvement after n_startup_trials"
+        likely_cause: "Wrong sampler for problem structure"
+        suggested_action: "Try different sampler (TPE→CMA-ES or vice versa)"
+      - pattern: "Many trials at bounds"
+        likely_cause: "Search space too narrow"
+        suggested_action: "Extend bounds, consider graph node with wider space"

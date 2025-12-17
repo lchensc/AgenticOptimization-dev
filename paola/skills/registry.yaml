@@ -9,7 +9,7 @@ categories:
     skills:
       - ipopt
       - scipy
-      # - optuna     # TODO: Phase 2
+      - optuna
 
   domains:
     description: Domain-specific optimization expertise
@@ -54,4 +54,24 @@ skills:
       - COBYLA
       - trust-constr
       - gradient-based
+      - derivative-free
+
+  optuna:
+    path: optimizers/optuna
+    description: >
+      Optuna hyperparameter optimization framework with TPE, CMA-ES, GP,
+      NSGA-II/III samplers and automated pruning. Best for black-box
+      optimization, HPO, NAS, and multi-objective problems.
+    keywords:
+      - optuna
+      - bayesian
+      - TPE
+      - CMA-ES
+      - GP
+      - NSGA-II
+      - NSGA-III
+      - pruning
+      - hyperparameter
+      - multi-objective
+      - black-box
       - derivative-free
