@@ -84,12 +84,16 @@ class OptimizerBackend(ABC):
 class SciPyBackend(OptimizerBackend):
     """SciPy optimization backend."""
 
+    # Method capabilities based on SciPy 1.7+ documentation
+    # bounds: Whether scipy.optimize.minimize accepts bounds parameter
+    # constraints: Whether method supports constraint dicts
+    # gradient: Whether method can use gradient (jac parameter)
     METHODS = {
         "SLSQP": {"gradient": True, "constraints": True, "bounds": True},
         "L-BFGS-B": {"gradient": True, "constraints": False, "bounds": True},
         "trust-constr": {"gradient": True, "constraints": True, "bounds": True},
-        "COBYLA": {"gradient": False, "constraints": True, "bounds": False},
-        "Nelder-Mead": {"gradient": False, "constraints": False, "bounds": False},
+        "COBYLA": {"gradient": False, "constraints": True, "bounds": True},
+        "Nelder-Mead": {"gradient": False, "constraints": False, "bounds": True},
         "Powell": {"gradient": False, "constraints": False, "bounds": True},
         "BFGS": {"gradient": True, "constraints": False, "bounds": False},
         "CG": {"gradient": True, "constraints": False, "bounds": False},
