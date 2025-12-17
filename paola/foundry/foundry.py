@@ -45,7 +45,7 @@ class OptimizationFoundry:
 
     Example:
         # Initialize foundry
-        storage = FileStorage(base_dir=".paola_runs")
+        storage = FileStorage()  # uses .paola_foundry by default
         foundry = OptimizationFoundry(storage=storage)
 
         # Create graph

@@ -490,8 +490,8 @@ def create_nlp_problem(
                 "message": f"Problem '{problem_id}' already registered. Use a different ID.",
             }
 
-        # Get Foundry instance (use same storage as registration tools)
-        storage = FileStorage(base_dir=".paola_data")
+        # Unified storage: all data in .paola_foundry
+        storage = FileStorage()
         foundry = OptimizationFoundry(storage=storage)
 
         # Verify objective evaluator exists
@@ -706,7 +706,7 @@ def derive_problem(
             }
 
         # Get storage and load parent problem
-        storage = FileStorage(base_dir=".paola_data")
+        storage = FileStorage()  # unified .paola_foundry
         parent = storage.load_problem(parent_problem_id)
 
         if parent is None:
@@ -762,7 +762,7 @@ def derive_problem(
         storage.save_problem(derived)
 
         # Create NLPEvaluator and register for runtime use
-        foundry = OptimizationFoundry(storage=FileStorage(base_dir=".paola_data"))
+        foundry = OptimizationFoundry(storage=FileStorage())  # unified .paola_foundry
         nlp_evaluator = NLPEvaluator.from_problem(derived, foundry)
         register_problem(derived.problem_id, nlp_evaluator)
 
@@ -820,7 +820,7 @@ def list_problems(
     try:
         from paola.foundry import FileStorage
 
-        storage = FileStorage(base_dir=".paola_data")
+        storage = FileStorage()  # unified .paola_foundry
         problems = storage.list_problems(
             problem_type=problem_type,
             show_derived=show_derived
@@ -868,7 +868,7 @@ def get_problem_lineage(problem_id: str) -> Dict[str, Any]:
     try:
         from paola.foundry import FileStorage
 
-        storage = FileStorage(base_dir=".paola_data")
+        storage = FileStorage()  # unified .paola_foundry
 
         # Get lineage
         lineage = storage.get_problem_lineage(problem_id)

@@ -196,8 +196,8 @@ def foundry_store_evaluator(
             }
         )
 
-        # Get or create foundry instance
-        storage = FileStorage(base_dir=".paola_data")
+        # Get or create foundry instance (uses unified .paola_foundry)
+        storage = FileStorage()
         foundry = OptimizationFoundry(storage=storage)
 
         # Store evaluator
@@ -235,7 +235,7 @@ def foundry_list_evaluators(
     try:
         from paola.foundry import OptimizationFoundry, FileStorage
 
-        storage = FileStorage(base_dir=".paola_data")
+        storage = FileStorage()  # uses unified .paola_foundry
         foundry = OptimizationFoundry(storage=storage)
 
         evaluators = foundry.list_evaluators(
@@ -281,7 +281,7 @@ def foundry_get_evaluator(evaluator_id: str) -> Dict[str, Any]:
     try:
         from paola.foundry import OptimizationFoundry, FileStorage
 
-        storage = FileStorage(base_dir=".paola_data")
+        storage = FileStorage()  # uses unified .paola_foundry
         foundry = OptimizationFoundry(storage=storage)
 
         config_dict = foundry.get_evaluator_config(evaluator_id)

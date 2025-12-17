@@ -93,11 +93,16 @@ Two-tier storage separates LLM-learning data from debug/visualization data:
 - Initial and final solutions
 
 ```
-.paola_runs/
+.paola_foundry/
+├── evaluators/                 # Evaluator registry
+│   ├── {id}.json               # EvaluatorConfig metadata
+│   └── {id}.py                 # Standalone source
 ├── graphs/                     # Tier 1: GraphRecord
 │   └── graph_0001.json         # ~1KB, LLM-ready
-└── details/                    # Tier 2: GraphDetail
-    └── graph_0001_detail.json  # 10-100KB, trajectories
+├── details/                    # Tier 2: GraphDetail
+│   └── graph_0001_detail.json  # 10-100KB, trajectories
+├── problems/                   # Problem definitions + index.json
+└── metadata.json               # next_graph_id, etc.
 ```
 
 **Cross-Graph Learning** (enabled by Tier 1):

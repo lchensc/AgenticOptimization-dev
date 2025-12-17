@@ -3,7 +3,7 @@ Evaluator Compiler - Extract and compile evaluators into immutable snapshots.
 
 This module implements the "compiled evaluator" architecture where evaluators
 are extracted from source files and stored as immutable, self-contained snapshots
-in .paola_data/evaluators/{evaluator_id}/.
+in .paola_foundry/evaluators/{evaluator_id}/.
 
 Key Benefits:
 1. Immutability: Original file changes don't break cached results
@@ -34,15 +34,15 @@ class EvaluatorCompiler:
     3. Generate standalone source.py with all dependencies
     4. Copy any data files to dependencies/
     5. Create metadata.json with semantic information
-    6. Store in .paola_data/evaluators/{evaluator_id}/
+    6. Store in .paola_foundry/evaluators/{evaluator_id}/
     """
 
-    def __init__(self, base_dir: str = ".paola_data"):
+    def __init__(self, base_dir: str = ".paola_foundry"):
         """
         Initialize compiler.
 
         Args:
-            base_dir: Base directory for PAOLA data (default: .paola_data)
+            base_dir: Base directory for PAOLA data (default: .paola_foundry)
         """
         self.base_dir = Path(base_dir)
         self.evaluators_dir = self.base_dir / "evaluators"

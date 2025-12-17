@@ -1,0 +1,61 @@
+{
+  "evaluator_id": "ackley_50d_eval",
+  "name": "Ackley 50D Function",
+  "status": "registered",
+  "source": {
+    "type": "python_function",
+    "file_path": ".paola_data/evaluators/ackley_50d.py",
+    "callable_name": "evaluate",
+    "gradient_callable": null,
+    "command": null,
+    "input_file": null,
+    "output_file": null,
+    "input_format": null,
+    "output_format": null,
+    "working_directory": null
+  },
+  "interface": {
+    "input": {
+      "type": "numpy_array",
+      "expected_shape": null,
+      "validated_shapes": []
+    },
+    "output": {
+      "format": "auto",
+      "keys": null,
+      "types": null
+    },
+    "gradients": {
+      "available": false,
+      "method": "finite_difference"
+    }
+  },
+  "capabilities": {
+    "observation_gates": true,
+    "interjection_enabled": true,
+    "caching": true,
+    "cost_tracking": true,
+    "parallel_safe": false,
+    "deterministic": true
+  },
+  "performance": {
+    "median_time": 3.256698698834218e-05,
+    "std_time": 0.0,
+    "cost_per_eval": 1.0,
+    "success_rate": 1.0,
+    "total_calls": 1000
+  },
+  "lineage": {
+    "registered_at": "2025-12-17T17:37:59.401358",
+    "registered_by": "agent",
+    "used_in_runs": [],
+    "used_in_problems": [],
+    "parent_evaluator_id": null
+  },
+  "metadata": {
+    "description": "50-dimensional Ackley function with minimum at origin (0,0,...,0)",
+    "domain": "optimization",
+    "tags": [],
+    "version": null
+  }
+}

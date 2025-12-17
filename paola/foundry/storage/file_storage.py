@@ -16,27 +16,27 @@ class FileStorage(StorageBackend):
     """
     File-based storage using JSON files.
 
-    v0.4.1 Directory structure (with problem index):
-        .paola_runs/
+    v0.4.2 Directory structure (unified .paola_foundry):
+        .paola_foundry/
+        ├── evaluators/                 # Evaluator metadata and source
+        │   ├── {id}.json               # EvaluatorConfig
+        │   └── {id}.py                 # Standalone source
         ├── graphs/                     # Tier 1: GraphRecord (~1KB each)
-        │   ├── graph_0001.json
-        │   └── ...
+        │   └── graph_0001.json
         ├── details/                    # Tier 2: GraphDetail (10-100KB each)
-        │   ├── graph_0001_detail.json
-        │   └── ...
+        │   └── graph_0001_detail.json
         ├── problems/                   # Problem storage with index
         │   ├── index.json              # Lineage tree and metadata
-        │   ├── rosenbrock_10d.json     # Full problem definitions
-        │   └── rosenbrock_10d_v2.json
+        │   └── rosenbrock_10d.json     # Full problem definitions
         └── metadata.json (tracks next_graph_id)
     """
 
-    def __init__(self, base_dir: str = ".paola_runs"):
+    def __init__(self, base_dir: str = ".paola_foundry"):
         """
         Initialize file storage.
 
         Args:
-            base_dir: Base directory for storage (default: .paola_runs)
+            base_dir: Base directory for storage (default: .paola_foundry)
         """
         self.base_dir = Path(base_dir)
         self.graphs_dir = self.base_dir / "graphs"

@@ -192,7 +192,7 @@ class AgenticOptREPL:
         """Display welcome message."""
         welcome = Panel(
             Text.from_markup(
-                "[bold cyan]Paola[/bold cyan] [dim]v0.4.1[/dim]\n"
+                "[bold cyan]Paola[/bold cyan] [dim]v0.4.2[/dim]\n"
                 "[dim]Package for agentic optimization with learning and analysis[/dim]\n\n"
                 "Commands: /help | /graphs | /problems | /evals | /skills | /exit\n"
                 "Or just tell me what you want to optimize"
@@ -426,7 +426,7 @@ class AgenticOptREPL:
                 self.console.print("[red]Usage: /register_eval <file.py>[/red]")
             else:
                 # Agent-driven registration - send as natural language task
-                task = f"Register all evaluator functions from {cmd_parts[1]} as standalone evaluators in .paola_data/evaluators/. Each evaluator file must work independently (include all dependencies), provide a standard evaluate(x) interface, and be testable by running the file directly."
+                task = f"Register all evaluator functions from {cmd_parts[1]} as standalone evaluators in .paola_foundry/evaluators/. Each evaluator file must work independently (include all dependencies), provide a standard evaluate(x) interface, and be testable by running the file directly."
                 self._process_with_agent(task)
         elif cmd == '/evals':
             self.command_handler.handle_evaluators()
