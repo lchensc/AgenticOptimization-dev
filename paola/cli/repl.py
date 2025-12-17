@@ -11,7 +11,12 @@ from langchain_core.messages import HumanMessage
 
 from ..agent.react_agent import build_optimization_agent
 from ..agent.conversational_agent import build_conversational_agent
-from ..tools.evaluator_tools import create_nlp_problem
+from ..tools.evaluator_tools import (
+    create_nlp_problem,
+    derive_problem,
+    list_problems,
+    get_problem_lineage,
+)
 from ..tools.graph_tools import start_graph, get_graph_state, finalize_graph, query_past_graphs, get_past_graph, set_foundry
 from ..tools.analysis import analyze_convergence as analyze_convergence_new, analyze_efficiency, get_all_metrics, analyze_run_with_ai
 from ..callbacks import CallbackManager
@@ -112,6 +117,9 @@ class AgenticOptREPL:
         self.tools = [
             # Problem formulation
             create_nlp_problem,
+            derive_problem,
+            list_problems,
+            get_problem_lineage,
 
             # Graph management (v0.3.x)
             start_graph,

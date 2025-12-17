@@ -69,7 +69,7 @@ class CommandHandler:
 
             table.add_row(
                 str(record.graph_id),
-                record.problem_id,
+                str(record.problem_id),
                 str(len(record.nodes)),
                 record.pattern,
                 f"[{status_style}]{status}[/{status_style}]",
@@ -529,7 +529,7 @@ Iteration"""
 
         # Add rows for each metric
         metrics = [
-            ("Problem", [r.problem_id for r in records]),
+            ("Problem", [str(r.problem_id) for r in records]),
             ("Pattern", [r.pattern for r in records]),
             ("Objective", [f"{r.final_objective:.6e}" if r.final_objective else "N/A" for r in records]),
             ("Nodes", [str(len(r.nodes)) for r in records]),
@@ -633,7 +633,7 @@ Iteration"""
 
             table.add_row(
                 str(record.graph_id),
-                record.problem_id,
+                str(record.problem_id),
                 dims,
                 record.pattern,
                 strategy,

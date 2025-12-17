@@ -38,6 +38,11 @@ from paola.tools.evaluator_tools import (
     register_problem,
     clear_problem_registry,
     get_problem_by_id,
+    # Problem management (v0.4.3+)
+    create_nlp_problem,
+    derive_problem,
+    list_problems,
+    get_problem_lineage,
 )
 
 from paola.tools.observation_tools import (
@@ -87,6 +92,11 @@ __all__ = [
     "register_problem",
     "clear_problem_registry",
     "get_problem_by_id",
+    # Problem management (v0.4.3+)
+    "create_nlp_problem",
+    "derive_problem",
+    "list_problems",
+    "get_problem_lineage",
     # Observation tools
     "analyze_convergence",
     "detect_pattern",
