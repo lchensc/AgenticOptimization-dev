@@ -551,56 +551,5 @@ def list_optimizers() -> Dict[str, Any]:
     }
 
 
-@tool
-def get_optimizer_options(optimizer: str) -> Dict[str, Any]:
-    """
-    Get detailed options for a specific optimizer.
-
-    Args:
-        optimizer: Optimizer name ("scipy", "ipopt", "optuna")
-
-    Returns:
-        Dict with:
-            success: bool
-            available: bool - Whether installed
-            methods: List[str] - Available methods (for scipy)
-            option_descriptions: Dict - Key options explained
-    """
-    backend = get_backend(optimizer)
-
-    if backend is None:
-        return {
-            "success": False,
-            "message": f"Unknown optimizer '{optimizer}'.",
-        }
-
-    info = backend.get_info()
-    info["success"] = True
-    info["available"] = backend.is_available()
-
-    if optimizer.lower() == "scipy":
-        info["option_descriptions"] = {
-            "method": "Optimization algorithm (SLSQP, L-BFGS-B, trust-constr)",
-            "maxiter": "Maximum iterations",
-            "ftol": "Function tolerance for convergence",
-            "gtol": "Gradient tolerance for convergence",
-        }
-    elif optimizer.lower() == "ipopt":
-        info["option_descriptions"] = {
-            "tol": "Convergence tolerance (default 1e-8)",
-            "max_iter": "Maximum iterations (default 3000)",
-            "mu_strategy": "Barrier parameter strategy",
-            "linear_solver": "Linear solver",
-        }
-    elif optimizer.lower() == "optuna":
-        info["option_descriptions"] = {
-            "sampler": "Sampling strategy (TPE, CMA-ES, Random)",
-            "n_trials": "Number of trials to run",
-            "seed": "Random seed for reproducibility",
-        }
-
-    return info
-
-
 # Backward compatibility alias
 list_available_optimizers = list_optimizers

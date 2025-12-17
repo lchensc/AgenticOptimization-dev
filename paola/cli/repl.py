@@ -98,7 +98,6 @@ class AgenticOptREPL:
             run_optimization,
             get_problem_info,
             list_available_optimizers,
-            get_optimizer_options,
         )
 
         # Import expert configuration tools
@@ -126,7 +125,6 @@ class AgenticOptREPL:
             run_optimization,
             get_problem_info,
             list_available_optimizers,
-            get_optimizer_options,
 
             # Expert configuration (escape hatch)
             config_scipy,

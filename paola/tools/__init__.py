@@ -39,7 +39,6 @@ from paola.tools.optimization_tools import (
     run_optimization,
     get_problem_info,
     list_available_optimizers,
-    get_optimizer_options,
 )
 
 # Expert configuration tools (escape hatch)
@@ -119,7 +118,6 @@ __all__ = [
     "run_optimization",
     "get_problem_info",
     "list_available_optimizers",
-    "get_optimizer_options",
     # Expert configuration tools (escape hatch)
     "config_scipy",
     "config_ipopt",
