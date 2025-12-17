@@ -1,0 +1,44 @@
+{
+  "graph_id": 43,
+  "problem_id": "ackley_5d_unconstrained",
+  "created_at": "2025-12-17T13:03:31.991593",
+  "goal": "Minimize 5D Ackley function without constraints using L-BFGS-B",
+  "problem_signature": null,
+  "pattern": "single",
+  "edges": [],
+  "nodes": {
+    "n1": {
+      "node_id": "n1",
+      "optimizer": "scipy:L-BFGS-B",
+      "optimizer_family": "gradient",
+      "config": {
+        "method": "L-BFGS-B",
+        "max_iterations": 100
+      },
+      "init_strategy": "center",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "failed",
+      "n_evaluations": 21,
+      "wall_time": 0.062421,
+      "start_objective": 0.0,
+      "best_objective": 9.118394928009366e-11
+    }
+  },
+  "status": "active",
+  "success": true,
+  "final_objective": null,
+  "final_x": null,
+  "total_evaluations": 21,
+  "total_wall_time": 14.509596,
+  "decisions": [
+    {
+      "timestamp": "2025-12-17T13:03:46.501170",
+      "decision_type": "finalize",
+      "reasoning": "Successfully solved unconstrained 5D Ackley problem. Found global minimum at (0,0,0,0,0) with objective value 9.12e-11 in 21 evaluations. Demonstrates that while constraints can restrict the search space and potentially speed up convergence, they also change the optimal solution significantly. The unconstrained problem is more challenging due to its complex landscape with many local minima.",
+      "from_node": null,
+      "to_node": null,
+      "metrics_at_decision": {}
+    }
+  ]
+}

@@ -1,0 +1,318 @@
+{
+  "graph_id": 37,
+  "problem_id": "ackley_30d_optimization",
+  "created_at": "2025-12-17T11:31:21.536634",
+  "goal": "Optimize 30-dimensional Ackley function using IPOPT with random initialization to find the global minimum",
+  "problem_signature": null,
+  "pattern": "dag",
+  "edges": [
+    {
+      "source": "n1",
+      "target": "n3",
+      "edge_type": "warm_start"
+    },
+    {
+      "source": "n1",
+      "target": "n5",
+      "edge_type": "warm_start"
+    },
+    {
+      "source": "n1",
+      "target": "n6",
+      "edge_type": "warm_start"
+    },
+    {
+      "source": "n1",
+      "target": "n7",
+      "edge_type": "warm_start"
+    },
+    {
+      "source": "n1",
+      "target": "n8",
+      "edge_type": "warm_start"
+    },
+    {
+      "source": "n1",
+      "target": "n9",
+      "edge_type": "warm_start"
+    },
+    {
+      "source": "n1",
+      "target": "n10",
+      "edge_type": "warm_start"
+    },
+    {
+      "source": "n1",
+      "target": "n11",
+      "edge_type": "warm_start"
+    },
+    {
+      "source": "n1",
+      "target": "n12",
+      "edge_type": "warm_start"
+    },
+    {
+      "source": "n1",
+      "target": "n13",
+      "edge_type": "warm_start"
+    }
+  ],
+  "nodes": {
+    "n1": {
+      "node_id": "n1",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 100
+      },
+      "init_strategy": "random",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "completed",
+      "n_evaluations": 30,
+      "wall_time": 0.267955,
+      "start_objective": 20.999726669258976,
+      "best_objective": 19.208786416648437
+    },
+    "n2": {
+      "node_id": "n2",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 100
+      },
+      "init_strategy": "random",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "completed",
+      "n_evaluations": 149,
+      "wall_time": 0.494452,
+      "start_objective": 21.214305662063094,
+      "best_objective": 19.462681630132984
+    },
+    "n3": {
+      "node_id": "n3",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 100
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 22,
+      "wall_time": 0.169647,
+      "start_objective": 19.208786416648437,
+      "best_objective": 19.208786416648373
+    },
+    "n4": {
+      "node_id": "n4",
+      "optimizer": "optuna:TPE",
+      "optimizer_family": "bayesian",
+      "config": {
+        "method": "TPE",
+        "max_iterations": 100
+      },
+      "init_strategy": "center",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "completed",
+      "n_evaluations": 100,
+      "wall_time": 3.017507,
+      "start_objective": 21.243146671000456,
+      "best_objective": 20.006837079444022
+    },
+    "n5": {
+      "node_id": "n5",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 100
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 22,
+      "wall_time": 0.133129,
+      "start_objective": 19.208786416648437,
+      "best_objective": 19.208786416648373
+    },
+    "n6": {
+      "node_id": "n6",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 100
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 22,
+      "wall_time": 0.090919,
+      "start_objective": 19.208786416648437,
+      "best_objective": 19.208786416648373
+    },
+    "n7": {
+      "node_id": "n7",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 100
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 22,
+      "wall_time": 0.085411,
+      "start_objective": 19.208786416648437,
+      "best_objective": 19.208786416648373
+    },
+    "n8": {
+      "node_id": "n8",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 100
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 22,
+      "wall_time": 0.077841,
+      "start_objective": 19.208786416648437,
+      "best_objective": 19.208786416648373
+    },
+    "n9": {
+      "node_id": "n9",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 100
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 22,
+      "wall_time": 0.085252,
+      "start_objective": 19.208786416648437,
+      "best_objective": 19.208786416648373
+    },
+    "n10": {
+      "node_id": "n10",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 100
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 22,
+      "wall_time": 0.076743,
+      "start_objective": 19.208786416648437,
+      "best_objective": 19.208786416648373
+    },
+    "n11": {
+      "node_id": "n11",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 100
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 22,
+      "wall_time": 0.081989,
+      "start_objective": 19.208786416648437,
+      "best_objective": 19.208786416648373
+    },
+    "n12": {
+      "node_id": "n12",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 100
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 22,
+      "wall_time": 0.077031,
+      "start_objective": 19.208786416648437,
+      "best_objective": 19.208786416648373
+    },
+    "n13": {
+      "node_id": "n13",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 100
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 22,
+      "wall_time": 0.119194,
+      "start_objective": 19.208786416648437,
+      "best_objective": 19.208786416648373
+    }
+  },
+  "status": "active",
+  "success": false,
+  "final_objective": 19.208786416648373,
+  "final_x": [
+    -26.997534731887793,
+    -1.9998178569113176,
+    21.99799038608493,
+    -19.998174038267152,
+    21.997990384757394,
+    -6.999361251383561,
+    11.998903638787949,
+    18.998264367633244,
+    -8.999178606150004,
+    19.998173041014738,
+    -14.998630665848632,
+    8.999177609133351,
+    24.997716399561888,
+    14.998629669964881,
+    0.9999081799778867,
+    6.999360252888211,
+    -3.999635215752831,
+    5.999451574439408,
+    14.998629668933123,
+    10.998994963225686,
+    -21.997991384682766,
+    -1.9998178579648282,
+    -16.998448016107538,
+    -2.999726535828733,
+    -20.998082710894174,
+    -15.99853934253297,
+    -20.998082712696846,
+    3.9996342171983583,
+    10.998994962662701,
+    -31.99707806314823
+  ],
+  "total_evaluations": 499,
+  "total_wall_time": 223.175978,
+  "decisions": [
+    {
+      "timestamp": "2025-12-17T11:35:04.712581",
+      "decision_type": "finalize",
+      "reasoning": "Multiple IPOPT runs (3 total) with various initialization strategies (random, warm-start) all converged to similar local minima with objective ~19.21. The Ackley function's complex landscape with many local optima traps gradient-based methods like IPOPT. Recommended: Use derivative-free optimization methods (e.g., Optuna/TPE) for this problem type.",
+      "from_node": null,
+      "to_node": null,
+      "metrics_at_decision": {}
+    }
+  ]
+}

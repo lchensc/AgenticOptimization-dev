@@ -109,8 +109,8 @@ class OptimizationProblem(ABC):
     """
 
     # Identity - required fields first (no defaults)
-    problem_id: str
-    name: str
+    problem_id: int  # Numeric ID (like graph_id)
+    name: str  # Human-readable name
 
     # Dimensions - required
     n_variables: int
@@ -124,7 +124,7 @@ class OptimizationProblem(ABC):
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
     # Lineage (for derivation) - all optional
-    parent_problem_id: Optional[str] = None
+    parent_problem_id: Optional[int] = None  # Numeric ID of parent
     derivation_type: Optional[str] = None
     derivation_notes: Optional[str] = None
     version: int = 1

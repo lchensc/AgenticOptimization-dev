@@ -1045,16 +1045,18 @@ print("SUCCESS")
             return
 
         table = Table(title="Optimization Problems")
-        table.add_column("ID", style="cyan")
+        table.add_column("ID", style="cyan", justify="right")
+        table.add_column("Name")
         table.add_column("Type")
         table.add_column("Vars", justify="right")
         table.add_column("Constraints", justify="right")
-        table.add_column("Parent")
+        table.add_column("Parent", justify="right")
         table.add_column("Derivation")
         table.add_column("Graphs", justify="right")
 
         for p in problems:
-            parent = p.get("parent_problem_id") or "-"
+            parent_id = p.get("parent_problem_id")
+            parent = f"#{parent_id}" if parent_id else "-"
             deriv = p.get("derivation_type") or "-"
             n_graphs = len(p.get("graphs_using", []))
 
@@ -1062,7 +1064,8 @@ print("SUCCESS")
             style = "dim" if parent != "-" else ""
 
             table.add_row(
-                p["problem_id"],
+                str(p.get("problem_id", "?")),
+                p.get("name", p.get("problem_id", "?")),
                 p.get("problem_type", "?"),
                 str(p.get("n_variables", "?")),
                 str(p.get("n_constraints", "?")),
@@ -1076,18 +1079,18 @@ print("SUCCESS")
         self.console.print(table)
         self.console.print()
 
-    def handle_problem_show(self, problem_id: str):
+    def handle_problem_show(self, problem_id: int):
         """Show detailed problem information."""
         # Load full problem from storage
         problem = self.foundry.storage.load_problem(problem_id)
 
         if problem is None:
-            self.console.print(f"\n[red]Problem '{problem_id}' not found[/red]\n")
+            self.console.print(f"\n[red]Problem #{problem_id} not found[/red]\n")
             return
 
         # Get index entry for graph usage info
         problems = self.foundry.storage.list_problems()
-        index_entry = next((p for p in problems if p["problem_id"] == problem_id), {})
+        index_entry = next((p for p in problems if p.get("problem_id") == problem_id), {})
         graphs_using = index_entry.get("graphs_using", [])
         children = index_entry.get("children", [])
 
@@ -1103,9 +1106,11 @@ print("SUCCESS")
         # Build info panel
         lineage_str = "Root problem (not derived)"
         if problem.parent_problem_id:
-            lineage_str = f"Derived from: {problem.parent_problem_id} ({problem.derivation_type})"
+            lineage_str = f"Derived from: #{problem.parent_problem_id} ({problem.derivation_type})"
 
-        info = f"""[bold cyan]Problem: {problem.problem_id}[/bold cyan]
+        children_str = ', '.join(f'#{c}' for c in children) if children else 'None'
+
+        info = f"""[bold cyan]Problem #{problem.problem_id}: {problem.name}[/bold cyan]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 [cyan]Type:[/cyan]         {problem.problem_type}
@@ -1120,8 +1125,8 @@ print("SUCCESS")
   {lineage_str}
   Version: {problem.version}
 
-[bold]Children:[/bold]     {', '.join(children) if children else 'None'}
-[bold]Used by:[/bold]      {', '.join(f'Graph {g}' for g in graphs_using) if graphs_using else 'Not used yet'}"""
+[bold]Children:[/bold]     {children_str}
+[bold]Used by:[/bold]      {', '.join(f'Graph #{g}' for g in graphs_using) if graphs_using else 'Not used yet'}"""
 
         # Add NLP-specific info
         if hasattr(problem, 'objective_evaluator_id'):
@@ -1136,12 +1141,12 @@ print("SUCCESS")
         self.console.print(Panel(info, border_style="cyan", padding=(1, 2)))
         self.console.print()
 
-    def handle_problem_lineage(self, problem_id: str):
+    def handle_problem_lineage(self, problem_id: int):
         """Display problem derivation lineage as tree."""
         lineage = self.foundry.storage.get_problem_lineage(problem_id)
 
         if not lineage:
-            self.console.print(f"\n[red]Problem '{problem_id}' not found[/red]\n")
+            self.console.print(f"\n[red]Problem #{problem_id} not found[/red]\n")
             return
 
         children = self.foundry.storage.get_problem_children(problem_id)
@@ -1152,13 +1157,16 @@ print("SUCCESS")
             prefix = "  " * i
             if i == 0:
                 marker = "[bold green]●[/bold green]"  # Root
-            elif entry["problem_id"] == problem_id:
+            elif entry.get("problem_id") == problem_id:
                 marker = "[bold cyan]★[/bold cyan]"  # Current
             else:
                 marker = "[dim]○[/dim]"  # Ancestor
 
             deriv_type = entry.get("derivation_type") or "root"
-            tree_lines.append(f"{prefix}{marker} {entry['problem_id']} ({deriv_type})")
+            pid = entry.get("problem_id", "?")
+            name = entry.get("name", "")
+            name_str = f" ({name})" if name else ""
+            tree_lines.append(f"{prefix}{marker} #{pid}{name_str} - {deriv_type}")
 
         # Add children
         if children:
@@ -1166,11 +1174,11 @@ print("SUCCESS")
             prefix = "  " * current_depth
             tree_lines.append(f"{prefix}[dim]Children:[/dim]")
             for child in children:
-                tree_lines.append(f"{prefix}  [dim]└─ {child}[/dim]")
+                tree_lines.append(f"{prefix}  [dim]└─ #{child}[/dim]")
 
         tree_str = "\n".join(tree_lines)
 
-        info = f"""[bold cyan]Problem Lineage: {problem_id}[/bold cyan]
+        info = f"""[bold cyan]Problem Lineage: #{problem_id}[/bold cyan]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 {tree_str}

@@ -1,0 +1,75 @@
+{
+  "graph_id": 16,
+  "nodes": {
+    "n1": {
+      "node_id": "n1",
+      "x0": [
+        1.0,
+        1.0
+      ],
+      "best_x": [
+        0.4,
+        0.4
+      ],
+      "convergence_history": [
+        {
+          "iteration": 1,
+          "objective": 1.0
+        },
+        {
+          "iteration": 2,
+          "objective": 0.5
+        },
+        {
+          "iteration": 3,
+          "objective": 0.3333333333333333
+        },
+        {
+          "iteration": 4,
+          "objective": 0.25
+        },
+        {
+          "iteration": 5,
+          "objective": 0.2
+        }
+      ],
+      "x_history": [
+        {
+          "iteration": 1,
+          "x": [
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "iteration": 2,
+          "x": [
+            0.1,
+            0.1
+          ]
+        },
+        {
+          "iteration": 3,
+          "x": [
+            0.2,
+            0.2
+          ]
+        },
+        {
+          "iteration": 4,
+          "x": [
+            0.30000000000000004,
+            0.30000000000000004
+          ]
+        },
+        {
+          "iteration": 5,
+          "x": [
+            0.4,
+            0.4
+          ]
+        }
+      ]
+    }
+  }
+}

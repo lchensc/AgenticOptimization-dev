@@ -1,0 +1,43 @@
+{
+  "graph_id": 38,
+  "problem_id": "ackley_30d_scaled",
+  "created_at": "2025-12-17T11:36:36.879443",
+  "goal": "Optimize 30-dimensional Ackley function using IPOPT with scaled variables (-1 to 1) to improve convergence to global minimum",
+  "problem_signature": null,
+  "pattern": "single",
+  "edges": [],
+  "nodes": {
+    "n1": {
+      "node_id": "n1",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 100
+      },
+      "init_strategy": "random",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "failed",
+      "n_evaluations": 3371,
+      "wall_time": 1.646075,
+      "start_objective": 3.62326262166615,
+      "best_objective": 1.937275314389808e-06
+    }
+  },
+  "status": "active",
+  "success": true,
+  "final_objective": null,
+  "final_x": null,
+  "total_evaluations": 3371,
+  "total_wall_time": 20.313742,
+  "decisions": [
+    {
+      "timestamp": "2025-12-17T11:36:57.193166",
+      "decision_type": "finalize",
+      "reasoning": "Scaling the 30D Ackley problem from bounds [-32.768, 32.768] to [-1, 1] enabled IPOPT to converge to the global minimum (objective \u2248 1.94e-6). This demonstrates that proper scaling is crucial for gradient-based optimization of multimodal functions. The solution found has all variables extremely close to zero, confirming it's at the global minimum.",
+      "from_node": null,
+      "to_node": null,
+      "metrics_at_decision": {}
+    }
+  ]
+}

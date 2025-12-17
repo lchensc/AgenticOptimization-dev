@@ -1,0 +1,120 @@
+{
+  "graph_id": 18,
+  "problem_id": "ackley_30d",
+  "created_at": "2025-12-16T14:40:46.896340",
+  "goal": "Optimize 30D Ackley function using improved strategy based on graph #17 analysis",
+  "problem_signature": null,
+  "pattern": "chain",
+  "edges": [
+    {
+      "source": "n1",
+      "target": "n2",
+      "edge_type": "warm_start"
+    },
+    {
+      "source": "n2",
+      "target": "n3",
+      "edge_type": "warm_start"
+    }
+  ],
+  "nodes": {
+    "n1": {
+      "node_id": "n1",
+      "optimizer": "optuna:TPE",
+      "optimizer_family": "bayesian",
+      "config": {
+        "method": "TPE",
+        "max_iterations": 1000
+      },
+      "init_strategy": "random",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "completed",
+      "n_evaluations": 1000,
+      "wall_time": 52.10851,
+      "start_objective": 21.53593097412808,
+      "best_objective": 18.431564501721144
+    },
+    "n2": {
+      "node_id": "n2",
+      "optimizer": "scipy:trust-constr",
+      "optimizer_family": "gradient",
+      "config": {
+        "method": "trust-constr",
+        "max_iterations": 2000
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 213,
+      "wall_time": 2.271521,
+      "start_objective": 18.431564501721144,
+      "best_objective": 16.592874685839348
+    },
+    "n3": {
+      "node_id": "n3",
+      "optimizer": "scipy:L-BFGS-B",
+      "optimizer_family": "gradient",
+      "config": {
+        "method": "L-BFGS-B",
+        "max_iterations": 5000
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n2",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 1,
+      "wall_time": 0.003402,
+      "start_objective": 16.592874685839348,
+      "best_objective": 16.592874685839348
+    }
+  },
+  "status": "active",
+  "success": true,
+  "final_objective": 16.592874685839348,
+  "final_x": [
+    0.9992810755052906,
+    6.9949703070017195,
+    -0.9992822272660773,
+    -5.001099208650703e-07,
+    -7.994252602872952,
+    -7.994252605717884,
+    9.992813724899884,
+    6.99497040167394,
+    10.99209481696206,
+    1.9985627710067047,
+    9.992813756340457,
+    8.993532826580445,
+    -3.997127063257481,
+    -3.99712701982762,
+    -19.985614193643553,
+    -10.992095535638574,
+    -12.990656772684478,
+    -8.993533761637508,
+    16.987776305196782,
+    -3.9971270241054646,
+    -13.989936994858951,
+    5.995688933990673,
+    -7.994252787333879,
+    -2.9978453594953267,
+    2.997844469344674,
+    2.997844532336376,
+    -3.9971271036692526,
+    10.992094635893485,
+    6.994970407739484,
+    -9.99281471942158
+  ],
+  "total_evaluations": 1214,
+  "total_wall_time": 76.421696,
+  "decisions": [
+    {
+      "timestamp": "2025-12-16T14:42:03.318015",
+      "decision_type": "finalize",
+      "reasoning": "Improved optimization strategy for 30D Ackley function based on graph #17 analysis. Used TPE Bayesian optimization for global exploration (n1), followed by trust-constr refinement (n2), and final L-BFGS-B polishing (n3). Achieved objective of 16.59 in 1214 total evaluations, outperforming graph #17's 16.78 with fewer evaluations.",
+      "from_node": null,
+      "to_node": null,
+      "metrics_at_decision": {}
+    }
+  ]
+}

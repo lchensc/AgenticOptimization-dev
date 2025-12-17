@@ -400,7 +400,7 @@ def get_problem_by_id(problem_id: str) -> Optional[Any]:
 
 @tool
 def create_nlp_problem(
-    problem_id: str,
+    name: str,
     objective_evaluator_id: str,
     bounds: Any,  # Accept both explicit list OR compact BoundsSpec dict
     objective_sense: str = "minimize",
@@ -424,7 +424,7 @@ def create_nlp_problem(
     DO NOT use Python syntax like "[[-5, 10] for _ in range(50)]" - this is invalid JSON!
 
     Args:
-        problem_id: Unique problem identifier (e.g., "wing_design_v1")
+        name: Human-readable problem name (e.g., "Wing Design Optimization")
         objective_evaluator_id: Evaluator ID for objective function f(x)
         bounds: Variable bounds - use ONE of these formats:
             - Compact (RECOMMENDED): {"type": "uniform", "lower": -5, "upper": 10, "dimension": 50}
@@ -482,17 +482,12 @@ def create_nlp_problem(
         )
         from datetime import datetime
 
-        # Check if problem_id already exists
-        if problem_id in _PROBLEM_REGISTRY:
-            return {
-                "success": False,
-                "problem_id": problem_id,
-                "message": f"Problem '{problem_id}' already registered. Use a different ID.",
-            }
-
         # Unified storage: all data in .paola_foundry
         storage = FileStorage()
         foundry = OptimizationFoundry(storage=storage)
+
+        # Get next numeric problem_id (v0.4.3)
+        problem_id = storage.get_next_problem_id()
 
         # Verify objective evaluator exists
         try:
@@ -572,12 +567,12 @@ def create_nlp_problem(
                 )
             }
 
-        # Create NLPProblem specification (v0.4.1 - uses new schema)
+        # Create NLPProblem specification (v0.4.3 - uses numeric IDs)
         # Note: initial_point is NOT specified - Paola computes it automatically
         # based on domain_hint, algorithm, and run history (The Paola Principle)
         nlp_problem = NLPProblem(
-            problem_id=problem_id,
-            name=description or problem_id,
+            problem_id=problem_id,  # Numeric ID
+            name=name,  # Human-readable name
             n_variables=dimension,
             n_constraints=0,  # Will be computed in __post_init__
             objective_evaluator_id=objective_evaluator_id,
@@ -585,7 +580,7 @@ def create_nlp_problem(
             bounds=explicit_bounds,
             inequality_constraints=ineq_constraints_objs,
             equality_constraints=eq_constraints_objs,
-            description=description,
+            description=description or name,
             domain_hint=domain_hint,
             bounds_spec=bounds if isinstance(bounds, dict) else None
         )
@@ -593,10 +588,10 @@ def create_nlp_problem(
         # Create NLPEvaluator (composite evaluator)
         nlp_evaluator = NLPEvaluator.from_problem(nlp_problem, foundry)
 
-        # Register in problem registry (for runtime use)
+        # Register in problem registry (for runtime use) - use numeric ID
         register_problem(problem_id, nlp_evaluator)
 
-        # Store problem in new v0.4.1 storage with index
+        # Store problem in storage with index
         storage.save_problem(nlp_problem)
 
         # Recommend solvers
@@ -612,7 +607,8 @@ def create_nlp_problem(
 
         return {
             "success": True,
-            "problem_id": problem_id,
+            "problem_id": problem_id,  # Numeric ID
+            "name": name,  # Human-readable name
             "problem_type": "NLP",
             "dimension": dimension,
             "num_inequality_constraints": nlp_problem.num_inequality_constraints,
@@ -621,7 +617,7 @@ def create_nlp_problem(
             "recommended_solvers": recommended_solvers,
             "domain_hint": domain_hint,
             "message": (
-                f"Created NLP problem '{problem_id}':\n"
+                f"Created NLP problem #{problem_id} '{name}':\n"
                 f"  Objective: {objective_sense} {objective_evaluator_id}\n"
                 f"  Dimension: {dimension}\n"
                 f"{hint_msg}"
@@ -642,10 +638,10 @@ def create_nlp_problem(
 
 @tool
 def derive_problem(
-    parent_problem_id: str,
+    parent_problem_id: int,
     derivation_type: str,
     modifications: str,  # JSON string
-    new_problem_id: Optional[str] = None,
+    new_name: Optional[str] = None,
     reason: Optional[str] = None,
     source_graph_id: Optional[int] = None,
     source_node_id: Optional[str] = None,
@@ -657,14 +653,14 @@ def derive_problem(
     The derived problem maintains lineage to the parent.
 
     Args:
-        parent_problem_id: ID of the problem to derive from
+        parent_problem_id: Numeric ID of the problem to derive from
         derivation_type: Type of derivation:
             - "narrow_bounds" - Shrink bounds around a region
             - "widen_bounds" - Expand search space
         modifications: JSON string with derivation-specific parameters:
             narrow_bounds: {"center": [...], "width_factor": 0.3}
             widen_bounds: {"width_factor": 1.5}
-        new_problem_id: Optional ID for derived problem (auto-generated if not provided)
+        new_name: Optional name for derived problem (auto-generated if not provided)
         reason: Why this derivation was needed
         source_graph_id: Graph that motivated this derivation
         source_node_id: Node that motivated this derivation
@@ -672,8 +668,8 @@ def derive_problem(
     Returns:
         Dict with:
             - success: bool
-            - problem_id: str (new derived problem ID)
-            - parent_problem_id: str
+            - problem_id: int (new derived problem ID)
+            - parent_problem_id: int
             - derivation_type: str
             - n_variables: int
             - message: str
@@ -681,7 +677,7 @@ def derive_problem(
     Example (narrow bounds after global search):
         # After TPE finds promising region at x=[1.2, 3.4, 5.6]
         derive_problem(
-            parent_problem_id="rosenbrock_10d",
+            parent_problem_id=1,
             derivation_type="narrow_bounds",
             modifications='{"center": [1.2, 3.4, 5.6], "width_factor": 0.3}',
             reason="Focus on region found by TPE in graph #42",
@@ -712,16 +708,22 @@ def derive_problem(
         if parent is None:
             return {
                 "success": False,
-                "message": f"Parent problem '{parent_problem_id}' not found in storage."
+                "message": f"Parent problem #{parent_problem_id} not found in storage."
             }
 
         # Check that it's an NLPProblem
         if not isinstance(parent, NLPProblem):
             return {
                 "success": False,
-                "message": f"Parent problem '{parent_problem_id}' is not an NLPProblem. "
+                "message": f"Parent problem #{parent_problem_id} is not an NLPProblem. "
                            f"Derivation only supported for NLP problems currently."
             }
+
+        # Get next numeric ID for derived problem (v0.4.3)
+        new_problem_id = storage.get_next_problem_id()
+
+        # Generate name if not provided
+        derived_name = new_name or f"{parent.name} ({derivation_type})"
 
         # Apply derivation
         if derivation_type == "narrow_bounds":
@@ -734,9 +736,10 @@ def derive_problem(
             width_factor = mods.get("width_factor", 0.3)
 
             derived = parent.derive_narrow_bounds(
+                new_problem_id=new_problem_id,
+                new_name=derived_name,
                 center=center,
                 width_factor=width_factor,
-                new_problem_id=new_problem_id,
                 reason=reason,
                 source_graph_id=source_graph_id,
                 source_node_id=source_node_id,
@@ -746,8 +749,9 @@ def derive_problem(
             width_factor = mods.get("width_factor", 1.5)
 
             derived = parent.derive_widen_bounds(
-                width_factor=width_factor,
                 new_problem_id=new_problem_id,
+                new_name=derived_name,
+                width_factor=width_factor,
                 reason=reason,
             )
 
@@ -769,12 +773,13 @@ def derive_problem(
         return {
             "success": True,
             "problem_id": derived.problem_id,
+            "name": derived.name,
             "parent_problem_id": derived.parent_problem_id,
             "derivation_type": derived.derivation_type,
             "n_variables": derived.n_variables,
             "version": derived.version,
             "message": (
-                f"Derived problem '{derived.problem_id}' from '{parent_problem_id}':\n"
+                f"Derived problem #{derived.problem_id} '{derived.name}' from #{parent_problem_id}:\n"
                 f"  Derivation: {derivation_type}\n"
                 f"  Variables: {derived.n_variables}\n"
                 f"  Version: {derived.version}\n"
@@ -842,7 +847,7 @@ def list_problems(
 
 
 @tool
-def get_problem_lineage(problem_id: str) -> Dict[str, Any]:
+def get_problem_lineage(problem_id: int) -> Dict[str, Any]:
     """
     Get the derivation lineage of a problem.
 
@@ -850,20 +855,20 @@ def get_problem_lineage(problem_id: str) -> Dict[str, Any]:
     including which graphs used each version.
 
     Args:
-        problem_id: Problem to trace lineage for
+        problem_id: Numeric problem ID to trace lineage for
 
     Returns:
         Dict with:
             - success: bool
-            - problem_id: str
+            - problem_id: int
             - lineage: List[Dict] - Chain from root to this problem
-            - children: List[str] - Direct children of this problem
+            - children: List[int] - Direct children of this problem
 
     Example:
-        # Trace how rosenbrock_10d_v3 was derived
-        result = get_problem_lineage("rosenbrock_10d_v3")
+        # Trace how problem #3 was derived
+        result = get_problem_lineage(3)
         for p in result["lineage"]:
-            print(f"{p['problem_id']} ({p.get('derivation_type', 'root')})")
+            print(f"#{p['problem_id']} {p['name']} ({p.get('derivation_type', 'root')})")
     """
     try:
         from paola.foundry import FileStorage
@@ -875,11 +880,15 @@ def get_problem_lineage(problem_id: str) -> Dict[str, Any]:
         if not lineage:
             return {
                 "success": False,
-                "message": f"Problem '{problem_id}' not found in storage."
+                "message": f"Problem #{problem_id} not found in storage."
             }
 
         # Get children
         children = storage.get_problem_children(problem_id)
+
+        # Build chain string
+        chain_parts = [f"#{p['problem_id']}" for p in lineage]
+        chain_str = ' -> '.join(chain_parts)
 
         return {
             "success": True,
@@ -887,8 +896,8 @@ def get_problem_lineage(problem_id: str) -> Dict[str, Any]:
             "lineage": lineage,
             "children": children,
             "message": (
-                f"Lineage for '{problem_id}':\n"
-                f"  Chain: {' -> '.join(p['problem_id'] for p in lineage)}\n"
+                f"Lineage for problem #{problem_id}:\n"
+                f"  Chain: {chain_str}\n"
                 f"  Children: {children if children else 'None'}"
             )
         }

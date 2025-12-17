@@ -1,0 +1,120 @@
+{
+  "graph_id": 19,
+  "problem_id": "ackley_30d",
+  "created_at": "2025-12-16T14:44:00.068870",
+  "goal": "Improve on graphs 17 and 18 by using enhanced global exploration with Optuna TPE (1500 trials) followed by precise local refinement with trust-constr and L-BFGS-B, aiming to achieve objective < 16.5",
+  "problem_signature": null,
+  "pattern": "chain",
+  "edges": [
+    {
+      "source": "n1",
+      "target": "n2",
+      "edge_type": "warm_start"
+    },
+    {
+      "source": "n2",
+      "target": "n3",
+      "edge_type": "warm_start"
+    }
+  ],
+  "nodes": {
+    "n1": {
+      "node_id": "n1",
+      "optimizer": "optuna:TPE",
+      "optimizer_family": "bayesian",
+      "config": {
+        "method": "TPE",
+        "max_iterations": 1500
+      },
+      "init_strategy": "random",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "completed",
+      "n_evaluations": 1500,
+      "wall_time": 100.005655,
+      "start_objective": 9.664832373726583,
+      "best_objective": 6.575610359848671
+    },
+    "n2": {
+      "node_id": "n2",
+      "optimizer": "scipy:trust-constr",
+      "optimizer_family": "gradient",
+      "config": {
+        "method": "trust-constr",
+        "max_iterations": 2000
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 169,
+      "wall_time": 1.427408,
+      "start_objective": 6.575610359848671,
+      "best_objective": 1.7779969868840309
+    },
+    "n3": {
+      "node_id": "n3",
+      "optimizer": "scipy:L-BFGS-B",
+      "optimizer_family": "gradient",
+      "config": {
+        "method": "L-BFGS-B",
+        "max_iterations": 500
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n2",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 1,
+      "wall_time": 0.003461,
+      "start_objective": 1.7779969868840309,
+      "best_objective": 1.7779969868840309
+    }
+  },
+  "status": "active",
+  "success": true,
+  "final_objective": 1.7779969868840309,
+  "final_x": [
+    -0.9248439788185768,
+    0.9248429127168396,
+    -0.924844030320971,
+    -4.3738401122890415e-07,
+    -5.054260452050534e-07,
+    -5.334160385834911e-07,
+    -4.437782672316269e-07,
+    -4.5574164679354453e-07,
+    -5.642172195424474e-07,
+    -0.9248439217695823,
+    -5.168868363039536e-07,
+    -5.242538241876174e-07,
+    -3.9971778772742777e-07,
+    -4.140983736408756e-07,
+    0.9248429602954442,
+    -4.853710927127325e-07,
+    0.9248430177267685,
+    -5.077684895139173e-07,
+    -5.020462137179253e-07,
+    -4.93456796517163e-07,
+    0.9248429791739949,
+    -4.5307103253627705e-07,
+    -4.7504488515825157e-07,
+    -5.108281706800103e-07,
+    -4.718583656968114e-07,
+    -4.3690915118410404e-07,
+    -4.5950471532860146e-07,
+    -4.947508169133279e-07,
+    -5.205207117751152e-07,
+    -4.941336801958718e-07
+  ],
+  "total_evaluations": 1670,
+  "total_wall_time": 122.399065,
+  "decisions": [
+    {
+      "timestamp": "2025-12-16T14:46:02.467914",
+      "decision_type": "finalize",
+      "reasoning": "Improved optimization strategy for 30D Ackley function. Used enhanced global exploration with Optuna TPE (1500 trials) followed by precise local refinement with trust-constr (tight tolerances) and confirmation with L-BFGS-B. Achieved objective of 1.778, significantly better than graph 17 (16.78) and graph 18 (16.59). The key improvements were: increased global exploration (1500 vs 1000 trials), tighter convergence tolerances, and the effective chain of optimizers leveraging both global and local search capabilities.",
+      "from_node": null,
+      "to_node": null,
+      "metrics_at_decision": {}
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "graph_id": 44,
+  "problem_id": "rosenbrock_constrained_10d",
+  "created_at": "2025-12-17T13:21:38.862228",
+  "goal": "Minimize 10D Rosenbrock function with constraints x1^2 + x2^2 >= 1 and x1 + x2 <= 1 using IPOPT with multi-start strategy",
+  "problem_signature": null,
+  "pattern": "multistart",
+  "edges": [],
+  "nodes": {
+    "n1": {
+      "node_id": "n1",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 200
+      },
+      "init_strategy": "random",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "failed",
+      "n_evaluations": 879,
+      "wall_time": 4.750151,
+      "start_objective": 694183.9028920233,
+      "best_objective": 285.34727133865215
+    },
+    "n2": {
+      "node_id": "n2",
+      "optimizer": "ipopt",
+      "optimizer_family": "gradient",
+      "config": {
+        "max_iterations": 200
+      },
+      "init_strategy": "center",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "failed",
+      "n_evaluations": 685,
+      "wall_time": 4.303698,
+      "start_objective": 12676.5,
+      "best_objective": 3.4349291218879536e-05
+    }
+  },
+  "status": "active",
+  "success": false,
+  "final_objective": null,
+  "final_x": null,
+  "total_evaluations": 1564,
+  "total_wall_time": 32.113002,
+  "decisions": [
+    {
+      "timestamp": "2025-12-17T13:22:10.975210",
+      "decision_type": "finalize",
+      "reasoning": "Demonstrated IPOPT performance on constrained 10D Rosenbrock problem. Center initialization yielded excellent results (objective: 3.43e-5). Random initialization failed to converge. Recommended approach: use center initialization for IPOPT on similar problems.",
+      "from_node": null,
+      "to_node": null,
+      "metrics_at_decision": {}
+    }
+  ]
+}

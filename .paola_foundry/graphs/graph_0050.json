@@ -1,0 +1,89 @@
+{
+  "graph_id": 50,
+  "problem_id": "ackley_10d",
+  "created_at": "2025-12-17T14:24:41.226186",
+  "goal": "Compare performance of three SciPy optimizers (L-BFGS-B, SLSQP, trust-constr) on 10D Ackley function with random initialization",
+  "problem_signature": null,
+  "pattern": "multistart",
+  "edges": [],
+  "nodes": {
+    "n1": {
+      "node_id": "n1",
+      "optimizer": "scipy:L-BFGS-B",
+      "optimizer_family": "gradient",
+      "config": {
+        "method": "L-BFGS-B",
+        "max_iterations": 200
+      },
+      "init_strategy": "random",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "completed",
+      "n_evaluations": 18,
+      "wall_time": 0.101895,
+      "start_objective": 21.74687882739683,
+      "best_objective": 19.697631352062693
+    },
+    "n2": {
+      "node_id": "n2",
+      "optimizer": "scipy:SLSQP",
+      "optimizer_family": "gradient",
+      "config": {
+        "method": "SLSQP",
+        "max_iterations": 200
+      },
+      "init_strategy": "random",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "completed",
+      "n_evaluations": 21,
+      "wall_time": 0.093608,
+      "start_objective": 20.75337123715344,
+      "best_objective": 19.092145156518562
+    },
+    "n3": {
+      "node_id": "n3",
+      "optimizer": "scipy:trust-constr",
+      "optimizer_family": "gradient",
+      "config": {
+        "method": "trust-constr",
+        "max_iterations": 200
+      },
+      "init_strategy": "random",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "completed",
+      "n_evaluations": 19,
+      "wall_time": 0.144629,
+      "start_objective": 21.329030773535166,
+      "best_objective": 19.368451490642173
+    }
+  },
+  "status": "active",
+  "success": true,
+  "final_objective": 19.092145156518562,
+  "final_x": [
+    27.996918454567552,
+    -6.999193527131039,
+    -4.999375650341855,
+    15.998517584109432,
+    26.997039871774856,
+    3.999478130421701,
+    -4.999456825825398,
+    4.9994544567940675,
+    10.998790607587202,
+    18.997880112680196
+  ],
+  "total_evaluations": 58,
+  "total_wall_time": 20.273246,
+  "decisions": [
+    {
+      "timestamp": "2025-12-17T14:25:01.499409",
+      "decision_type": "finalize",
+      "reasoning": "Comparison of three SciPy optimizers on 10D Ackley function with random initialization. SLSQP achieved the best objective (19.092), followed by trust-constr (19.368) and L-BFGS-B (19.698). SLSQP was also very efficient with only 21 evaluations.",
+      "from_node": null,
+      "to_node": null,
+      "metrics_at_decision": {}
+    }
+  ]
+}

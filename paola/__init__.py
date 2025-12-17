@@ -2,7 +2,7 @@
 Paola - Package for Agentic Optimization with Learning and Analysis
 """
 
-__version__ = "0.4.0"
+__version__ = "0.4.3"
 
 from .agent import build_optimization_agent, build_conversational_agent
 from .callbacks import (

@@ -47,7 +47,7 @@ def get_foundry() -> Optional[OptimizationFoundry]:
 
 @tool
 def start_graph(
-    problem_id: str,
+    problem_id: int,
     goal: str = "",
 ) -> Dict[str, Any]:
     """
@@ -58,19 +58,19 @@ def start_graph(
     to run_optimization.
 
     Args:
-        problem_id: Problem identifier (from registered problems)
+        problem_id: Numeric problem ID (from create_nlp_problem)
         goal: Natural language description of optimization goal
 
     Returns:
         Dict with:
             - success: bool
             - graph_id: int - Use this in run_optimization
-            - problem_id: str
+            - problem_id: int
             - message: str
 
     Example:
         result = start_graph(
-            problem_id="rosenbrock_10d",
+            problem_id=1,
             goal="Minimize Rosenbrock function with multi-start strategy"
         )
         # Returns: {"success": True, "graph_id": 1, ...}
@@ -99,7 +99,7 @@ def start_graph(
             "success": True,
             "graph_id": graph.graph_id,
             "problem_id": problem_id,
-            "message": f"Created graph #{graph.graph_id} for problem '{problem_id}'.",
+            "message": f"Created graph #{graph.graph_id} for problem #{problem_id}.",
         }
 
     except Exception as e:

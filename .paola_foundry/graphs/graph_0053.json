@@ -1,0 +1,118 @@
+{
+  "graph_id": 53,
+  "problem_id": "ackley_50d",
+  "created_at": "2025-12-17T15:34:37.560616",
+  "goal": "Solve 50D Ackley function optimization with multi-start strategy followed by local refinement",
+  "problem_signature": null,
+  "pattern": "chain",
+  "edges": [
+    {
+      "source": "n1",
+      "target": "n2",
+      "edge_type": "warm_start"
+    }
+  ],
+  "nodes": {
+    "n1": {
+      "node_id": "n1",
+      "optimizer": "optuna:TPE",
+      "optimizer_family": "bayesian",
+      "config": {
+        "method": "TPE",
+        "max_iterations": 500
+      },
+      "init_strategy": "random",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "completed",
+      "n_evaluations": 500,
+      "wall_time": 31.752159,
+      "start_objective": 21.131646556014417,
+      "best_objective": 19.73369952275001
+    },
+    "n2": {
+      "node_id": "n2",
+      "optimizer": "scipy:L-BFGS-B",
+      "optimizer_family": "gradient",
+      "config": {
+        "method": "L-BFGS-B",
+        "max_iterations": 100
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "warm_start",
+      "status": "completed",
+      "n_evaluations": 20,
+      "wall_time": 0.433551,
+      "start_objective": 19.73369952275001,
+      "best_objective": 18.1045089405525
+    }
+  },
+  "status": "active",
+  "success": true,
+  "final_objective": 18.1045089405525,
+  "final_x": [
+    -8.997300651032154,
+    5.998199182804002,
+    8.997299747526599,
+    -1.9994009049150894,
+    -16.994900071569617,
+    -14.995500451879288,
+    -6.997900104973554,
+    -14.995499914613731,
+    -9.997000017242572,
+    -15.995199704910089,
+    -22.993098234639973,
+    -1.9994001832111146,
+    -13.995801471926825,
+    7.997599299132519,
+    -9.99700081758564,
+    10.996699079261255,
+    17.99459824004726,
+    -10.996700634557984,
+    6.9978999125744625,
+    -4.998501385913131,
+    17.994599484822935,
+    10.996698965269948,
+    -5.998200104181075,
+    5.99819919550764,
+    12.996099146030778,
+    7.997599076534112,
+    0.9996997856116389,
+    -6.997900023039886,
+    -5.998200449303878,
+    -1.249439457384127e-07,
+    3.998799362849112,
+    -8.825459063674045e-07,
+    6.997899121525154,
+    -8.99730081092975,
+    -16.994900199550944,
+    13.995799059504362,
+    22.993097507002666,
+    3.9988007650640727,
+    -10.99670057862487,
+    18.994299016972096,
+    1.9993996798127902,
+    13.995799343050205,
+    14.995499259883065,
+    8.99729896236306,
+    -9.997000196540512,
+    -9.997000667313023,
+    -21.99339842223643,
+    8.997299233511427,
+    16.994899197376846,
+    -2.9991001753722095
+  ],
+  "total_evaluations": 520,
+  "total_wall_time": 57.548245,
+  "decisions": [
+    {
+      "timestamp": "2025-12-17T15:35:35.108842",
+      "decision_type": "finalize",
+      "reasoning": "Expert-level strategy achieved 18.10 objective value on 50D Ackley function. Used multi-stage approach: 500-trial TPE global exploration followed by L-BFGS-B local refinement with warm-start. Converged efficiently with minimal evaluations.",
+      "from_node": null,
+      "to_node": null,
+      "metrics_at_decision": {}
+    }
+  ]
+}

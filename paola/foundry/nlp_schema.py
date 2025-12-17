@@ -326,10 +326,10 @@ class NLPProblem(OptimizationProblem):
     @classmethod
     def from_bounds_spec(
         cls,
-        problem_id: str,
+        problem_id: int,
+        name: str,
         objective_evaluator_id: str,
         bounds_spec: Union[List[List[float]], Dict[str, Any], BoundsSpec],
-        name: Optional[str] = None,
         objective_sense: Literal["minimize", "maximize"] = "minimize",
         inequality_constraints: List[InequalityConstraint] = None,
         equality_constraints: List[EqualityConstraint] = None,
@@ -344,13 +344,13 @@ class NLPProblem(OptimizationProblem):
         automatically expanding them to explicit bounds.
 
         Args:
-            problem_id: Unique problem identifier
+            problem_id: Numeric problem ID (from storage.get_next_problem_id())
+            name: Human-readable problem name
             objective_evaluator_id: Registered evaluator for objective
             bounds_spec: One of:
                 - List of [lower, upper] pairs (explicit)
                 - Dict with BoundsSpec format
                 - BoundsSpec object
-            name: Human-readable name (defaults to problem_id)
             objective_sense: "minimize" or "maximize"
             inequality_constraints: List of inequality constraints
             equality_constraints: List of equality constraints
@@ -363,7 +363,8 @@ class NLPProblem(OptimizationProblem):
         Example:
             # Uniform bounds for 100 FFD control points
             problem = NLPProblem.from_bounds_spec(
-                problem_id="wing_ffd",
+                problem_id=1,
+                name="Wing FFD Optimization",
                 objective_evaluator_id="drag_eval",
                 bounds_spec={"type": "uniform", "lower": -0.05, "upper": 0.05, "dimension": 100},
                 domain_hint="shape_optimization"
@@ -377,7 +378,7 @@ class NLPProblem(OptimizationProblem):
 
         return cls(
             problem_id=problem_id,
-            name=name or problem_id,
+            name=name,
             n_variables=len(expanded_bounds),
             n_constraints=0,  # Will be recomputed in __post_init__
             objective_evaluator_id=objective_evaluator_id,
@@ -414,9 +415,10 @@ class NLPProblem(OptimizationProblem):
 
     def derive_narrow_bounds(
         self,
+        new_problem_id: int,
+        new_name: str,
         center: List[float],
         width_factor: float = 0.3,
-        new_problem_id: Optional[str] = None,
         reason: Optional[str] = None,
         source_graph_id: Optional[int] = None,
         source_node_id: Optional[str] = None,
@@ -428,9 +430,10 @@ class NLPProblem(OptimizationProblem):
         The derived problem maintains lineage to this parent problem.
 
         Args:
+            new_problem_id: Numeric ID for the derived problem (from storage.get_next_problem_id())
+            new_name: Human-readable name for the derived problem
             center: Center point for new bounds (typically best_x from optimization)
             width_factor: Fraction of original width to use (0.3 = 30% of original)
-            new_problem_id: ID for derived problem (auto-generated if not provided)
             reason: Why this derivation was needed
             source_graph_id: Graph that motivated this derivation
             source_node_id: Node that motivated this derivation
@@ -441,6 +444,8 @@ class NLPProblem(OptimizationProblem):
         Example:
             # After TPE found best_x = [1.2, 3.4]
             derived = original.derive_narrow_bounds(
+                new_problem_id=2,
+                new_name="Wing Design (narrowed)",
                 center=[1.2, 3.4],
                 width_factor=0.3,
                 reason="Focus on region found by TPE"
@@ -451,10 +456,6 @@ class NLPProblem(OptimizationProblem):
                 f"Center dimension ({len(center)}) doesn't match "
                 f"problem dimension ({self.n_variables})"
             )
-
-        # Generate ID if not provided
-        if new_problem_id is None:
-            new_problem_id = f"{self.problem_id}_v{self.version + 1}"
 
         # Compute new bounds centered on center with reduced width
         new_bounds = []
@@ -472,7 +473,7 @@ class NLPProblem(OptimizationProblem):
 
         return NLPProblem(
             problem_id=new_problem_id,
-            name=f"{self.name} (narrowed)",
+            name=new_name,
             n_variables=self.n_variables,
             n_constraints=self.n_constraints,
             objective_evaluator_id=self.objective_evaluator_id,
@@ -499,8 +500,9 @@ class NLPProblem(OptimizationProblem):
 
     def derive_widen_bounds(
         self,
+        new_problem_id: int,
+        new_name: str,
         width_factor: float = 1.5,
-        new_problem_id: Optional[str] = None,
         reason: Optional[str] = None,
     ) -> 'NLPProblem':
         """
@@ -509,16 +511,14 @@ class NLPProblem(OptimizationProblem):
         Expands bounds (e.g., when solution hits boundary).
 
         Args:
+            new_problem_id: Numeric ID for the derived problem (from storage.get_next_problem_id())
+            new_name: Human-readable name for the derived problem
             width_factor: Factor to multiply original width (1.5 = 50% wider)
-            new_problem_id: ID for derived problem (auto-generated if not provided)
             reason: Why this derivation was needed
 
         Returns:
             New NLPProblem with widened bounds
         """
-        if new_problem_id is None:
-            new_problem_id = f"{self.problem_id}_v{self.version + 1}"
-
         # Compute new bounds with expanded width
         new_bounds = []
         for lb, ub in self.bounds:
@@ -533,7 +533,7 @@ class NLPProblem(OptimizationProblem):
 
         return NLPProblem(
             problem_id=new_problem_id,
-            name=f"{self.name} (widened)",
+            name=new_name,
             n_variables=self.n_variables,
             n_constraints=self.n_constraints,
             objective_evaluator_id=self.objective_evaluator_id,

@@ -171,12 +171,19 @@ class OptimizationFoundry:
         problem_signature = None
         problem = self.storage.load_problem(record.problem_id)
         if problem:
+            # Handle NLPProblem attributes (n_variables, n_constraints, bounds)
+            constraint_types = []
+            if hasattr(problem, 'inequality_constraints') and problem.inequality_constraints:
+                constraint_types.extend(["inequality"] * len(problem.inequality_constraints))
+            if hasattr(problem, 'equality_constraints') and problem.equality_constraints:
+                constraint_types.extend(["equality"] * len(problem.equality_constraints))
+
             problem_signature = create_problem_signature(
-                n_dimensions=problem.dimensions,
-                bounds=problem.bounds,
-                n_constraints=len(problem.constraints) if problem.constraints else 0,
-                constraint_types=[c.get("type", "inequality") for c in (problem.constraints or [])],
-                domain_hint=problem.domain_hint if hasattr(problem, 'domain_hint') else None,
+                n_dimensions=problem.n_variables,
+                bounds=getattr(problem, 'bounds', None),
+                n_constraints=problem.n_constraints,
+                constraint_types=constraint_types if constraint_types else None,
+                domain_hint=getattr(problem, 'domain_hint', None),
             )
 
         # Persist to storage (two-tier)

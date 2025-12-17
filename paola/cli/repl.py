@@ -450,12 +450,24 @@ class AgenticOptREPL:
             if len(cmd_parts) < 2:
                 self.command_handler.handle_problems()
             elif cmd_parts[1].lower() == 'show' and len(cmd_parts) > 2:
-                self.command_handler.handle_problem_show(cmd_parts[2])
+                try:
+                    problem_id = int(cmd_parts[2])
+                    self.command_handler.handle_problem_show(problem_id)
+                except ValueError:
+                    self.console.print(f"[red]Invalid problem ID: {cmd_parts[2]}. Use numeric ID (e.g., 1, 2, 3).[/red]")
             elif cmd_parts[1].lower() == 'lineage' and len(cmd_parts) > 2:
-                self.command_handler.handle_problem_lineage(cmd_parts[2])
+                try:
+                    problem_id = int(cmd_parts[2])
+                    self.command_handler.handle_problem_lineage(problem_id)
+                except ValueError:
+                    self.console.print(f"[red]Invalid problem ID: {cmd_parts[2]}. Use numeric ID (e.g., 1, 2, 3).[/red]")
             else:
                 # Treat as problem ID for show
-                self.command_handler.handle_problem_show(cmd_parts[1])
+                try:
+                    problem_id = int(cmd_parts[1])
+                    self.command_handler.handle_problem_show(problem_id)
+                except ValueError:
+                    self.console.print(f"[red]Invalid problem ID: {cmd_parts[1]}. Use numeric ID (e.g., 1, 2, 3).[/red]")
         else:
             self.console.print(f"Unknown command: {cmd}. Type /help for available commands.", style="yellow")
 

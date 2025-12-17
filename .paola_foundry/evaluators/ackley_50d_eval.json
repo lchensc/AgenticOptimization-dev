@@ -39,11 +39,11 @@
     "deterministic": true
   },
   "performance": {
-    "median_time": 3.256698698834218e-05,
+    "median_time": 2.4505559738890946e-05,
     "std_time": 0.0,
     "cost_per_eval": 1.0,
     "success_rate": 1.0,
-    "total_calls": 1000
+    "total_calls": 2500
   },
   "lineage": {
     "registered_at": "2025-12-17T17:37:59.401358",

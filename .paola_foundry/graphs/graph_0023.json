@@ -1,0 +1,120 @@
+{
+  "graph_id": 23,
+  "problem_id": "ackley_30d",
+  "created_at": "2025-12-16T17:35:45.723152",
+  "goal": "Optimize 30D Ackley function using restarted Bayesian optimization with adaptive trust-regions",
+  "problem_signature": null,
+  "pattern": "chain",
+  "edges": [
+    {
+      "source": "n1",
+      "target": "n2",
+      "edge_type": "restart"
+    },
+    {
+      "source": "n2",
+      "target": "n3",
+      "edge_type": "refine"
+    }
+  ],
+  "nodes": {
+    "n1": {
+      "node_id": "n1",
+      "optimizer": "optuna:TPE",
+      "optimizer_family": "bayesian",
+      "config": {
+        "method": "TPE",
+        "max_iterations": 200
+      },
+      "init_strategy": "random",
+      "parent_node": null,
+      "edge_type": null,
+      "status": "completed",
+      "n_evaluations": 200,
+      "wall_time": 6.270546,
+      "start_objective": 10.480846068401167,
+      "best_objective": 7.848424890764488
+    },
+    "n2": {
+      "node_id": "n2",
+      "optimizer": "optuna:TPE",
+      "optimizer_family": "bayesian",
+      "config": {
+        "method": "TPE",
+        "max_iterations": 100
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n1",
+      "edge_type": "restart",
+      "status": "completed",
+      "n_evaluations": 100,
+      "wall_time": 2.395222,
+      "start_objective": 9.43730376505474,
+      "best_objective": 7.790276103310244
+    },
+    "n3": {
+      "node_id": "n3",
+      "optimizer": "scipy:trust-constr",
+      "optimizer_family": "gradient",
+      "config": {
+        "method": "trust-constr",
+        "max_iterations": 100
+      },
+      "init_strategy": "warm_start",
+      "parent_node": "n2",
+      "edge_type": "refine",
+      "status": "completed",
+      "n_evaluations": 46,
+      "wall_time": 0.514802,
+      "start_objective": 7.790276103310244,
+      "best_objective": 2.8140997387066484
+    }
+  },
+  "status": "active",
+  "success": true,
+  "final_objective": 2.8140997387066484,
+  "final_x": [
+    0.9570479533457109,
+    -4.993708648871658e-07,
+    -5.003621151517726e-07,
+    -4.999559662149233e-07,
+    -0.9570489478346696,
+    -0.9570489493427206,
+    -0.9570489487061763,
+    -4.996181163776926e-07,
+    -4.994733940527126e-07,
+    -5.001068698981406e-07,
+    1.9106704243416532,
+    -4.997940406077038e-07,
+    0.9570479532517606,
+    -0.9570489486392164,
+    0.9570479536548938,
+    -4.993270965882847e-07,
+    -5.003519331640485e-07,
+    -4.99672987293654e-07,
+    -0.9570489483627962,
+    -4.99631726174002e-07,
+    -0.9570489485074697,
+    -4.99584131591609e-07,
+    -0.9570489486289667,
+    0.9570479536189442,
+    -0.9570489480082448,
+    0.9570479537944568,
+    0.9570479538469155,
+    -5.002705187645802e-07,
+    -4.997348007360374e-07,
+    -5.002742405213834e-07
+  ],
+  "total_evaluations": 346,
+  "total_wall_time": 43.303977,
+  "decisions": [
+    {
+      "timestamp": "2025-12-16T17:36:29.027098",
+      "decision_type": "finalize",
+      "reasoning": "Optimized 30D Ackley function using restarted Bayesian optimization with adaptive trust-regions. Strategy: 1) Initial TPE search (n_trials=200), 2) Restarted TPE (n_trials=300), 3) Local refinement with scipy:trust-constr. Final objective: 2.814.",
+      "from_node": null,
+      "to_node": null,
+      "metrics_at_decision": {}
+    }
+  ]
+}
