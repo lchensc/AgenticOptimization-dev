@@ -192,9 +192,9 @@ class AgenticOptREPL:
         """Display welcome message."""
         welcome = Panel(
             Text.from_markup(
-                "[bold cyan]Paola[/bold cyan] [dim]v0.3.1[/dim]\n"
+                "[bold cyan]Paola[/bold cyan] [dim]v0.4.0[/dim]\n"
                 "[dim]Package for agentic optimization with learning and analysis[/dim]\n\n"
-                "Commands: /help | /graphs | /evals | /exit\n"
+                "Commands: /help | /graphs | /evals | /skills | /exit\n"
                 "Or just tell me what you want to optimize"
             ),
             border_style="cyan",
