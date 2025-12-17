@@ -1032,3 +1032,151 @@ print("SUCCESS")
         self.console.print(Panel(info, border_style="cyan", padding=(1, 2)))
         self.console.print()
 
+    # =========================================================================
+    # Problem Commands (v0.4.1)
+    # =========================================================================
+
+    def handle_problems(self):
+        """Display all registered optimization problems in table format."""
+        problems = self.foundry.storage.list_problems()
+
+        if not problems:
+            self.console.print("\n[dim]No optimization problems registered yet[/dim]\n")
+            return
+
+        table = Table(title="Optimization Problems")
+        table.add_column("ID", style="cyan")
+        table.add_column("Type")
+        table.add_column("Vars", justify="right")
+        table.add_column("Constraints", justify="right")
+        table.add_column("Parent")
+        table.add_column("Derivation")
+        table.add_column("Graphs", justify="right")
+
+        for p in problems:
+            parent = p.get("parent_problem_id") or "-"
+            deriv = p.get("derivation_type") or "-"
+            n_graphs = len(p.get("graphs_using", []))
+
+            # Highlight derived problems
+            style = "dim" if parent != "-" else ""
+
+            table.add_row(
+                p["problem_id"],
+                p.get("problem_type", "?"),
+                str(p.get("n_variables", "?")),
+                str(p.get("n_constraints", "?")),
+                parent,
+                deriv,
+                str(n_graphs),
+                style=style
+            )
+
+        self.console.print()
+        self.console.print(table)
+        self.console.print()
+
+    def handle_problem_show(self, problem_id: str):
+        """Show detailed problem information."""
+        # Load full problem from storage
+        problem = self.foundry.storage.load_problem(problem_id)
+
+        if problem is None:
+            self.console.print(f"\n[red]Problem '{problem_id}' not found[/red]\n")
+            return
+
+        # Get index entry for graph usage info
+        problems = self.foundry.storage.list_problems()
+        index_entry = next((p for p in problems if p["problem_id"] == problem_id), {})
+        graphs_using = index_entry.get("graphs_using", [])
+        children = index_entry.get("children", [])
+
+        # Format bounds summary
+        if hasattr(problem, 'bounds') and problem.bounds:
+            if len(problem.bounds) <= 3:
+                bounds_str = str(problem.bounds)
+            else:
+                bounds_str = f"[{problem.bounds[0]}, {problem.bounds[1]}, ..., {problem.bounds[-1]}]"
+        else:
+            bounds_str = "N/A"
+
+        # Build info panel
+        lineage_str = "Root problem (not derived)"
+        if problem.parent_problem_id:
+            lineage_str = f"Derived from: {problem.parent_problem_id} ({problem.derivation_type})"
+
+        info = f"""[bold cyan]Problem: {problem.problem_id}[/bold cyan]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[cyan]Type:[/cyan]         {problem.problem_type}
+[cyan]Variables:[/cyan]    {problem.n_variables}
+[cyan]Constraints:[/cyan]  {problem.n_constraints}
+[cyan]Domain:[/cyan]       {problem.domain_hint or 'general'}
+
+[bold]Bounds Summary:[/bold]
+  {bounds_str}
+
+[bold]Lineage:[/bold]
+  {lineage_str}
+  Version: {problem.version}
+
+[bold]Children:[/bold]     {', '.join(children) if children else 'None'}
+[bold]Used by:[/bold]      {', '.join(f'Graph {g}' for g in graphs_using) if graphs_using else 'Not used yet'}"""
+
+        # Add NLP-specific info
+        if hasattr(problem, 'objective_evaluator_id'):
+            info += f"""
+
+[bold]NLP Details:[/bold]
+  Objective: {problem.objective_sense} {problem.objective_evaluator_id}
+  Inequality constraints: {len(getattr(problem, 'inequality_constraints', []))}
+  Equality constraints: {len(getattr(problem, 'equality_constraints', []))}"""
+
+        self.console.print()
+        self.console.print(Panel(info, border_style="cyan", padding=(1, 2)))
+        self.console.print()
+
+    def handle_problem_lineage(self, problem_id: str):
+        """Display problem derivation lineage as tree."""
+        lineage = self.foundry.storage.get_problem_lineage(problem_id)
+
+        if not lineage:
+            self.console.print(f"\n[red]Problem '{problem_id}' not found[/red]\n")
+            return
+
+        children = self.foundry.storage.get_problem_children(problem_id)
+
+        # Build ASCII tree
+        tree_lines = []
+        for i, entry in enumerate(lineage):
+            prefix = "  " * i
+            if i == 0:
+                marker = "[bold green]●[/bold green]"  # Root
+            elif entry["problem_id"] == problem_id:
+                marker = "[bold cyan]★[/bold cyan]"  # Current
+            else:
+                marker = "[dim]○[/dim]"  # Ancestor
+
+            deriv_type = entry.get("derivation_type") or "root"
+            tree_lines.append(f"{prefix}{marker} {entry['problem_id']} ({deriv_type})")
+
+        # Add children
+        if children:
+            current_depth = len(lineage)
+            prefix = "  " * current_depth
+            tree_lines.append(f"{prefix}[dim]Children:[/dim]")
+            for child in children:
+                tree_lines.append(f"{prefix}  [dim]└─ {child}[/dim]")
+
+        tree_str = "\n".join(tree_lines)
+
+        info = f"""[bold cyan]Problem Lineage: {problem_id}[/bold cyan]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{tree_str}
+
+[dim]Legend: ● root  ★ current  ○ ancestor[/dim]"""
+
+        self.console.print()
+        self.console.print(Panel(info, border_style="cyan", padding=(1, 2)))
+        self.console.print()

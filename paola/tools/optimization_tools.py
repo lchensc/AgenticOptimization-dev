@@ -57,6 +57,7 @@ def run_optimization(
     init_strategy: str = "center",
     parent_node: Optional[str] = None,
     edge_type: Optional[str] = None,
+    problem_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Execute optimization within a graph, creating a new node.
@@ -92,6 +93,9 @@ def run_optimization(
             - "refine" - Local refinement from parent's solution
             - "branch" - Explore different direction from parent
             - "explore" - Global exploration seeded by parent
+        problem_id: Override the graph's default problem. Use this when
+            running on a derived problem (e.g., narrowed bounds).
+            If not specified, uses the graph's problem_id.
 
     Returns:
         Dict with:
@@ -106,6 +110,7 @@ def run_optimization(
             n_evaluations: int
             elapsed_time: float
             parent_node: str or None
+            problem_id: str - Problem used (may differ from graph's default)
 
     Example (fresh start):
         # First start a graph
@@ -130,6 +135,24 @@ def run_optimization(
             parent_node="n1",
             edge_type="warm_start"
         )
+
+    Example (run on derived problem with narrowed bounds):
+        # After TPE finds promising region, derive narrowed problem
+        derive_problem(
+            parent_problem_id="rosenbrock_10d",
+            derivation_type="narrow_bounds",
+            modifications='{"center": [1.2, 3.4], "width_factor": 0.3}'
+        )
+        # Returns: problem_id="rosenbrock_10d_v2"
+
+        # Run gradient optimizer on derived problem
+        run_optimization(
+            graph_id=1,
+            optimizer="scipy:SLSQP",
+            problem_id="rosenbrock_10d_v2",  # Override with derived problem
+            parent_node="n1",
+            edge_type="refine"
+        )
     """
     from .evaluator_tools import _get_problem
     from .graph_tools import _FOUNDRY
@@ -150,8 +173,11 @@ def run_optimization(
                 "message": f"Graph {graph_id} not found or already finalized. Use start_graph first.",
             }
 
+        # Determine which problem to use (v0.4.1 - support problem_id override)
+        actual_problem_id = problem_id if problem_id else graph.problem_id
+
         # Get problem
-        problem = _get_problem(graph.problem_id)
+        problem = _get_problem(actual_problem_id)
 
         # Parse optimizer specification
         parts = optimizer.split(":")
@@ -387,6 +413,7 @@ def run_optimization(
             "n_gradient_evals": result.n_gradient_evals,
             "elapsed_time": elapsed,
             "parent_node": parent_node,
+            "problem_id": actual_problem_id,  # v0.4.1: Problem used (may differ from graph default)
         }
 
     except Exception as e:

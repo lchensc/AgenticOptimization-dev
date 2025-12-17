@@ -192,9 +192,9 @@ class AgenticOptREPL:
         """Display welcome message."""
         welcome = Panel(
             Text.from_markup(
-                "[bold cyan]Paola[/bold cyan] [dim]v0.4.0[/dim]\n"
+                "[bold cyan]Paola[/bold cyan] [dim]v0.4.1[/dim]\n"
                 "[dim]Package for agentic optimization with learning and analysis[/dim]\n\n"
-                "Commands: /help | /graphs | /evals | /skills | /exit\n"
+                "Commands: /help | /graphs | /problems | /evals | /skills | /exit\n"
                 "Or just tell me what you want to optimize"
             ),
             border_style="cyan",
@@ -444,6 +444,18 @@ class AgenticOptREPL:
                 self._show_skills()
             else:
                 self._show_skill_detail(cmd_parts[1])
+        elif cmd == '/problems':
+            self.command_handler.handle_problems()
+        elif cmd == '/problem':
+            if len(cmd_parts) < 2:
+                self.command_handler.handle_problems()
+            elif cmd_parts[1].lower() == 'show' and len(cmd_parts) > 2:
+                self.command_handler.handle_problem_show(cmd_parts[2])
+            elif cmd_parts[1].lower() == 'lineage' and len(cmd_parts) > 2:
+                self.command_handler.handle_problem_lineage(cmd_parts[2])
+            else:
+                # Treat as problem ID for show
+                self.command_handler.handle_problem_show(cmd_parts[1])
         else:
             self.console.print(f"Unknown command: {cmd}. Type /help for available commands.", style="yellow")
 
@@ -487,6 +499,11 @@ class AgenticOptREPL:
   /best                      - Show best solution across all graphs
   /analyze <id> [focus]      - AI-powered strategic analysis (costs ~$0.02-0.05)
                                Focus: convergence, efficiency, algorithm, overall (default)
+
+[bold]Problems:[/bold]
+  /problems                  - List all registered optimization problems
+  /problem show <id>         - Show detailed problem information
+  /problem lineage <id>      - Show problem derivation lineage
 
 [bold]Knowledge:[/bold]
   /knowledge                 - List knowledge base (skeleton - not yet implemented)

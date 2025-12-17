@@ -572,20 +572,22 @@ def create_nlp_problem(
                 )
             }
 
-        # Create NLPProblem specification
+        # Create NLPProblem specification (v0.4.1 - uses new schema)
         # Note: initial_point is NOT specified - Paola computes it automatically
         # based on domain_hint, algorithm, and run history (The Paola Principle)
         nlp_problem = NLPProblem(
             problem_id=problem_id,
+            name=description or problem_id,
+            n_variables=dimension,
+            n_constraints=0,  # Will be computed in __post_init__
             objective_evaluator_id=objective_evaluator_id,
             objective_sense=objective_sense,
-            dimension=dimension,
             bounds=explicit_bounds,
             inequality_constraints=ineq_constraints_objs,
             equality_constraints=eq_constraints_objs,
-            created_at=datetime.now().isoformat(),
             description=description,
-            domain_hint=domain_hint
+            domain_hint=domain_hint,
+            bounds_spec=bounds if isinstance(bounds, dict) else None
         )
 
         # Create NLPEvaluator (composite evaluator)
@@ -594,27 +596,8 @@ def create_nlp_problem(
         # Register in problem registry (for runtime use)
         register_problem(problem_id, nlp_evaluator)
 
-        # Store problem metadata in Foundry
-        from paola.foundry.problem import Problem
-        problem_metadata = Problem(
-            problem_id=problem_id,
-            name=description or problem_id,
-            dimensions=dimension,
-            problem_type="NLP",
-            created_at=nlp_problem.created_at,
-            metadata={
-                "objective_evaluator_id": objective_evaluator_id,
-                "objective_sense": objective_sense,
-                "num_inequality_constraints": nlp_problem.num_inequality_constraints,
-                "num_equality_constraints": nlp_problem.num_equality_constraints,
-                "bounds_spec": bounds,  # Original specification (compact or explicit)
-                "evaluators_used": nlp_problem.get_all_evaluator_ids()
-            }
-        )
-
-        # Store in Foundry (if it has problem storage)
-        if hasattr(foundry, 'register_problem'):
-            foundry.register_problem(problem_metadata)
+        # Store problem in new v0.4.1 storage with index
+        storage.save_problem(nlp_problem)
 
         # Recommend solvers
         has_constraints = nlp_problem.is_constrained
@@ -654,4 +637,265 @@ def create_nlp_problem(
         return {
             "success": False,
             "message": f"Error creating NLP problem: {str(e)}\n{traceback.format_exc()}",
+        }
+
+
+@tool
+def derive_problem(
+    parent_problem_id: str,
+    derivation_type: str,
+    modifications: str,  # JSON string
+    new_problem_id: Optional[str] = None,
+    reason: Optional[str] = None,
+    source_graph_id: Optional[int] = None,
+    source_node_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Derive a new problem from an existing one with modifications.
+
+    Use this to adapt search space based on optimization results.
+    The derived problem maintains lineage to the parent.
+
+    Args:
+        parent_problem_id: ID of the problem to derive from
+        derivation_type: Type of derivation:
+            - "narrow_bounds" - Shrink bounds around a region
+            - "widen_bounds" - Expand search space
+        modifications: JSON string with derivation-specific parameters:
+            narrow_bounds: {"center": [...], "width_factor": 0.3}
+            widen_bounds: {"width_factor": 1.5}
+        new_problem_id: Optional ID for derived problem (auto-generated if not provided)
+        reason: Why this derivation was needed
+        source_graph_id: Graph that motivated this derivation
+        source_node_id: Node that motivated this derivation
+
+    Returns:
+        Dict with:
+            - success: bool
+            - problem_id: str (new derived problem ID)
+            - parent_problem_id: str
+            - derivation_type: str
+            - n_variables: int
+            - message: str
+
+    Example (narrow bounds after global search):
+        # After TPE finds promising region at x=[1.2, 3.4, 5.6]
+        derive_problem(
+            parent_problem_id="rosenbrock_10d",
+            derivation_type="narrow_bounds",
+            modifications='{"center": [1.2, 3.4, 5.6], "width_factor": 0.3}',
+            reason="Focus on region found by TPE in graph #42",
+            source_graph_id=42,
+            source_node_id="n1"
+        )
+    """
+    try:
+        import json as json_module
+        from paola.foundry import FileStorage
+        from paola.foundry.nlp_schema import NLPProblem
+        from paola.foundry.nlp_evaluator import NLPEvaluator
+        from paola.foundry import OptimizationFoundry
+
+        # Parse modifications
+        try:
+            mods = json_module.loads(modifications)
+        except json_module.JSONDecodeError as e:
+            return {
+                "success": False,
+                "message": f"Invalid JSON in modifications: {e}"
+            }
+
+        # Get storage and load parent problem
+        storage = FileStorage(base_dir=".paola_data")
+        parent = storage.load_problem(parent_problem_id)
+
+        if parent is None:
+            return {
+                "success": False,
+                "message": f"Parent problem '{parent_problem_id}' not found in storage."
+            }
+
+        # Check that it's an NLPProblem
+        if not isinstance(parent, NLPProblem):
+            return {
+                "success": False,
+                "message": f"Parent problem '{parent_problem_id}' is not an NLPProblem. "
+                           f"Derivation only supported for NLP problems currently."
+            }
+
+        # Apply derivation
+        if derivation_type == "narrow_bounds":
+            center = mods.get("center")
+            if center is None:
+                return {
+                    "success": False,
+                    "message": "narrow_bounds derivation requires 'center' in modifications"
+                }
+            width_factor = mods.get("width_factor", 0.3)
+
+            derived = parent.derive_narrow_bounds(
+                center=center,
+                width_factor=width_factor,
+                new_problem_id=new_problem_id,
+                reason=reason,
+                source_graph_id=source_graph_id,
+                source_node_id=source_node_id,
+            )
+
+        elif derivation_type == "widen_bounds":
+            width_factor = mods.get("width_factor", 1.5)
+
+            derived = parent.derive_widen_bounds(
+                width_factor=width_factor,
+                new_problem_id=new_problem_id,
+                reason=reason,
+            )
+
+        else:
+            return {
+                "success": False,
+                "message": f"Unknown derivation_type: {derivation_type}. "
+                           f"Supported: narrow_bounds, widen_bounds"
+            }
+
+        # Save derived problem to storage
+        storage.save_problem(derived)
+
+        # Create NLPEvaluator and register for runtime use
+        foundry = OptimizationFoundry(storage=FileStorage(base_dir=".paola_data"))
+        nlp_evaluator = NLPEvaluator.from_problem(derived, foundry)
+        register_problem(derived.problem_id, nlp_evaluator)
+
+        return {
+            "success": True,
+            "problem_id": derived.problem_id,
+            "parent_problem_id": derived.parent_problem_id,
+            "derivation_type": derived.derivation_type,
+            "n_variables": derived.n_variables,
+            "version": derived.version,
+            "message": (
+                f"Derived problem '{derived.problem_id}' from '{parent_problem_id}':\n"
+                f"  Derivation: {derivation_type}\n"
+                f"  Variables: {derived.n_variables}\n"
+                f"  Version: {derived.version}\n"
+                f"  Reason: {reason or 'Not specified'}"
+            )
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "message": f"Error deriving problem: {str(e)}\n{traceback.format_exc()}",
+        }
+
+
+@tool
+def list_problems(
+    problem_type: Optional[str] = None,
+    show_derived: bool = True,
+) -> Dict[str, Any]:
+    """
+    List all registered optimization problems.
+
+    Shows problems stored in Paola with their metadata and lineage info.
+
+    Args:
+        problem_type: Filter by type ("NLP", "LP", etc.). None for all.
+        show_derived: Include derived problems (default: True)
+
+    Returns:
+        Dict with:
+            - success: bool
+            - problems: List of problem summaries
+            - count: int
+
+    Example:
+        # List all NLP problems
+        result = list_problems(problem_type="NLP")
+
+        # List only root problems (no derived)
+        result = list_problems(show_derived=False)
+    """
+    try:
+        from paola.foundry import FileStorage
+
+        storage = FileStorage(base_dir=".paola_data")
+        problems = storage.list_problems(
+            problem_type=problem_type,
+            show_derived=show_derived
+        )
+
+        return {
+            "success": True,
+            "problems": problems,
+            "count": len(problems),
+            "message": f"Found {len(problems)} problem(s)"
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "message": f"Error listing problems: {str(e)}\n{traceback.format_exc()}",
+        }
+
+
+@tool
+def get_problem_lineage(problem_id: str) -> Dict[str, Any]:
+    """
+    Get the derivation lineage of a problem.
+
+    Shows the chain of derivations from root problem to this one,
+    including which graphs used each version.
+
+    Args:
+        problem_id: Problem to trace lineage for
+
+    Returns:
+        Dict with:
+            - success: bool
+            - problem_id: str
+            - lineage: List[Dict] - Chain from root to this problem
+            - children: List[str] - Direct children of this problem
+
+    Example:
+        # Trace how rosenbrock_10d_v3 was derived
+        result = get_problem_lineage("rosenbrock_10d_v3")
+        for p in result["lineage"]:
+            print(f"{p['problem_id']} ({p.get('derivation_type', 'root')})")
+    """
+    try:
+        from paola.foundry import FileStorage
+
+        storage = FileStorage(base_dir=".paola_data")
+
+        # Get lineage
+        lineage = storage.get_problem_lineage(problem_id)
+        if not lineage:
+            return {
+                "success": False,
+                "message": f"Problem '{problem_id}' not found in storage."
+            }
+
+        # Get children
+        children = storage.get_problem_children(problem_id)
+
+        return {
+            "success": True,
+            "problem_id": problem_id,
+            "lineage": lineage,
+            "children": children,
+            "message": (
+                f"Lineage for '{problem_id}':\n"
+                f"  Chain: {' -> '.join(p['problem_id'] for p in lineage)}\n"
+                f"  Children: {children if children else 'None'}"
+            )
+        }
+
+    except Exception as e:
+        import traceback
+        return {
+            "success": False,
+            "message": f"Error getting lineage: {str(e)}\n{traceback.format_exc()}",
         }

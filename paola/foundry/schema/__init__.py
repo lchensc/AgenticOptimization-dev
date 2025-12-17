@@ -1,6 +1,11 @@
 """
 Paola Foundry Schema - Polymorphic optimization data structures.
 
+v0.4.1: Problem Modeling
+- OptimizationProblem: Base class for all problem types
+- ProblemDerivation: Problem mutation/derivation specification
+- DerivationType: Standard derivation types
+
 v0.3.x: Graph-based architecture
 - OptimizationGraph: Complete optimization task (THE data model)
 - OptimizationNode: Single optimizer execution
@@ -24,7 +29,18 @@ Family-Specific Components:
 
 Registry:
 - COMPONENT_REGISTRY: Maps optimizers to families, handles deserialization
+- PROBLEM_TYPE_REGISTRY: Maps problem types to classes for deserialization
 """
+
+# Problem schema (v0.4.1+)
+from .problem import (
+    DerivationType,
+    ProblemDerivation,
+    OptimizationProblem,
+    PROBLEM_TYPE_REGISTRY,
+    register_problem_type,
+    deserialize_problem,
+)
 
 # Graph-based schema (v0.3.0+)
 from .graph import (
@@ -100,6 +116,13 @@ from .registry import (
 )
 
 __all__ = [
+    # Problem schema (v0.4.1+)
+    "DerivationType",
+    "ProblemDerivation",
+    "OptimizationProblem",
+    "PROBLEM_TYPE_REGISTRY",
+    "register_problem_type",
+    "deserialize_problem",
     # Graph-based schema (v0.3.x)
     "EdgeType",
     "OptimizationEdge",
