@@ -21,6 +21,7 @@ from paola.foundry.problem_types import ProblemTypeDetector, SolverSelector
 from paola.foundry import OptimizationFoundry, FileStorage
 from paola.foundry.evaluator_schema import create_python_function_config
 from paola.tools.evaluator_tools import create_nlp_problem, clear_problem_registry
+from paola.tools.graph_tools import set_foundry
 
 
 class TestNLPSchema:
@@ -75,16 +76,18 @@ class TestNLPSchema:
     def test_nlp_problem_unconstrained(self):
         """Test creating unconstrained NLP problem."""
         problem = NLPProblem(
-            problem_id="rosenbrock_2d",
+            problem_id=1,
+            name="Rosenbrock 2D",
+            n_variables=2,  # Will be validated against bounds
+            n_constraints=0,
             objective_evaluator_id="rosenbrock_eval",
-            dimension=2,
             bounds=[[-5, 10], [-5, 10]],
             objective_sense="minimize"
         )
 
-        assert problem.problem_id == "rosenbrock_2d"
+        assert problem.problem_id == 1
         assert problem.problem_type == "NLP"
-        assert problem.dimension == 2
+        assert problem.dimension == 2  # computed from bounds
         assert problem.is_unconstrained
         assert not problem.is_constrained
         assert problem.num_constraints == 0
@@ -105,9 +108,11 @@ class TestNLPSchema:
         )
 
         problem = NLPProblem(
-            problem_id="wing_design",
+            problem_id=2,
+            name="Wing Design",
+            n_variables=2,
+            n_constraints=2,
             objective_evaluator_id="drag_eval",
-            dimension=2,
             bounds=[[0, 15], [0.1, 0.5]],
             inequality_constraints=[ineq_cons],
             equality_constraints=[eq_cons]
@@ -120,30 +125,36 @@ class TestNLPSchema:
 
     def test_nlp_problem_validation(self):
         """Test NLP problem validation."""
-        # Mismatched bounds dimension
-        with pytest.raises(ValueError, match="Bounds dimension.*doesn't match"):
-            NLPProblem(
-                problem_id="test",
-                objective_evaluator_id="obj",
-                dimension=3,  # Says 3D
-                bounds=[[-5, 5], [-5, 5]]  # But only 2 bounds
-            )
-
         # Invalid bounds (lower >= upper)
         with pytest.raises(ValueError, match="lower >= upper"):
             NLPProblem(
-                problem_id="test",
+                problem_id=3,
+                name="Test",
+                n_variables=1,
+                n_constraints=0,
                 objective_evaluator_id="obj",
-                dimension=1,
                 bounds=[[10, 5]]  # Lower > upper
+            )
+
+        # Invalid bounds format (not [lower, upper])
+        with pytest.raises(ValueError, match="must be"):
+            NLPProblem(
+                problem_id=4,
+                name="Test",
+                n_variables=1,
+                n_constraints=0,
+                objective_evaluator_id="obj",
+                bounds=[[1, 2, 3]]  # Three values instead of two
             )
 
     def test_nlp_problem_serialization(self):
         """Test NLP problem serialization."""
         problem = NLPProblem(
-            problem_id="test_problem",
+            problem_id=5,
+            name="Test Problem",
+            n_variables=2,
+            n_constraints=1,
             objective_evaluator_id="obj_eval",
-            dimension=2,
             bounds=[[-5, 5], [-5, 5]],
             inequality_constraints=[
                 InequalityConstraint("c1", "cons_eval", ">=", 0.0)
@@ -152,7 +163,7 @@ class TestNLPSchema:
 
         # To dict
         problem_dict = problem.to_dict()
-        assert problem_dict["problem_id"] == "test_problem"
+        assert problem_dict["problem_id"] == 5
         assert len(problem_dict["inequality_constraints"]) == 1
 
         # From dict
@@ -164,9 +175,11 @@ class TestNLPSchema:
     def test_nlp_problem_evaluator_ids(self):
         """Test getting all evaluator IDs from problem."""
         problem = NLPProblem(
-            problem_id="test",
+            problem_id=6,
+            name="Test",
+            n_variables=2,
+            n_constraints=3,
             objective_evaluator_id="obj_eval",
-            dimension=2,
             bounds=[[-5, 5], [-5, 5]],
             inequality_constraints=[
                 InequalityConstraint("c1", "cons1_eval", ">=", 0.0),
@@ -191,9 +204,11 @@ class TestProblemTypeDetector:
     def test_detect_nlp_from_problem(self):
         """Test detecting NLP from problem specification."""
         problem = NLPProblem(
-            problem_id="test",
+            problem_id=7,
+            name="Test",
+            n_variables=2,
+            n_constraints=0,
             objective_evaluator_id="obj",
-            dimension=2,
             bounds=[[-5, 5], [-5, 5]]
         )
 
@@ -301,8 +316,11 @@ class TestCreateNLPProblemTool:
     def temp_foundry(self):
         """Create temporary foundry for testing."""
         temp_dir = tempfile.mkdtemp()
-        storage = FileStorage(base_path=Path(temp_dir))
+        storage = FileStorage(base_dir=temp_dir)
         foundry = OptimizationFoundry(storage=storage)
+
+        # Set as global foundry for tools
+        set_foundry(foundry)
 
         # Register test evaluator (rosenbrock from evaluators.py)
         import sys
@@ -314,7 +332,7 @@ class TestCreateNLPProblemTool:
             file_path="evaluators.py",
             callable_name="rosenbrock"
         )
-        foundry.store_evaluator_config(config)
+        foundry.register_evaluator(config)
 
         yield foundry
 
@@ -324,14 +342,14 @@ class TestCreateNLPProblemTool:
 
     def test_create_unconstrained_nlp(self, temp_foundry):
         """Test creating unconstrained NLP problem."""
-        result = create_nlp_problem(
-            problem_id="rosenbrock_2d",
-            objective_evaluator_id="rosenbrock_eval",
-            bounds=[[-5, 10], [-5, 10]]
-        )
+        result = create_nlp_problem.invoke({
+            "name": "Rosenbrock 2D",
+            "objective_evaluator_id": "rosenbrock_eval",
+            "bounds": [[-5, 10], [-5, 10]]
+        })
 
         assert result["success"]
-        assert result["problem_id"] == "rosenbrock_2d"
+        assert isinstance(result["problem_id"], int)  # Auto-generated int ID
         assert result["problem_type"] == "NLP"
         assert result["dimension"] == 2
         assert result["num_inequality_constraints"] == 0
@@ -340,33 +358,34 @@ class TestCreateNLPProblemTool:
 
     def test_create_nlp_missing_evaluator(self, temp_foundry):
         """Test creating NLP with missing evaluator."""
-        result = create_nlp_problem(
-            problem_id="test",
-            objective_evaluator_id="nonexistent_eval",
-            bounds=[[-5, 5]]
-        )
+        result = create_nlp_problem.invoke({
+            "name": "Test Problem",
+            "objective_evaluator_id": "nonexistent_eval",
+            "bounds": [[-5, 5]]
+        })
 
         assert not result["success"]
-        assert "not found in Foundry" in result["message"]
+        assert "not found" in result["message"].lower() or "not registered" in result["message"].lower()
 
-    def test_create_nlp_duplicate_id(self, temp_foundry):
-        """Test creating NLP with duplicate problem ID."""
+    def test_create_nlp_same_name(self, temp_foundry):
+        """Test creating NLP with same name (allowed - each gets unique ID)."""
         # Create first problem
-        create_nlp_problem(
-            problem_id="duplicate",
-            objective_evaluator_id="rosenbrock_eval",
-            bounds=[[-5, 5]]
-        )
+        result1 = create_nlp_problem.invoke({
+            "name": "Test Problem",
+            "objective_evaluator_id": "rosenbrock_eval",
+            "bounds": [[-5, 5]]
+        })
+        assert result1["success"]
 
-        # Try to create again with same ID
-        result = create_nlp_problem(
-            problem_id="duplicate",
-            objective_evaluator_id="rosenbrock_eval",
-            bounds=[[-5, 5]]
-        )
+        # Create second problem with same name (should work - different problem_id)
+        result2 = create_nlp_problem.invoke({
+            "name": "Test Problem",
+            "objective_evaluator_id": "rosenbrock_eval",
+            "bounds": [[-5, 5]]
+        })
 
-        assert not result["success"]
-        assert "already registered" in result["message"]
+        assert result2["success"]
+        assert result2["problem_id"] != result1["problem_id"]  # Different auto-generated IDs
 
 
 if __name__ == "__main__":

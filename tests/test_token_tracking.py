@@ -36,8 +36,8 @@ def test_token_tracker_basic():
     print(f"✓ Tracked call: {stats.total_tokens} tokens, ${stats.total_cost_usd:.4f}")
 
 
-def test_token_tracker_free_model():
-    """Test that free models (qwen-flash) have zero cost."""
+def test_token_tracker_cheap_model():
+    """Test that cheap models (qwen-flash) have low cost."""
     tracker = TokenTracker()
 
     stats = tracker.track_call(
@@ -46,13 +46,14 @@ def test_token_tracker_free_model():
         output_tokens=500
     )
 
-    # Verify zero cost
-    assert stats.total_cost_usd == 0.0
-    assert stats.input_cost_usd == 0.0
-    assert stats.output_cost_usd == 0.0
+    # qwen-flash: input=$0.05/M, output=$0.40/M
+    # Expected: 1000*0.05/1M + 500*0.40/1M = 0.00005 + 0.0002 = 0.00025
     assert stats.total_tokens == 1500
+    assert abs(stats.total_cost_usd - 0.00025) < 0.00001
+    assert stats.input_cost_usd > 0
+    assert stats.output_cost_usd > 0
 
-    print(f"✓ Free model: {stats.total_tokens} tokens, ${stats.total_cost_usd:.4f}")
+    print(f"✓ Cheap model: {stats.total_tokens} tokens, ${stats.total_cost_usd:.4f}")
 
 
 def test_token_tracker_cache_savings():
@@ -198,9 +199,14 @@ def test_pricing_accuracy():
     """Test pricing calculations for different models."""
     tracker = TokenTracker()
 
+    # Prices per million tokens:
+    # - qwen-flash: input=$0.05, output=$0.40
+    # - qwen-plus: input=$0.40, output=$1.20
+    # - gpt-4: input=$30, output=$60
+    # - claude-sonnet-4: input=$3, output=$15
     test_cases = [
-        ("qwen-flash", 1000, 500, 0.0),  # Free
-        ("qwen-plus", 1000000, 1000000, 2.8),  # $0.80 + $2.00 = $2.80
+        ("qwen-flash", 1000, 500, 0.00025),  # 0.00005 + 0.0002 = 0.00025
+        ("qwen-plus", 1000000, 1000000, 1.6),  # $0.40 + $1.20 = $1.60
         ("gpt-4", 1000000, 1000000, 90.0),  # $30 + $60 = $90
         ("claude-sonnet-4", 1000000, 1000000, 18.0),  # $3 + $15 = $18
     ]
