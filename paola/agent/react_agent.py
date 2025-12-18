@@ -12,47 +12,14 @@ from typing import TypedDict, Annotated, Optional, Any
 import operator
 import time
 import logging
-import os
-from dotenv import load_dotenv
 
 from langgraph.graph import StateGraph, END
 
 from ..callbacks import CallbackManager, EventType, create_event
+from ..llm import initialize_llm, detect_provider
 from .prompts import build_optimization_prompt
 
 logger = logging.getLogger(__name__)
-
-# Load environment variables from .env
-load_dotenv()
-
-# Import LangChain providers
-try:
-    from langchain_qwq import ChatQwen
-    QWEN_AVAILABLE = True
-except ImportError:
-    QWEN_AVAILABLE = False
-    logger.warning("langchain-qwq not available. Install: pip install langchain-qwq")
-
-try:
-    from langchain_anthropic import ChatAnthropic
-    ANTHROPIC_AVAILABLE = True
-except ImportError:
-    ANTHROPIC_AVAILABLE = False
-    logger.warning("langchain-anthropic not available")
-
-try:
-    from langchain_openai import ChatOpenAI
-    OPENAI_AVAILABLE = True
-except ImportError:
-    OPENAI_AVAILABLE = False
-    logger.warning("langchain-openai not available")
-
-try:
-    from langchain_ollama import ChatOllama
-    OLLAMA_AVAILABLE = True
-except ImportError:
-    OLLAMA_AVAILABLE = False
-    logger.debug("langchain-ollama not available. Install: pip install langchain-ollama")
 
 
 class AgentState(TypedDict):
@@ -67,105 +34,6 @@ class AgentState(TypedDict):
     done: bool  # Agent decides when done
     iteration: int  # Current iteration number
     callback_manager: Optional[CallbackManager]  # For event emission
-
-
-def initialize_llm(
-    llm_model: str,
-    temperature: float = 0.0,
-    enable_thinking: bool = False
-):
-    """
-    Initialize LLM based on model name.
-
-    Supports:
-    - Ollama models (local, prefix with "ollama:")
-    - Qwen models (via DASHSCOPE_API_KEY)
-    - Anthropic models (via ANTHROPIC_API_KEY)
-    - OpenAI models (via OPENAI_API_KEY)
-
-    Args:
-        llm_model: Model name (e.g., "ollama:devstral", "qwen-plus", "claude-sonnet-4", "gpt-4")
-        temperature: 0.0 = deterministic, 1.0 = creative
-        enable_thinking: Enable Qwen deep thinking mode
-
-    Returns:
-        LLM instance
-    """
-    # Detect provider
-    is_ollama = llm_model.lower().startswith("ollama:")
-    is_qwen = any(m in llm_model.lower() for m in ["qwen", "qwq"])
-    is_openai = any(m in llm_model.lower() for m in ["gpt", "openai"])
-
-    # Ollama (local models)
-    if is_ollama:
-        if not OLLAMA_AVAILABLE:
-            raise ImportError(
-                "Ollama requires langchain-ollama. Install: pip install langchain-ollama"
-            )
-
-        # Extract model name after "ollama:" prefix
-        model_name = llm_model.split(":", 1)[1] if ":" in llm_model else llm_model
-
-        # Get Ollama base URL from environment (default: localhost)
-        base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-
-        logger.info(f"Initialized Ollama model: {model_name} at {base_url}")
-        return ChatOllama(
-            model=model_name,
-            base_url=base_url,
-            temperature=temperature,
-        )
-
-    if is_qwen:
-        if not QWEN_AVAILABLE:
-            raise ImportError(
-                "Qwen requires langchain-qwq. Install: pip install langchain-qwq"
-            )
-
-        if not os.environ.get("DASHSCOPE_API_KEY"):
-            raise ValueError(
-                "DASHSCOPE_API_KEY not found. Either:\n"
-                "1. Set DASHSCOPE_API_KEY in .env file\n"
-                "2. Set DASHSCOPE_API_KEY environment variable\n"
-                "Get key at: https://dashscope.console.aliyun.com/"
-            )
-
-        # Configure Qwen
-        qwen_kwargs = {
-            "model": llm_model,
-            "temperature": temperature
-        }
-
-        # Add thinking mode if enabled
-        if enable_thinking:
-            qwen_kwargs["model_kwargs"] = {"extra_body": {"enable_thinking": True}}
-
-        logger.info(f"Initialized Qwen model: {llm_model}")
-        return ChatQwen(**qwen_kwargs)
-
-    elif is_openai:
-        if not OPENAI_AVAILABLE:
-            raise ImportError(
-                "OpenAI requires langchain-openai. Install: pip install langchain-openai"
-            )
-
-        if not os.environ.get("OPENAI_API_KEY"):
-            raise ValueError("OPENAI_API_KEY not found in environment")
-
-        logger.info(f"Initialized OpenAI model: {llm_model}")
-        return ChatOpenAI(model=llm_model, temperature=temperature, max_tokens=4096)
-
-    else:  # Anthropic
-        if not ANTHROPIC_AVAILABLE:
-            raise ImportError(
-                "Anthropic requires langchain-anthropic. Install: pip install langchain-anthropic"
-            )
-
-        if not os.environ.get("ANTHROPIC_API_KEY"):
-            raise ValueError("ANTHROPIC_API_KEY not found in environment")
-
-        logger.info(f"Initialized Anthropic model: {llm_model}")
-        return ChatAnthropic(model=llm_model, temperature=temperature, max_tokens=4096)
 
 
 def build_optimization_agent(
@@ -224,11 +92,9 @@ def create_react_node(tools: list, llm_model: str, temperature: float = 0.0):
     llm_with_tools = llm.bind_tools(tools)
 
     # Detect provider for caching support
-    is_ollama = llm_model.lower().startswith("ollama:")
-    is_anthropic = "claude" in llm_model.lower()
-    is_qwen = any(m in llm_model.lower() for m in ["qwen", "qwq"])
-    # Ollama does NOT support cache_control, only Anthropic and Qwen do
-    supports_cache_control = (is_anthropic or is_qwen) and not is_ollama
+    provider_info = detect_provider(llm_model)
+    supports_cache_control = provider_info["supports_cache_control"]
+    provider_name = provider_info["provider"].capitalize()
 
     def react_step(state: AgentState) -> dict:
         """
@@ -277,7 +143,6 @@ def create_react_node(tools: list, llm_model: str, temperature: float = 0.0):
                         ]
                     }
                 ]
-                provider_name = "Anthropic" if is_anthropic else "Qwen"
                 logger.info(f"First message with {provider_name} cache_control enabled")
             else:
                 # Standard format for OpenAI, etc.

@@ -1,5 +1,5 @@
 """
-LLM utilities - token tracking, caching, and cost management.
+LLM utilities - model initialization, token tracking, and cost management.
 """
 
 from .token_tracker import (
@@ -12,10 +12,27 @@ from .token_tracker import (
     MODEL_CONFIGS
 )
 
+from .models import (
+    initialize_llm,
+    detect_provider,
+    QWEN_AVAILABLE,
+    ANTHROPIC_AVAILABLE,
+    OPENAI_AVAILABLE,
+    OLLAMA_AVAILABLE
+)
+
 # Try to import LangChain callback (may not be available)
 try:
     from .token_tracker import LangChainTokenCallback
     __all__ = [
+        # Model initialization
+        "initialize_llm",
+        "detect_provider",
+        "QWEN_AVAILABLE",
+        "ANTHROPIC_AVAILABLE",
+        "OPENAI_AVAILABLE",
+        "OLLAMA_AVAILABLE",
+        # Token tracking
         "TokenTracker",
         "UsageStats",
         "SessionStats",
@@ -28,6 +45,14 @@ try:
 except ImportError:
     LangChainTokenCallback = None
     __all__ = [
+        # Model initialization
+        "initialize_llm",
+        "detect_provider",
+        "QWEN_AVAILABLE",
+        "ANTHROPIC_AVAILABLE",
+        "OPENAI_AVAILABLE",
+        "OLLAMA_AVAILABLE",
+        # Token tracking
         "TokenTracker",
         "UsageStats",
         "SessionStats",

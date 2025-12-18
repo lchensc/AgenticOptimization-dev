@@ -17,8 +17,8 @@ import logging
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage, BaseMessage
 
 from ..callbacks import CallbackManager, EventType, create_event
+from ..llm import initialize_llm
 from .prompts import build_optimization_prompt
-from .react_agent import initialize_llm
 
 logger = logging.getLogger(__name__)
 
