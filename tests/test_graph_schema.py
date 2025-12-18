@@ -595,13 +595,13 @@ class TestOptimizationGraph:
             from_node=None,
             to_node="n1",
         ))
-        chain_graph.success = True
+        chain_graph.status = "completed"  # v0.4.8: success -> status
         chain_graph.final_objective = 0.05
         chain_graph.final_x = [0.1, 0.2]
 
         restored = OptimizationGraph.from_dict(chain_graph.to_dict())
 
-        assert restored.success == chain_graph.success
+        assert restored.status == chain_graph.status
         assert restored.final_objective == chain_graph.final_objective
         assert restored.final_x == chain_graph.final_x
         assert len(restored.decisions) == 1
