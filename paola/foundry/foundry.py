@@ -4,6 +4,11 @@ OptimizationFoundry - Data foundation for optimization.
 The foundry provides a single source of truth for optimization data,
 managing problems, graphs, results with versioning and lineage.
 
+v0.4.6: Single source of truth for problems
+- Added _problem_cache for NLPEvaluator instances
+- get_problem_evaluator() with cache-through loading
+- Replaces distributed _PROBLEM_REGISTRY pattern
+
 v0.3.1: Two-tier graph storage
 - GraphRecord (Tier 1): LLM-ready, ~1KB, strategy-focused
 - GraphDetail (Tier 2): Full trajectories, for visualization
@@ -15,8 +20,11 @@ v0.3.0: Graph-based architecture
 Pattern: Dependency injection (testable, explicit)
 """
 
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any, Union
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .storage import StorageBackend
 from .schema import OptimizationGraph
@@ -80,6 +88,10 @@ class OptimizationFoundry:
         """
         self.storage = storage
         self._active_graphs: Dict[int, ActiveGraph] = {}
+
+        # Problem evaluator cache (v0.4.6 - single source of truth)
+        # Maps problem_id (int) -> NLPEvaluator instance
+        self._problem_cache: Dict[int, Any] = {}
 
         # Initialize evaluator storage
         self.evaluator_storage = EvaluatorStorage(storage)
@@ -341,21 +353,51 @@ class OptimizationFoundry:
         return filtered
 
     # =========================================================================
-    # Problem Management
+    # Problem Management (v0.4.6 - Single Source of Truth)
     # =========================================================================
 
     def register_problem(self, problem: Problem) -> None:
         """
-        Register problem definition.
+        Register problem definition (storage only).
+
+        For most cases, use register_problem_evaluator() which also caches
+        the evaluator for runtime use.
 
         Args:
             problem: Problem to register
         """
         self.storage.save_problem(problem)
 
-    def get_problem(self, problem_id: str) -> Optional[Problem]:
+    def register_problem_evaluator(
+        self,
+        problem: Problem,
+        evaluator: Any,
+    ) -> None:
         """
-        Get problem definition.
+        Register problem definition AND cache its evaluator atomically.
+
+        This is the preferred method for registering new problems. It ensures
+        both storage and cache are updated together.
+
+        Args:
+            problem: Problem definition to persist
+            evaluator: NLPEvaluator instance for runtime use
+
+        Example:
+            nlp_evaluator = NLPEvaluator.from_problem(problem, foundry)
+            foundry.register_problem_evaluator(problem, nlp_evaluator)
+        """
+        # Persist to storage
+        self.storage.save_problem(problem)
+
+        # Cache evaluator for runtime access
+        self._problem_cache[problem.problem_id] = evaluator
+
+        logger.debug(f"Registered problem {problem.problem_id} with evaluator")
+
+    def get_problem(self, problem_id: Union[str, int]) -> Optional[Problem]:
+        """
+        Get problem definition from storage.
 
         Args:
             problem_id: Problem identifier
@@ -363,7 +405,76 @@ class OptimizationFoundry:
         Returns:
             Problem or None if not found
         """
+        # Normalize to int
+        if isinstance(problem_id, str):
+            try:
+                problem_id = int(problem_id)
+            except ValueError:
+                pass  # Keep as string for legacy compatibility
         return self.storage.load_problem(problem_id)
+
+    def get_problem_evaluator(self, problem_id: Union[str, int]) -> Optional[Any]:
+        """
+        Get problem evaluator with cache-through loading.
+
+        This is the single source of truth for problem evaluators.
+        If not in cache, loads from storage and creates evaluator.
+
+        Args:
+            problem_id: Problem ID (int or str, normalized to int)
+
+        Returns:
+            NLPEvaluator or None if problem not found
+
+        Example:
+            evaluator = foundry.get_problem_evaluator(7)
+            if evaluator:
+                result = evaluator.evaluate(x)
+        """
+        # Normalize to int
+        if isinstance(problem_id, str):
+            try:
+                problem_id = int(problem_id)
+            except ValueError:
+                return None  # Invalid ID
+
+        # Check cache first
+        if problem_id in self._problem_cache:
+            return self._problem_cache[problem_id]
+
+        # Cache miss - load from storage and create evaluator
+        problem = self.storage.load_problem(problem_id)
+        if problem is None:
+            return None
+
+        # Create evaluator (lazy import to avoid circular dependency)
+        try:
+            from .nlp_evaluator import NLPEvaluator
+            evaluator = NLPEvaluator.from_problem(problem, self)
+            self._problem_cache[problem_id] = evaluator
+            logger.debug(f"Loaded problem {problem_id} from storage into cache")
+            return evaluator
+        except Exception as e:
+            logger.warning(f"Failed to create evaluator for problem {problem_id}: {e}")
+            return None
+
+    def clear_problem_cache(self) -> None:
+        """
+        Clear problem evaluator cache.
+
+        Use for testing or when storage has been modified externally.
+        """
+        self._problem_cache.clear()
+        logger.debug("Cleared problem cache")
+
+    def get_cached_problem_ids(self) -> List[int]:
+        """
+        Get list of problem IDs currently in cache.
+
+        Returns:
+            List of cached problem IDs
+        """
+        return list(self._problem_cache.keys())
 
     # ===== Evaluator Management =====
 

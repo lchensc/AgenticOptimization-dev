@@ -5,6 +5,7 @@ Provides LangChain @tool decorated functions for function evaluation:
 - evaluate_function: Evaluate objective and constraints (with automatic caching)
 - compute_gradient: Compute gradients (analytical or finite-difference)
 
+v0.4.6: Single source of truth - all problem access via Foundry
 v0.4.5: Added Pydantic validation for problem_id (handles str/int coercion)
 """
 
@@ -25,40 +26,57 @@ from paola.tools.schemas import (
 from paola.backends.analytical import get_analytical_function
 
 
-# Global problem registry - keyed by int (v0.4.3+)
-_PROBLEM_REGISTRY: Dict[int, Any] = {}
-
-
-def register_problem(problem_id: ProblemIdType, problem: Any) -> None:
-    """Register a problem for evaluation.
-
-    Args:
-        problem_id: Problem ID (str or int, normalized to int)
-        problem: Problem object (NLPEvaluator or similar)
-    """
-    key = normalize_problem_id(problem_id)
-    _PROBLEM_REGISTRY[key] = problem
-
-
 def _get_problem(problem_id: ProblemIdType) -> Any:
-    """Get problem from registry.
+    """Get problem evaluator from Foundry (single source of truth).
 
     Args:
         problem_id: Problem ID (str or int, normalized to int)
 
     Returns:
-        Registered problem object
+        Problem evaluator (NLPEvaluator or similar)
 
     Raises:
-        ValueError: If problem not found
+        ValueError: If problem not found in storage
     """
+    from paola.tools.graph_tools import get_foundry
+
     key = normalize_problem_id(problem_id)
-    if key not in _PROBLEM_REGISTRY:
+    foundry = get_foundry()
+
+    if foundry is None:
         raise ValueError(
-            f"Problem {key} not registered. "
-            f"Available: {list(_PROBLEM_REGISTRY.keys())}"
+            "Foundry not initialized. CLI should call set_foundry() at startup."
         )
-    return _PROBLEM_REGISTRY[key]
+
+    evaluator = foundry.get_problem_evaluator(key)
+    if evaluator is None:
+        # Get available IDs from cache for error message
+        cached_ids = foundry.get_cached_problem_ids()
+        raise ValueError(
+            f"Problem {key} not found in storage. "
+            f"Cached: {cached_ids}"
+        )
+    return evaluator
+
+
+def register_problem(problem_id: ProblemIdType, problem: Any) -> None:
+    """Register a problem evaluator in Foundry's cache.
+
+    DEPRECATED: Use foundry.register_problem_evaluator() directly.
+    This function is kept for backward compatibility.
+
+    Args:
+        problem_id: Problem ID (str or int, normalized to int)
+        problem: Problem evaluator (NLPEvaluator or similar)
+    """
+    from paola.tools.graph_tools import get_foundry
+
+    key = normalize_problem_id(problem_id)
+    foundry = get_foundry()
+
+    if foundry is not None:
+        # Add to Foundry's cache directly (for backward compatibility)
+        foundry._problem_cache[key] = problem
 
 
 @tool(args_schema=EvaluateFunctionArgs)
@@ -378,8 +396,19 @@ def create_benchmark_problem(
         # Now agent can use "rosenbrock_10d" with run_scipy_optimization
     """
     try:
-        # Check if problem_id already exists
-        if problem_id in _PROBLEM_REGISTRY:
+        from paola.tools.graph_tools import get_foundry
+
+        # Use global Foundry (single source of truth - v0.4.6)
+        foundry = get_foundry()
+        if foundry is None:
+            return {
+                "success": False,
+                "message": "Foundry not initialized. CLI should call set_foundry() at startup.",
+            }
+
+        # Check if problem_id already exists (string IDs for benchmark problems)
+        # Note: benchmark problems use string IDs, not numeric
+        if problem_id in foundry._problem_cache:
             return {
                 "success": False,
                 "problem_id": problem_id,
@@ -389,8 +418,8 @@ def create_benchmark_problem(
         # Create analytical function
         problem = get_analytical_function(name=function_name, dimension=dimension)
 
-        # Register it
-        register_problem(problem_id, problem)
+        # Register in Foundry's cache (benchmark problems are memory-only, not persisted)
+        foundry._problem_cache[problem_id] = problem
 
         # Get optimum info
         x_opt, f_opt = problem.get_optimum()
@@ -422,21 +451,30 @@ def create_benchmark_problem(
 
 # Utility functions
 def clear_problem_registry():
-    """Clear all problems from registry."""
-    _PROBLEM_REGISTRY.clear()
+    """Clear problem evaluator cache in Foundry."""
+    from paola.tools.graph_tools import get_foundry
+
+    foundry = get_foundry()
+    if foundry is not None:
+        foundry.clear_problem_cache()
 
 
 def get_problem_by_id(problem_id: ProblemIdType) -> Optional[Any]:
-    """Get problem instance by ID.
+    """Get problem evaluator by ID from Foundry.
 
     Args:
         problem_id: Problem ID (str or int, normalized to int)
 
     Returns:
-        Problem object or None if not found
+        Problem evaluator or None if not found
     """
+    from paola.tools.graph_tools import get_foundry
+
     key = normalize_problem_id(problem_id)
-    return _PROBLEM_REGISTRY.get(key)
+    foundry = get_foundry()
+    if foundry is None:
+        return None
+    return foundry.get_problem_evaluator(key)
 
 
 @tool
@@ -522,13 +560,18 @@ def create_nlp_problem(
             Problem
         )
         from datetime import datetime
+        from paola.tools.graph_tools import get_foundry
 
-        # Unified storage: all data in .paola_foundry
-        storage = FileStorage()
-        foundry = OptimizationFoundry(storage=storage)
+        # Use global Foundry (single source of truth - v0.4.6)
+        foundry = get_foundry()
+        if foundry is None:
+            return {
+                "success": False,
+                "message": "Foundry not initialized. CLI should call set_foundry() at startup.",
+            }
 
         # Get next numeric problem_id (v0.4.3)
-        problem_id = storage.get_next_problem_id()
+        problem_id = foundry.storage.get_next_problem_id()
 
         # Verify objective evaluator exists
         try:
@@ -629,11 +672,8 @@ def create_nlp_problem(
         # Create NLPEvaluator (composite evaluator)
         nlp_evaluator = NLPEvaluator.from_problem(nlp_problem, foundry)
 
-        # Register in problem registry (for runtime use) - use numeric ID
-        register_problem(problem_id, nlp_evaluator)
-
-        # Store problem in storage with index
-        storage.save_problem(nlp_problem)
+        # Register problem atomically (storage + cache) - v0.4.6 single source of truth
+        foundry.register_problem_evaluator(nlp_problem, nlp_evaluator)
 
         # Recommend solvers
         has_constraints = nlp_problem.is_constrained
@@ -733,7 +773,15 @@ def derive_problem(
         from paola.foundry import FileStorage
         from paola.foundry.nlp_schema import NLPProblem
         from paola.foundry.nlp_evaluator import NLPEvaluator
-        from paola.foundry import OptimizationFoundry
+        from paola.tools.graph_tools import get_foundry
+
+        # Use global Foundry (single source of truth - v0.4.6)
+        foundry = get_foundry()
+        if foundry is None:
+            return {
+                "success": False,
+                "message": "Foundry not initialized. CLI should call set_foundry() at startup.",
+            }
 
         # Parse modifications
         try:
@@ -744,9 +792,8 @@ def derive_problem(
                 "message": f"Invalid JSON in modifications: {e}"
             }
 
-        # Get storage and load parent problem
-        storage = FileStorage()  # unified .paola_foundry
-        parent = storage.load_problem(parent_problem_id)
+        # Load parent problem from Foundry storage
+        parent = foundry.storage.load_problem(parent_problem_id)
 
         if parent is None:
             return {
@@ -763,7 +810,7 @@ def derive_problem(
             }
 
         # Get next numeric ID for derived problem (v0.4.3)
-        new_problem_id = storage.get_next_problem_id()
+        new_problem_id = foundry.storage.get_next_problem_id()
 
         # Generate name if not provided
         derived_name = new_name or f"{parent.name} ({derivation_type})"
@@ -805,13 +852,9 @@ def derive_problem(
                            f"Supported: narrow_bounds, widen_bounds"
             }
 
-        # Save derived problem to storage
-        storage.save_problem(derived)
-
-        # Create NLPEvaluator and register for runtime use
-        foundry = OptimizationFoundry(storage=FileStorage())  # unified .paola_foundry
+        # Create NLPEvaluator and register atomically (v0.4.6 single source of truth)
         nlp_evaluator = NLPEvaluator.from_problem(derived, foundry)
-        register_problem(derived.problem_id, nlp_evaluator)
+        foundry.register_problem_evaluator(derived, nlp_evaluator)
 
         return {
             "success": True,
@@ -866,10 +909,17 @@ def list_problems(
         result = list_problems(show_derived=False)
     """
     try:
-        from paola.foundry import FileStorage
+        from paola.tools.graph_tools import get_foundry
 
-        storage = FileStorage()  # unified .paola_foundry
-        problems = storage.list_problems(
+        # Use global Foundry (single source of truth - v0.4.6)
+        foundry = get_foundry()
+        if foundry is None:
+            return {
+                "success": False,
+                "message": "Foundry not initialized. CLI should call set_foundry() at startup.",
+            }
+
+        problems = foundry.storage.list_problems(
             problem_type=problem_type,
             show_derived=show_derived
         )
@@ -914,12 +964,18 @@ def get_problem_lineage(problem_id: int) -> Dict[str, Any]:
             print(f"#{p['problem_id']} {p['name']} ({p.get('derivation_type', 'root')})")
     """
     try:
-        from paola.foundry import FileStorage
+        from paola.tools.graph_tools import get_foundry
 
-        storage = FileStorage()  # unified .paola_foundry
+        # Use global Foundry (single source of truth - v0.4.6)
+        foundry = get_foundry()
+        if foundry is None:
+            return {
+                "success": False,
+                "message": "Foundry not initialized. CLI should call set_foundry() at startup.",
+            }
 
         # Get lineage
-        lineage = storage.get_problem_lineage(problem_id)
+        lineage = foundry.storage.get_problem_lineage(problem_id)
         if not lineage:
             return {
                 "success": False,
@@ -927,7 +983,7 @@ def get_problem_lineage(problem_id: int) -> Dict[str, Any]:
             }
 
         # Get children
-        children = storage.get_problem_children(problem_id)
+        children = foundry.storage.get_problem_children(problem_id)
 
         # Build chain string
         chain_parts = [f"#{p['problem_id']}" for p in lineage]
