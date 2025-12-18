@@ -155,7 +155,7 @@ class GraphRecord:
 
     # Identity
     graph_id: int
-    problem_id: str
+    problem_id: int  # v0.4.7: Changed from str to int for type consistency
     created_at: str
     goal: Optional[str] = None
 
@@ -210,9 +210,14 @@ class GraphRecord:
             for nid, ndata in data.get("nodes", {}).items()
         }
 
+        # Coerce problem_id to int (handles legacy string values)
+        problem_id = data["problem_id"]
+        if isinstance(problem_id, str):
+            problem_id = int(problem_id)
+
         return cls(
             graph_id=data["graph_id"],
-            problem_id=data["problem_id"],
+            problem_id=problem_id,
             created_at=data["created_at"],
             goal=data.get("goal"),
             problem_signature=signature,

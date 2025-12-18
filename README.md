@@ -4,7 +4,7 @@
 
 *The optimization package that learns from every run*
 
-Version 0.4.6
+Version 0.4.7
 
 ---
 
@@ -269,7 +269,12 @@ See `CLAUDE.md` for detailed development principles:
 
 ## Roadmap
 
-**v0.4.6** (Current):
+**v0.4.7** (Current):
+- Type consistency fix: problem_id is int throughout
+- Simplified query_graphs (exact match instead of patterns)
+- Backward compatible with legacy data
+
+**v0.4.6**:
 - Foundry as single source of truth
 - Cache-through problem loading
 - Pydantic validation for type safety

@@ -4,6 +4,11 @@ OptimizationFoundry - Data foundation for optimization.
 The foundry provides a single source of truth for optimization data,
 managing problems, graphs, results with versioning and lineage.
 
+v0.4.7: Type consistency fix
+- problem_id is now int throughout (was str in graph schemas)
+- query_graphs() uses exact int match (no pattern matching)
+- Backward compatible: from_dict() coerces legacy string values
+
 v0.4.6: Single source of truth for problems
 - Added _problem_cache for NLPEvaluator instances
 - get_problem_evaluator() with cache-through loading
@@ -21,7 +26,6 @@ Pattern: Dependency injection (testable, explicit)
 """
 
 from typing import Dict, Optional, List, Any, Union
-import re
 import logging
 
 logger = logging.getLogger(__name__)
@@ -102,7 +106,7 @@ class OptimizationFoundry:
 
     def create_graph(
         self,
-        problem_id: str,
+        problem_id: int,  # v0.4.7: Changed from str to int for type consistency
         goal: Optional[str] = None,
         config: Optional[Dict] = None,
     ) -> ActiveGraph:
@@ -113,7 +117,7 @@ class OptimizationFoundry:
         optimizer nodes. The graph is persisted when finalized.
 
         Args:
-            problem_id: Problem identifier
+            problem_id: Numeric problem ID (from create_nlp_problem)
             goal: Natural language optimization goal
             config: Graph configuration
 
@@ -122,8 +126,8 @@ class OptimizationFoundry:
 
         Example:
             graph = foundry.create_graph(
-                problem_id="rosenbrock_10d",
-                goal="Minimize the Rosenbrock function"
+                problem_id=7,
+                goal="Minimize the Ackley function"
             )
         """
         # Get next graph ID from storage
@@ -283,7 +287,7 @@ class OptimizationFoundry:
 
     def query_graphs(
         self,
-        problem_id: Optional[str] = None,
+        problem_id: Optional[int] = None,  # v0.4.7: Changed from str to int
         success: Optional[bool] = None,
         n_dimensions: Optional[int] = None,
         limit: int = 100,
@@ -294,7 +298,7 @@ class OptimizationFoundry:
         This queries the compact GraphRecord format optimized for LLM learning.
 
         Args:
-            problem_id: Filter by problem ID (supports wildcards)
+            problem_id: Filter by exact problem ID (int)
             success: Filter by success status
             n_dimensions: Filter by problem dimensions
             limit: Maximum number of results
@@ -303,9 +307,9 @@ class OptimizationFoundry:
             List of matching GraphRecords
 
         Example:
-            # Get all successful graphs on Rosenbrock
+            # Get all successful graphs for problem 7
             records = foundry.query_graphs(
-                problem_id="rosenbrock*",
+                problem_id=7,
                 success=True,
                 limit=10
             )
@@ -322,16 +326,10 @@ class OptimizationFoundry:
         # Apply filters
         filtered = []
         for record in records:
-            # Problem ID filter (support wildcards)
+            # Problem ID filter (exact match)
             if problem_id is not None:
-                if '*' in problem_id:
-                    # Wildcard matching
-                    pattern = problem_id.replace('*', '.*')
-                    if not re.match(pattern, record.problem_id):
-                        continue
-                else:
-                    if record.problem_id != problem_id:
-                        continue
+                if record.problem_id != problem_id:
+                    continue
 
             # Success filter
             if success is not None and record.success != success:

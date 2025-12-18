@@ -330,7 +330,7 @@ def finalize_graph(
 
 @tool
 def query_past_graphs(
-    problem_pattern: Optional[str] = None,
+    problem_id: Optional[int] = None,  # v0.4.7: Changed from problem_pattern: str
     n_dimensions: Optional[int] = None,
     success: Optional[bool] = None,
     limit: int = 5,
@@ -345,7 +345,7 @@ def query_past_graphs(
     - How efficient the strategy was (evaluations, wall time)
 
     Args:
-        problem_pattern: Problem ID pattern (e.g., "ackley*", "rosenbrock*")
+        problem_id: Filter by exact problem ID (int). Omit to query all problems.
         n_dimensions: Filter by problem dimensions (e.g., 50)
         success: Filter by success status (True for successful only)
         limit: Maximum results to return (default: 5)
@@ -356,7 +356,7 @@ def query_past_graphs(
             - n_results: int
             - graphs: List of graph summaries with:
                 - graph_id: int
-                - problem_id: str
+                - problem_id: int
                 - problem_signature: {n_dimensions, n_constraints, bounds_range}
                 - pattern: str (chain, multistart, etc.)
                 - strategy: List of optimizer configs used
@@ -370,8 +370,8 @@ def query_past_graphs(
         # Results might show: "Graph #42 used TPE→L-BFGS-B chain, achieved 0.001"
         # Agent can reason: "I should try TPE→L-BFGS-B for this 50D problem"
 
-        # Find strategies for a specific problem family
-        result = query_past_graphs(problem_pattern="ackley*", success=True)
+        # Find past graphs for a specific problem
+        result = query_past_graphs(problem_id=7, success=True)
     """
     try:
         if _FOUNDRY is None:
@@ -382,7 +382,7 @@ def query_past_graphs(
 
         # Query using foundry (returns GraphRecords)
         records = _FOUNDRY.query_graphs(
-            problem_id=problem_pattern,
+            problem_id=problem_id,
             success=success,
             n_dimensions=n_dimensions,
             limit=limit,

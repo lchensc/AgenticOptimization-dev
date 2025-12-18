@@ -120,7 +120,7 @@ class ActiveGraph:
     def __init__(
         self,
         graph_id: int,
-        problem_id: str,
+        problem_id: int,  # v0.4.7: Changed from str to int for type consistency
         goal: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None,
     ):

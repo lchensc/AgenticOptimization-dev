@@ -315,7 +315,7 @@ class OptimizationGraph:
 
     # Identity
     graph_id: int
-    problem_id: str
+    problem_id: int  # v0.4.7: Changed from str to int for type consistency
     created_at: str                 # ISO timestamp
     goal: Optional[str] = None      # Natural language optimization goal
 

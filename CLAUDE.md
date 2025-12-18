@@ -274,7 +274,7 @@ The cache prevents re-running expensive simulations when the optimizer revisits 
 
 ## Implementation Status
 
-**Current state**: v0.4.6 - Single Source of Truth Architecture
+**Current state**: v0.4.7 - Type Consistency Architecture
 
 **Working features**:
 - CLI with conversational interface (`python -m paola.cli`)
@@ -292,6 +292,10 @@ The cache prevents re-running expensive simulations when the optimizer revisits 
   - Cache-through loading from storage
   - Problems from previous sessions automatically available
   - No more `_PROBLEM_REGISTRY` dual-source issues
+- **Type consistency** (v0.4.7):
+  - `problem_id` is `int` throughout (was `str` in graph schemas)
+  - `query_graphs()` uses exact int match (no pattern matching)
+  - Backward compatible: `from_dict()` coerces legacy string values
 
 **In progress**:
 - Multi-run analysis
