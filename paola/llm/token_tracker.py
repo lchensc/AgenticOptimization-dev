@@ -209,6 +209,63 @@ MODEL_CONFIGS = {
         "cost_cache_read": 0.15,
         "api_key_env": "OPENAI_API_KEY"
     },
+
+    # Local models via Ollama (FREE - runs on your hardware)
+    # Usage: --model ollama:devstral or --model ollama:qwen2.5-coder:7b
+    "ollama:devstral": {
+        "full_name": "devstral (via Ollama)",
+        "provider": "ollama",
+        "cost_input": 0.0,
+        "cost_output": 0.0,
+        "cost_cache_write": 0.0,
+        "cost_cache_read": 0.0,
+        "api_key_env": None  # No API key needed
+    },
+    "ollama:qwen2.5-coder": {
+        "full_name": "qwen2.5-coder (via Ollama)",
+        "provider": "ollama",
+        "cost_input": 0.0,
+        "cost_output": 0.0,
+        "cost_cache_write": 0.0,
+        "cost_cache_read": 0.0,
+        "api_key_env": None
+    },
+    "ollama:qwen2.5-coder:7b": {
+        "full_name": "qwen2.5-coder:7b (via Ollama)",
+        "provider": "ollama",
+        "cost_input": 0.0,
+        "cost_output": 0.0,
+        "cost_cache_write": 0.0,
+        "cost_cache_read": 0.0,
+        "api_key_env": None
+    },
+    "ollama:qwen2.5-coder:32b": {
+        "full_name": "qwen2.5-coder:32b (via Ollama)",
+        "provider": "ollama",
+        "cost_input": 0.0,
+        "cost_output": 0.0,
+        "cost_cache_write": 0.0,
+        "cost_cache_read": 0.0,
+        "api_key_env": None
+    },
+    "ollama:deepseek-r1:8b": {
+        "full_name": "deepseek-r1:8b (via Ollama)",
+        "provider": "ollama",
+        "cost_input": 0.0,
+        "cost_output": 0.0,
+        "cost_cache_write": 0.0,
+        "cost_cache_read": 0.0,
+        "api_key_env": None
+    },
+    "ollama:llama3.1:8b": {
+        "full_name": "llama3.1:8b (via Ollama)",
+        "provider": "ollama",
+        "cost_input": 0.0,
+        "cost_output": 0.0,
+        "cost_cache_write": 0.0,
+        "cost_cache_read": 0.0,
+        "api_key_env": None
+    },
 }
 
 # Backward compatibility: Create simple pricing dict

@@ -47,6 +47,13 @@ except ImportError:
     OPENAI_AVAILABLE = False
     logger.warning("langchain-openai not available")
 
+try:
+    from langchain_ollama import ChatOllama
+    OLLAMA_AVAILABLE = True
+except ImportError:
+    OLLAMA_AVAILABLE = False
+    logger.debug("langchain-ollama not available. Install: pip install langchain-ollama")
+
 
 class AgentState(TypedDict):
     """
@@ -71,12 +78,13 @@ def initialize_llm(
     Initialize LLM based on model name.
 
     Supports:
+    - Ollama models (local, prefix with "ollama:")
     - Qwen models (via DASHSCOPE_API_KEY)
     - Anthropic models (via ANTHROPIC_API_KEY)
     - OpenAI models (via OPENAI_API_KEY)
 
     Args:
-        llm_model: Model name (e.g., "qwen-plus", "claude-sonnet-4", "gpt-4")
+        llm_model: Model name (e.g., "ollama:devstral", "qwen-plus", "claude-sonnet-4", "gpt-4")
         temperature: 0.0 = deterministic, 1.0 = creative
         enable_thinking: Enable Qwen deep thinking mode
 
@@ -84,8 +92,29 @@ def initialize_llm(
         LLM instance
     """
     # Detect provider
+    is_ollama = llm_model.lower().startswith("ollama:")
     is_qwen = any(m in llm_model.lower() for m in ["qwen", "qwq"])
     is_openai = any(m in llm_model.lower() for m in ["gpt", "openai"])
+
+    # Ollama (local models)
+    if is_ollama:
+        if not OLLAMA_AVAILABLE:
+            raise ImportError(
+                "Ollama requires langchain-ollama. Install: pip install langchain-ollama"
+            )
+
+        # Extract model name after "ollama:" prefix
+        model_name = llm_model.split(":", 1)[1] if ":" in llm_model else llm_model
+
+        # Get Ollama base URL from environment (default: localhost)
+        base_url = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+
+        logger.info(f"Initialized Ollama model: {model_name} at {base_url}")
+        return ChatOllama(
+            model=model_name,
+            base_url=base_url,
+            temperature=temperature,
+        )
 
     if is_qwen:
         if not QWEN_AVAILABLE:
@@ -195,9 +224,11 @@ def create_react_node(tools: list, llm_model: str, temperature: float = 0.0):
     llm_with_tools = llm.bind_tools(tools)
 
     # Detect provider for caching support
+    is_ollama = llm_model.lower().startswith("ollama:")
     is_anthropic = "claude" in llm_model.lower()
     is_qwen = any(m in llm_model.lower() for m in ["qwen", "qwq"])
-    supports_cache_control = is_anthropic or is_qwen  # Both support explicit caching!
+    # Ollama does NOT support cache_control, only Anthropic and Qwen do
+    supports_cache_control = (is_anthropic or is_qwen) and not is_ollama
 
     def react_step(state: AgentState) -> dict:
         """

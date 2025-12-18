@@ -7,6 +7,7 @@ langchain-community>=0.3.0
 langchain-qwq>=0.1.0  # Qwen models (primary)
 langchain-anthropic>=0.2.0  # Claude models (optional)
 langchain-openai>=0.2.0  # OpenAI/GPT models (optional)
+langchain-ollama>=0.2.0  # Ollama local models (optional)
 langgraph>=0.2.0
 
 # Optimization
