@@ -4,15 +4,17 @@
 
 *The optimization package that learns from every run*
 
-Version 0.1.0 - **Phases 1-5 Complete ✅**
+Version 0.4.6
 
 ---
 
-A Python package for autonomous engineering optimization where an AI agent controls the optimization process, composing strategies from tool primitives, accumulating knowledge from past optimizations, and analyzing multiple runs to achieve reliable convergence.
+An AI-driven optimization platform where an autonomous agent controls the entire optimization process - algorithm selection, configuration, initialization, and failure recovery - while learning from past optimizations.
 
-## Status
+## The Paola Principle
 
-🎉 **READY FOR USE** - Phases 1-4 complete, all tests passing, CLI operational
+> **"Optimization complexity is Paola intelligence, not user burden."**
+
+Traditional optimization requires users to configure 250+ IPOPT options, tune CMA-ES sigma values, or select between dozens of SciPy methods. Paola handles all this complexity through LLM reasoning, leaving users to simply describe their goals.
 
 ## Quick Start
 
@@ -25,356 +27,261 @@ pip install -r requirements.txt
 # Configure API key (create .env file)
 echo "DASHSCOPE_API_KEY=your_key_here" > .env
 # Get key at: https://dashscope.console.aliyun.com/
+
+# Or use Anthropic/OpenAI
+echo "ANTHROPIC_API_KEY=your_key_here" > .env
 ```
 
 ### 2. Launch the CLI
 
 ```bash
-# Option 1: As a Python module
 python -m paola.cli
-
-# Option 2: Using the run script
-python run_paola.py
 ```
 
 ### 3. Your First Optimization
 
 ```
-paola> optimize a 10D Rosenbrock problem with SLSQP
+paola> optimize a 10D Rosenbrock function
 
-[Agent creates problem, starts run, executes optimization]
+[Agent creates problem, starts graph, runs optimization]
 
-✓ Optimization completed!
-  - Final objective: 4.517e-07
-  - Iterations: 47
-  - Success: True
+Graph #1 completed successfully!
+  Strategy: scipy:SLSQP
+  Final objective: 4.517e-07
+  Iterations: 47
 
-paola> /show 1
+paola> /graphs
+[Lists all optimization graphs]
 
-[Shows detailed metrics and analysis]
-
-paola> /exit
+paola> /graph show 1
+[Detailed graph with nodes, edges, convergence]
 ```
 
-## What is PAOLA?
+## Key Features
 
-PAOLA gives an **AI agent full autonomy** to control optimization:
-- **No fixed loops** - Agent composes strategies from tool primitives
-- **Learns from every run** - Knowledge accumulates across optimizations
-- **Intelligent analysis** - Dual-layer metrics (deterministic + AI reasoning)
-- **Natural language** - Just describe your goal, agent figures out how
-
-### Key Features
-
-✅ **Agent-Driven**: Natural language goals → agent decides strategy
-✅ **Professional Run Management**: Track, store, and compare optimizations
-✅ **Dual-Layer Analysis**: Instant metrics + AI strategic insights (~$0.02)
-✅ **Knowledge Base**: Platform learns (skeleton implemented, ready for data)
-✅ **Interactive CLI**: Rich terminal with 12+ commands
-✅ **Multi-Algorithm**: SciPy integration (SLSQP, BFGS, Nelder-Mead, etc.)
-
-## What's Implemented (Phases 1-4)
-
-### ✅ Phase 1: Data Foundry
-**Data foundation for optimization runs**
-- OptimizationFoundry - Single source of truth with dependency injection
-- Run/RunRecord - Active vs storage separation
-- FileStorage - JSON-based persistence with lineage
-- All tests passing ✅
-
-### ✅ Phase 2: Analysis Module
-**Deterministic metrics + AI reasoning**
-- `compute_metrics()` - 5 categories (convergence, gradient, constraints, efficiency, objective)
-- `ai_analyze()` - LLM-powered strategic analysis with recommendations
-- CLI `/show` enhanced with metrics
-- CLI `/analyze` command for AI analysis
-- All tests passing ✅
-
-### ✅ Phase 3: Knowledge Module (Skeleton)
-**Learning infrastructure ready for data**
-- KnowledgeBase - Full interface defined
-- MemoryKnowledgeStorage - Working implementation
-- Agent tools - Placeholders (callable)
-- CLI `/knowledge` - Shows skeleton status
-- Comprehensive README with design intent
-- All tests passing ✅
-
-### ✅ Phase 4: Agent Polish
-**Clean, maintainable agent code**
-- Prompts extracted to `prompts.py`
-- TODO comments resolved
-- 12 tools integrated (problem, run, optimization, analysis, knowledge)
-- CLI fully functional
-- All tests passing ✅
-
-### ✅ Phase 5: End-to-End Integration
-**Complete workflow verification**
-- Real optimization tests (Rosenbrock 5D: converged to 4.5e-07 ✓)
-- Multi-algorithm comparison (SLSQP vs Nelder-Mead)
-- Storage persistence verified
-- All CLI commands working
-- All tests passing (30+ tests across 5 suites) ✅
-
-## CLI Commands
-
-### Natural Language
-Just type your optimization goal:
-```
-paola> optimize a 5D Rosenbrock problem
-paola> compare SLSQP and BFGS on this problem
-paola> analyze why the optimization stalled
-```
-
-### Inspection Commands
-- `/runs` - List all optimization runs
-- `/show <id>` - Show detailed results with metrics
-- `/analyze <id> [focus]` - AI-powered analysis (~$0.02-0.05)
-  - Focus: convergence, efficiency, algorithm, overall (default)
-- `/plot <id>` - Plot convergence curve
-- `/plot compare <id1> <id2>` - Overlay convergence curves
-- `/compare <id1> <id2>` - Side-by-side comparison
-- `/best` - Show best solution across all runs
-- `/knowledge` - Knowledge base status (skeleton)
-
-### Session Commands
-- `/help` - Show help message
-- `/exit` - Exit (or Ctrl+D)
-- `/clear` - Clear conversation history
-- `/model` - Show current LLM model
-- `/models` - Select different LLM model
-
-## Agent Tools (12 Total)
-
-**Problem Formulation** (1 tool):
-- `create_benchmark_problem` - Rosenbrock, Sphere, Rastrigin, etc.
-
-**Run Management** (3 tools):
-- `start_optimization_run` - Start tracked run
-- `finalize_optimization_run` - Finalize completed run
-- `get_active_runs` - List active runs
-
-**Optimization** (1 tool):
-- `run_scipy_optimization` - SLSQP, BFGS, Nelder-Mead, Powell, COBYLA, etc.
-
-**Analysis - Deterministic** (3 tools, instant & free):
-- `analyze_convergence` - Rate, stalling, improvement
-- `analyze_efficiency` - Evaluations, improvement per eval
-- `get_all_metrics` - Complete metric suite
-
-**Analysis - AI** (1 tool, strategic, ~$0.02-0.05):
-- `analyze_run_with_ai` - Diagnosis with actionable recommendations
-
-**Knowledge** (3 tools, skeleton):
-- `store_optimization_insight` - Store insight (placeholder)
-- `retrieve_optimization_knowledge` - Retrieve insights (placeholder)
-- `list_all_knowledge` - List all (placeholder)
-
-## Example: Programmatic Usage
-
-```python
-from paola.foundry import OptimizationFoundry, FileStorage
-from paola.tools.evaluator_tools import create_benchmark_problem
-from paola.tools.run_tools import start_optimization_run, set_foundry
-from paola.tools.optimizer_tools import run_scipy_optimization
-from paola.analysis import compute_metrics
-
-# Initialize foundry (data foundation)
-foundry = OptimizationFoundry(storage=FileStorage())
-set_foundry(foundry)
-
-# Create problem
-problem = create_benchmark_problem.invoke({
-    "problem_id": "rosenbrock_10d",
-    "function_name": "rosenbrock",
-    "dimension": 10
-})
-
-# Start run
-run = start_optimization_run.invoke({
-    "problem_id": "rosenbrock_10d",
-    "algorithm": "SLSQP"
-})
-
-# Optimize
-bounds = [[-5.0, 10.0] for _ in range(10)]
-result = run_scipy_optimization.invoke({
-    "problem_id": "rosenbrock_10d",
-    "run_id": run["run_id"],
-    "algorithm": "SLSQP",
-    "bounds": bounds
-})
-
-# Analyze
-run_record = foundry.load_run(run["run_id"])
-metrics = compute_metrics(run_record)
-
-print(f"Success: {result['success']}")
-print(f"Final: {result['final_objective']:.6e}")
-print(f"Convergence rate: {metrics['convergence']['rate']:.4f}")
-```
+| Feature | Description |
+|---------|-------------|
+| **Graph-Based Architecture** | Multi-node optimization with chains, trees, warm-starts |
+| **LLM-Driven Intelligence** | Agent selects algorithms, configures options, handles failures |
+| **Skills Infrastructure** | Progressive-disclosure optimizer expertise (IPOPT, SciPy, Optuna) |
+| **Two-Tier Storage** | Compact GraphRecords for learning + full details for debugging |
+| **Foundry Single Source** | Unified data layer with cache-through loading |
+| **Multiple Backends** | SciPy (8 methods), IPOPT (250+ options), Optuna (8 samplers) |
 
 ## Architecture
 
 ```
 paola/
-├── foundry/           # Phase 1: Data foundation layer
-│   ├── foundry.py     # OptimizationFoundry (single source of truth)
-│   ├── run.py         # Run/RunRecord (active vs storage)
-│   ├── problem.py     # Problem definitions
-│   └── storage/       # FileStorage (JSON with lineage)
-├── analysis/          # Phase 2: Metrics & AI
-│   ├── metrics.py     # Deterministic computation
-│   └── ai_analysis.py # LLM-powered reasoning
-├── knowledge/         # Phase 3: Learning (skeleton)
-│   ├── knowledge_base.py  # Interface defined
-│   └── storage.py     # MemoryKnowledgeStorage
-├── agent/             # Phase 4: ReAct agent
-│   ├── react_agent.py # LangGraph-based
-│   └── prompts.py     # Separated prompts
-├── cli/               # All phases: Interactive UI
-│   ├── __main__.py    # Entry point
-│   ├── repl.py        # Main REPL
-│   ├── commands.py    # Command handlers
-│   └── callback.py    # Display callback
-├── tools/             # Agent tools (20+ total)
-├── callbacks/         # Event system
-└── backends/          # Analytical functions
+├── agent/              # LangGraph-based ReAct agent
+│   ├── react_agent.py  # Autonomous agent loop
+│   └── prompts/        # Minimal system prompts
+├── foundry/            # Data foundation layer
+│   ├── foundry.py      # Single source of truth
+│   ├── schema/         # GraphRecord, GraphDetail, polymorphic components
+│   └── storage/        # FileStorage backend
+├── tools/              # LangChain @tool functions
+│   ├── graph_tools.py  # start_graph, finalize_graph, query_past_graphs
+│   ├── optimization_tools.py  # run_optimization, get_problem_info
+│   ├── evaluator_tools.py     # create_nlp_problem, evaluate_function
+│   └── observation_tools.py   # analyze_convergence, detect_pattern
+├── skills/             # Optimizer expertise (IPOPT, SciPy, Optuna)
+│   ├── optimizers/     # YAML skill definitions
+│   └── tools.py        # list_skills, load_skill, query_skills
+├── optimizers/         # Backend implementations
+│   └── backends.py     # SciPyBackend, IPOPTBackend, OptunaBackend
+└── cli/                # Interactive CLI
+    ├── repl.py         # Main REPL loop
+    └── commands.py     # /graphs, /show, /skills, etc.
 ```
 
-The **foundry** provides a single source of truth for optimization data,
-while the **agent** provides autonomous intelligence on top.
+## Graph-Based Optimization
+
+Paola uses **graphs** to represent optimization tasks:
+
+```
+Graph #1: "Optimize wing drag"
+│
+├── n1: Global exploration (Optuna TPE)
+│   └── Agent: "Found promising region, switch to gradient"
+│
+├── n2: Local refinement from n1 (SLSQP) [warm_start edge]
+│   └── Agent: "Stuck at local minimum, try CMA-ES"
+│
+└── n3: Escape local minimum (CMA-ES) [refine edge]
+    └── Agent: "Converged, done"
+
+Result: success=true, pattern="chain", final_obj=0.05
+```
+
+**Graph** = Complete optimization task (may involve multiple nodes)
+**Node** = Single optimizer execution
+**Edge** = Relationship (warm_start, restart, refine, branch, explore)
+
+## CLI Commands
+
+### Natural Language
+```
+paola> optimize a 50D Ackley function with Optuna TPE
+paola> refine the result with SLSQP
+paola> what strategies have worked for similar problems?
+```
+
+### Graph Commands
+```
+/graphs              - List all optimization graphs
+/graph show <id>     - Show detailed graph information
+/graph plot <id>     - Plot convergence history
+/graph compare <id1> <id2>  - Compare graphs side-by-side
+/graph best          - Show best solution across all graphs
+```
+
+### Skills Commands
+```
+/skills              - List all optimizer skills
+/skill <name>        - Show skill details (e.g., /skill ipopt)
+```
+
+### Other Commands
+```
+/evals               - List registered evaluators
+/analyze <id>        - AI-powered analysis
+/help                - Show all commands
+/exit                - Exit CLI
+```
+
+## Agent Tools
+
+**Graph Management** (4 tools):
+- `start_graph` - Create new optimization graph
+- `get_graph_state` - Query graph state for agent decisions
+- `finalize_graph` - Complete and persist graph
+- `query_past_graphs` - Query historical graphs for learning
+
+**Optimization** (3 tools):
+- `run_optimization` - Execute optimizer with full config control
+- `get_problem_info` - Get problem characteristics for LLM reasoning
+- `list_available_optimizers` - List backends and availability
+
+**Problem Formulation** (4 tools):
+- `create_nlp_problem` - Define NLP with objective, bounds, constraints
+- `derive_problem` - Create derived problem (narrow bounds, etc.)
+- `evaluate_function` - Evaluate objective at a point
+- `compute_gradient` - Compute gradient (analytical or FD)
+
+**Skills** (3 tools):
+- `list_skills` - Discover optimizer expertise
+- `load_skill` - Load detailed configuration knowledge
+- `query_skills` - Search across skills
+
+## Optimizer Backends
+
+| Backend | Methods | Notes |
+|---------|---------|-------|
+| **SciPy** | SLSQP, L-BFGS-B, trust-constr, COBYLA, Nelder-Mead, Powell, BFGS, CG | Gradient and derivative-free |
+| **IPOPT** | Interior-point | 250+ configurable options |
+| **Optuna** | TPE, CMA-ES, GP, NSGA-II, QMC, Random, Grid | Black-box optimization |
+
+## Skills Infrastructure
+
+Skills provide progressive-disclosure optimizer expertise:
+
+```
+paola> /skill ipopt
+
+IPOPT Skill
+-----------
+Interior-point method for large-scale nonlinear optimization.
+
+When to use:
+- Constrained nonlinear problems
+- Large-scale (1000+ variables)
+- Need warm-starting capability
+
+Integration:
+- Warm-start: Set warm_start_init_point: 'yes'
+- Scaling: IPOPT auto-scales, but manual may help
+...
+```
+
+Load specific sections: `load_skill("ipopt", "options.warm_start")`
+
+## Data Storage
+
+Paola uses two-tier storage for efficiency:
+
+**Tier 1: GraphRecord** (~1KB) - For LLM learning
+- Problem signature (dimensions, constraints, bounds)
+- Strategy pattern (chain, multistart, tree)
+- Node summaries with full optimizer config
+- Success/failure outcomes
+
+**Tier 2: GraphDetail** (10-100KB) - For visualization
+- Full convergence trajectories
+- Complete x vectors
+- Detailed timing
+
+```
+.paola_foundry/
+├── graphs/         # Tier 1: GraphRecord
+├── details/        # Tier 2: GraphDetail
+├── problems/       # Problem definitions
+├── evaluators/     # Registered evaluators
+└── metadata.json   # Next IDs, etc.
+```
 
 ## Testing
 
-Run all test suites:
-
 ```bash
-# Phase 1: Platform
-python test_phase1_refactoring.py
+# Run all tests
+pytest tests/ -v
 
-# Phase 2: Analysis
-python test_phase2_analysis.py
-
-# Phase 3: Knowledge (skeleton)
-python test_phase3_knowledge.py
-
-# Phase 4: Agent polish
-python test_phase4_cli.py
-
-# Phase 5: End-to-end workflow
-python test_end_to_end_workflow.py
+# Specific test suites
+pytest tests/test_foundry.py -v
+pytest tests/test_cli_integration.py -v
 ```
 
-**All tests passing**: 30+ tests across 5 suites ✅
-
-## Performance
-
-**Optimization** (Rosenbrock 5D, verified by tests):
-- SLSQP: 47 iterations, 0.01s, objective 4.5e-07 ✓
-- Nelder-Mead: 327 evaluations, 0.06s, objective 11.82
-
-**Metrics**:
-- Deterministic: <0.001s (instant)
-- AI analysis: ~5-10s (LLM call)
-
-**Storage**:
-- File-based JSON (human-readable)
-- Fast loading (<0.01s per run)
-- Persistent across sessions ✓
-
-## Documentation
-
-Comprehensive documentation in `docs/`:
-- `refactoring_blueprint.md` - Overall architecture
-- `phase1_completion_report.md` - Platform module
-- `phase2_completion_report.md` - Analysis module
-- `phase3_completion_report.md` - Knowledge module (skeleton)
-- `phase4_completion_report.md` - Agent polish
-- `phase5_summary.md` - End-to-end integration (this is current status)
-- `CLAUDE.md` - Design philosophy and vision
-
-## Supported Models
+## Supported LLMs
 
 **Qwen** (recommended, cost-effective):
-- `qwen-flash` - Fast, cheap, good for testing (default)
-- `qwen-plus` - Balanced performance
-- `qwen-max` - Most capable
-- `qwen-turbo` - Fast with quality
+- `qwen-flash`, `qwen-plus`, `qwen-max`, `qwen-turbo`
 
-**Anthropic** (optional):
-- `claude-sonnet-4` - Latest model
-- `claude-3-5-sonnet-20241022` - Previous version
+**Anthropic**:
+- `claude-sonnet-4`, `claude-3-5-sonnet`
 
-**OpenAI** (optional):
-- `gpt-4` - Most capable
-- `gpt-3.5-turbo` - Fast and cheap
+**OpenAI**:
+- `gpt-4`, `gpt-3.5-turbo`
 
-Configure in `.env`:
-```bash
-# Qwen (recommended)
-DASHSCOPE_API_KEY=your_key_here
+Configure in `.env` and switch with `/models` in CLI.
 
-# Or Anthropic
-ANTHROPIC_API_KEY=your_key_here
+## Development
 
-# Or OpenAI
-OPENAI_API_KEY=your_key_here
-```
+See `CLAUDE.md` for detailed development principles:
 
-Switch models in CLI:
-```
-paola> /models
-[Select from list]
-```
+1. **The Paola Principle**: Optimization complexity is agent intelligence
+2. **LLM IS the Intelligence**: Don't hardcode optimizer selection
+3. **Graph-Based**: Every optimization runs within a graph
+4. **Tools Not Control Flow**: Platform provides primitives
+5. **Observable Everything**: Every action must be explainable
+6. **Cache Everything**: Simulations are expensive
+7. **Minimal Prompting**: Trust the LLM's trained knowledge
+8. **Foundry is Single Source of Truth**: All data access through Foundry
+9. **Expert Optimizer Usage**: Skills teach correct API usage
 
-## Next Steps
+## Roadmap
 
-**Immediate** (Ready now):
-- ✅ Interactive CLI usage
-- ✅ Real optimization workflows
-- ✅ Multi-algorithm benchmarking
+**v0.4.6** (Current):
+- Foundry as single source of truth
+- Cache-through problem loading
+- Pydantic validation for type safety
 
-**Near-term** (After collecting 20-50 runs):
-- Knowledge Module Phase 3.2: Real implementation with data
-- Multi-objective optimization (NSGA-II)
-- Advanced visualization
+**v0.5.0** (Planned):
+- Cross-graph learning tools
+- Pattern extraction from successful graphs
+- Aggregate statistics
 
-**Long-term**:
-- Engineering integration (CFD/FEA workflows)
-- Cloud deployment (API server mode)
-- Advanced RAG-based learning
-- Collaboration features
-
-## Design Philosophy
-
-From `CLAUDE.md`:
-
-> "The first optimization platform where an AI agent continuously observes optimization progress, detects feasibility and convergence issues, autonomously adapts strategy, accumulates knowledge from past optimizations, and analyzes multiple runs to achieve reliable convergence."
-
-**Key Principles**:
-1. **Agent Autonomy First** - Agent IS the controller
-2. **Tools Not Control Flow** - Primitives, not prescribed loops
-3. **Observable Everything** - Every action explainable
-4. **Learn Continuously** - Every run adds knowledge
-5. **Strategic Restarts** - Informed, not random
-
-## Dependencies
-
-See `requirements.txt`. Core dependencies:
-- LangChain + LangGraph (agent framework)
-- Pydantic (schemas)
-- Rich (terminal output)
-- prompt_toolkit (interactive REPL)
-- SciPy (optimization)
-- NumPy (arrays)
-
-## Contributing
-
-The architecture is designed to be:
-- **Clean**: Separation of concerns, dependency injection
-- **Testable**: 30+ tests, all passing
-- **Extensible**: Easy to add algorithms, problems, analysis
-- **Documented**: Every module has clear purpose
+**v0.6.0** (Future):
+- RAG integration for semantic search
+- Learned skills auto-generation
 
 ## License
 
@@ -382,12 +289,10 @@ TBD
 
 ## Citation
 
-Paper in preparation: "PAOLA: Platform for Agentic Optimization with Learning and Analysis"
+Paper in preparation: "Paola: Package for Agentic Optimization with Learning and Analysis"
 
 ---
 
-**PAOLA**: The optimization platform that learns from every run 🚀
+**Paola**: The optimization platform that learns from every run
 
-**Launch**: `python -m paola.cli` or `python run_paola.py`
-
-**Status**: Production-ready for optimization workflows ✅
+**Launch**: `python -m paola.cli`
