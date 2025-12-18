@@ -338,16 +338,20 @@ def query_past_graphs(
     """
     Query past optimization graphs for cross-graph learning.
 
-    Use this to find what strategies worked for similar problems.
+    Use this to learn from BOTH successful and failed past optimizations:
+    - Successes: What strategies worked, which to replicate
+    - Failures: What to avoid, what didn't work for this problem type
+
     Returns compact summaries optimized for reasoning about:
     - What optimizer configurations were used
     - What patterns (chain, multistart) were effective
     - How efficient the strategy was (evaluations, wall time)
+    - Why certain approaches failed (valuable negative knowledge)
 
     Args:
         problem_id: Filter by exact problem ID (int). Omit to query all problems.
         n_dimensions: Filter by problem dimensions (e.g., 50)
-        success: Filter by success status (True for successful only)
+        success: Filter by success status. Omit to get BOTH successes and failures.
         limit: Maximum results to return (default: 5)
 
     Returns:
@@ -364,14 +368,17 @@ def query_past_graphs(
             - message: str
 
     Example:
+        # Get ALL past graphs for a problem (both successes and failures)
+        result = query_past_graphs(problem_id=7)
+        # Learn: what worked AND what didn't work
+
         # Find what worked for similar high-dimensional problems
         result = query_past_graphs(n_dimensions=50, success=True)
+        # Results: "Graph #42 used TPE→L-BFGS-B chain, achieved 0.001"
 
-        # Results might show: "Graph #42 used TPE→L-BFGS-B chain, achieved 0.001"
-        # Agent can reason: "I should try TPE→L-BFGS-B for this 50D problem"
-
-        # Find past graphs for a specific problem
-        result = query_past_graphs(problem_id=7, success=True)
+        # Find what FAILED to avoid repeating mistakes
+        result = query_past_graphs(problem_id=7, success=False)
+        # Learn: "SLSQP alone failed, maybe need global search first"
     """
     try:
         if _FOUNDRY is None:
