@@ -550,16 +550,12 @@ def create_nlp_problem(
     """
     try:
         from paola.foundry import (
-            OptimizationFoundry,
-            FileStorage,
             NLPProblem,
             InequalityConstraint,
             EqualityConstraint,
             NLPEvaluator,
             SolverSelector,
-            Problem
         )
-        from datetime import datetime
         from paola.tools.graph_tools import get_foundry
 
         # Use global Foundry (single source of truth - v0.4.6)
@@ -770,7 +766,6 @@ def derive_problem(
         # Normalize problem_id (handles str/int from LLM)
         parent_problem_id = normalize_problem_id(parent_problem_id)
         import json as json_module
-        from paola.foundry import FileStorage
         from paola.foundry.nlp_schema import NLPProblem
         from paola.foundry.nlp_evaluator import NLPEvaluator
         from paola.tools.graph_tools import get_foundry

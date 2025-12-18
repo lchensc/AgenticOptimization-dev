@@ -274,7 +274,7 @@ The cache prevents re-running expensive simulations when the optimizer revisits 
 
 ## Implementation Status
 
-**Current state**: v0.4.0 - Graph-based architecture with Skills (refactored)
+**Current state**: v0.4.6 - Single Source of Truth Architecture
 
 **Working features**:
 - CLI with conversational interface (`python -m paola.cli`)
@@ -287,6 +287,11 @@ The cache prevents re-running expensive simulations when the optimizer revisits 
 - Edge types for node relationships (warm_start, restart, refine, branch, explore)
 - Agent explicitly specifies parent_node and edge_type
 - Two-tier graph storage for cross-graph learning
+- **Foundry as single source of truth** (v0.4.6):
+  - All problem access via `foundry.get_problem_evaluator()`
+  - Cache-through loading from storage
+  - Problems from previous sessions automatically available
+  - No more `_PROBLEM_REGISTRY` dual-source issues
 
 **In progress**:
 - Multi-run analysis
@@ -305,7 +310,8 @@ When implementing this platform:
 6. **Observable Everything**: Every action must be observable and explainable
 7. **Cache Everything**: Simulations are expensive, cache all evaluations
 8. **CRITICAL - Minimal Prompting**: Keep system prompts minimal. Trust the LLM's intelligence. Never add verbose guidance without explicit permission
-9. **Expert Optimizer Usage**: Paola is an optimization expert. The agent must use optimizers correctly:
+9. **Foundry is Single Source of Truth**: All data access must go through Foundry - never create separate FileStorage instances or in-memory registries that bypass Foundry
+10. **Expert Optimizer Usage**: Paola is an optimization expert. The agent must use optimizers correctly:
    - Skills provide the knowledge of correct API usage for each optimizer
    - The agent MUST follow Skills documentation exactly (e.g., bounds come from problem definition, not sampler_options)
    - No hacks or workarounds - if the agent uses an optimizer incorrectly, fix the agent's understanding via Skills, not by adding escape hatches to tools
