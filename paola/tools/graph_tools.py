@@ -237,23 +237,25 @@ def get_graph_state(graph_id: int) -> Dict[str, Any]:
 @tool
 def finalize_graph(
     graph_id: int,
-    success: bool,
     notes: str = "",
 ) -> Dict[str, Any]:
     """
     Finalize optimization graph and persist to storage.
 
-    Call this when the optimization task is complete (whether successful
-    or not). The graph record will be saved for future analysis.
+    Call this when the optimization task is complete. The graph record
+    will be saved for cross-graph learning and future analysis.
+
+    v0.4.8: Removed success parameter. Quality judgment is NOT encoded
+    in the schema. The agent should record assessments in the notes field,
+    and future queries will reason from final_objective values directly.
 
     Args:
         graph_id: Graph ID from start_graph
-        success: Whether the optimization achieved its goal
-        notes: Optional final notes or analysis
+        notes: Final notes, analysis, or assessment of the optimization outcome
 
     Returns:
         Dict with:
-            - success: bool
+            - success: bool (tool call success, not optimization quality)
             - graph_id: int
             - final_objective: float (best found)
             - total_evaluations: int
@@ -264,8 +266,8 @@ def finalize_graph(
     Example:
         result = finalize_graph(
             graph_id=1,
-            success=True,
-            notes="Multi-start + refinement achieved objective 3.98"
+            notes="Achieved objective 3.98 with multi-start + refinement. "
+                  "Better than previous best of 4.12 for this problem."
         )
     """
     try:
@@ -290,8 +292,8 @@ def finalize_graph(
                 reasoning=notes,
             )
 
-        # Finalize graph
-        record = _FOUNDRY.finalize_graph(graph_id, success)
+        # Finalize graph (v0.4.8: no success parameter)
+        record = _FOUNDRY.finalize_graph(graph_id)
 
         if record is None:
             return {
@@ -330,33 +332,27 @@ def finalize_graph(
 
 @tool
 def query_past_graphs(
-    problem_id: Optional[int] = None,  # v0.4.7: Changed from problem_pattern: str
+    problem_id: Optional[int] = None,
     n_dimensions: Optional[int] = None,
-    success: Optional[bool] = None,
     limit: int = 5,
 ) -> Dict[str, Any]:
     """
     Query past optimization graphs for cross-graph learning.
 
-    Use this to learn from BOTH successful and failed past optimizations:
-    - Successes: What strategies worked, which to replicate
-    - Failures: What to avoid, what didn't work for this problem type
+    Returns all past graphs matching the filters. Use final_objective values
+    to reason about which strategies were effective vs ineffective.
 
-    Returns compact summaries optimized for reasoning about:
-    - What optimizer configurations were used
-    - What patterns (chain, multistart) were effective
-    - How efficient the strategy was (evaluations, wall time)
-    - Why certain approaches failed (valuable negative knowledge)
+    v0.4.8: Removed success filter. Quality judgment is not encoded in schema.
+    Compare final_objective values across graphs to learn what worked better.
 
     Args:
         problem_id: Filter by exact problem ID (int). Omit to query all problems.
         n_dimensions: Filter by problem dimensions (e.g., 50)
-        success: Filter by success status. Omit to get BOTH successes and failures.
         limit: Maximum results to return (default: 5)
 
     Returns:
         Dict with:
-            - success: bool
+            - success: bool (tool call success)
             - n_results: int
             - graphs: List of graph summaries with:
                 - graph_id: int
@@ -364,21 +360,17 @@ def query_past_graphs(
                 - problem_signature: {n_dimensions, n_constraints, bounds_range}
                 - pattern: str (chain, multistart, etc.)
                 - strategy: List of optimizer configs used
-                - outcome: {success, final_objective, total_evaluations}
+                - outcome: {final_objective, total_evaluations, total_wall_time}
             - message: str
 
     Example:
-        # Get ALL past graphs for a problem (both successes and failures)
+        # Get all past graphs for a problem
         result = query_past_graphs(problem_id=7)
-        # Learn: what worked AND what didn't work
+        # Compare final_objective values to see which strategies worked better
 
-        # Find what worked for similar high-dimensional problems
-        result = query_past_graphs(n_dimensions=50, success=True)
-        # Results: "Graph #42 used TPE→L-BFGS-B chain, achieved 0.001"
-
-        # Find what FAILED to avoid repeating mistakes
-        result = query_past_graphs(problem_id=7, success=False)
-        # Learn: "SLSQP alone failed, maybe need global search first"
+        # Find graphs for similar high-dimensional problems
+        result = query_past_graphs(n_dimensions=50, limit=10)
+        # Learn from strategies that achieved lower objectives
     """
     try:
         if _FOUNDRY is None:
@@ -390,7 +382,6 @@ def query_past_graphs(
         # Query using foundry (returns GraphRecords)
         records = _FOUNDRY.query_graphs(
             problem_id=problem_id,
-            success=success,
             n_dimensions=n_dimensions,
             limit=limit,
         )
@@ -423,9 +414,8 @@ def query_past_graphs(
                     "best_objective": node.best_objective,
                 })
 
-            # Build outcome summary
+            # Build outcome summary (v0.4.8: removed success - quality not in schema)
             outcome = {
-                "success": record.success,
                 "final_objective": record.final_objective,
                 "total_evaluations": record.total_evaluations,
                 "total_wall_time": record.total_wall_time,
@@ -562,9 +552,8 @@ def get_past_graph(graph_id: int) -> Dict[str, Any]:
             for e in record.edges
         ]
 
-        # Build outcome summary
+        # Build outcome summary (v0.4.8: removed success - quality not in schema)
         outcome = {
-            "success": record.success,
             "final_objective": record.final_objective,
             "total_evaluations": record.total_evaluations,
             "total_wall_time": record.total_wall_time,

@@ -2,7 +2,7 @@
 Tier 1: GraphRecord - LLM-ready graph representation.
 
 This is the compact representation optimized for cross-graph learning.
-Focus: "What strategy was used and did it work?"
+Focus: "What strategy was used and what was the outcome?"
 
 Size: ~1-2KB per graph (minimal, strategy-focused)
 
@@ -10,12 +10,16 @@ Contains:
 - Problem signature (for similarity matching)
 - Strategy pattern and structure
 - Node summaries with FULL config (no trajectories)
-- Outcome and decisions
+- Outcome (final_objective) and decisions
 
 Does NOT contain:
 - Convergence history (moved to Tier 2)
 - x trajectory (moved to Tier 2)
 - Raw iteration data
+
+v0.4.8: Renamed success -> completed
+- completed: bool = execution status (did graph finish without crashing?)
+- Quality judgment is NOT encoded in schema - agent reasons from final_objective
 """
 
 from dataclasses import dataclass, field
@@ -170,8 +174,9 @@ class GraphRecord:
     nodes: Dict[str, NodeSummary] = field(default_factory=dict)
 
     # Outcome
-    status: str = "completed"
-    success: bool = False
+    # v0.4.8: completed = execution status (did graph finish without crashing?)
+    # Quality judgment removed from schema - agent reasons from final_objective
+    completed: bool = True
     final_objective: Optional[float] = None
     final_x: Optional[List[float]] = None
     total_evaluations: int = 0
@@ -190,8 +195,7 @@ class GraphRecord:
             "pattern": self.pattern,
             "edges": [e.to_dict() for e in self.edges],
             "nodes": {nid: n.to_dict() for nid, n in self.nodes.items()},
-            "status": self.status,
-            "success": self.success,
+            "completed": self.completed,  # v0.4.8: execution status
             "final_objective": self.final_objective,
             "final_x": self.final_x,
             "total_evaluations": self.total_evaluations,
@@ -215,6 +219,11 @@ class GraphRecord:
         if isinstance(problem_id, str):
             problem_id = int(problem_id)
 
+        # v0.4.8: Read completed field
+        # For legacy graphs: if they were finalized (exist in storage), they completed execution
+        # The old "success" field was about quality, not execution - so ignore it
+        completed = data.get("completed", True)  # All stored graphs completed execution
+
         return cls(
             graph_id=data["graph_id"],
             problem_id=problem_id,
@@ -224,8 +233,7 @@ class GraphRecord:
             pattern=data.get("pattern", "single"),
             edges=edges,
             nodes=nodes,
-            status=data.get("status", "completed"),
-            success=data.get("success", False),
+            completed=completed,
             final_objective=data.get("final_objective"),
             final_x=data.get("final_x"),
             total_evaluations=data.get("total_evaluations", 0),
@@ -247,12 +255,10 @@ class GraphRecord:
     def summary(self) -> str:
         """Get a brief summary for display."""
         n_nodes = len(self.nodes)
-        status_str = "success" if self.success else "failed"
         obj_str = f"{self.final_objective:.6e}" if self.final_objective is not None else "N/A"
         return (
-            f"Graph #{self.graph_id}: {self.problem_id} | "
-            f"{n_nodes} nodes | {self.pattern} | "
-            f"{status_str} | obj={obj_str}"
+            f"Graph #{self.graph_id}: problem {self.problem_id} | "
+            f"{n_nodes} nodes | {self.pattern} | obj={obj_str}"
         )
 
     def get_strategy_sequence(self) -> List[str]:

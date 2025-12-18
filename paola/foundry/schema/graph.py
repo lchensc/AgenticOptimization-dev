@@ -327,8 +327,9 @@ class OptimizationGraph:
     edges: List[OptimizationEdge] = field(default_factory=list)
 
     # Outcome
-    status: Literal["active", "completed", "failed"] = "active"
-    success: bool = False
+    # v0.4.8: Simplified status (active/completed), removed success flag
+    # Quality judgment is NOT encoded - agent reasons from final_objective
+    status: Literal["active", "completed"] = "active"
     final_objective: Optional[float] = None
     final_x: Optional[List[float]] = None  # Final solution vector
     total_evaluations: int = 0
@@ -540,7 +541,7 @@ class OptimizationGraph:
             "nodes": {nid: node.to_dict() for nid, node in self.nodes.items()},
             "edges": [e.to_dict() for e in self.edges],
             "status": self.status,
-            "success": self.success,
+            # v0.4.8: removed success flag - quality judgment not in schema
             "final_objective": self.final_objective,
             "final_x": self.final_x,
             "total_evaluations": self.total_evaluations,
@@ -564,6 +565,11 @@ class OptimizationGraph:
             for ddata in data.get("decisions", [])
         ]
 
+        # v0.4.8: Map legacy status values to new simplified status
+        status = data.get("status", "completed")
+        if status == "failed":
+            status = "completed"  # Legacy "failed" is now just "completed"
+
         return cls(
             graph_id=data["graph_id"],
             problem_id=data["problem_id"],
@@ -572,8 +578,8 @@ class OptimizationGraph:
             config=data.get("config", {}),
             nodes=nodes,
             edges=edges,
-            status=data.get("status", "completed"),
-            success=data.get("success", False),
+            status=status,
+            # v0.4.8: success field removed - ignore legacy values
             final_objective=data.get("final_objective"),
             final_x=data.get("final_x"),
             total_evaluations=data.get("total_evaluations", 0),

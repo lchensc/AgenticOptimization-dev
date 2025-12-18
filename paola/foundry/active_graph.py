@@ -389,12 +389,13 @@ class ActiveGraph:
                     return "dag"
             return "multistart"
 
-    def finalize(self, success: bool) -> OptimizationGraph:
+    def finalize(self) -> OptimizationGraph:
         """
         Finalize graph and return immutable OptimizationGraph.
 
-        Args:
-            success: Whether overall optimization was successful
+        v0.4.8: Removed success parameter. All finalized graphs are "completed".
+        Quality judgment is not encoded in the schema - agent reasons from
+        final_objective and records assessments in decisions.
 
         Returns:
             Immutable OptimizationGraph record
@@ -425,7 +426,7 @@ class ActiveGraph:
             created_at=self.start_time.isoformat(),
             nodes=self.nodes,
             edges=self.edges,
-            success=success,
+            status="completed",  # v0.4.8: execution status only
             final_objective=final_objective,
             final_x=final_x,
             total_evaluations=total_evals,

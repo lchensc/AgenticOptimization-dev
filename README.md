@@ -4,7 +4,7 @@
 
 *The optimization package that learns from every run*
 
-Version 0.4.7
+Version 0.4.8
 
 ---
 
@@ -269,7 +269,13 @@ See `CLAUDE.md` for detailed development principles:
 
 ## Roadmap
 
-**v0.4.7** (Current):
+**v0.4.8** (Current):
+- Removed `success` flag from schema - quality judgment is agent's job
+- Renamed to `completed` (execution status only)
+- Agent reasons from `final_objective` values, not binary flags
+- Simplified CLI display (removed ✓/✗ status column)
+
+**v0.4.7**:
 - Type consistency fix: problem_id is int throughout
 - Simplified query_graphs (exact match instead of patterns)
 - Backward compatible with legacy data
@@ -281,7 +287,7 @@ See `CLAUDE.md` for detailed development principles:
 
 **v0.5.0** (Planned):
 - Cross-graph learning tools
-- Pattern extraction from successful graphs
+- Pattern extraction based on objective comparison
 - Aggregate statistics
 
 **v0.6.0** (Future):

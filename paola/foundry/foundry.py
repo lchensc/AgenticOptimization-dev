@@ -161,7 +161,7 @@ class OptimizationFoundry:
         """
         return self._active_graphs.get(graph_id)
 
-    def finalize_graph(self, graph_id: int, success: bool) -> Optional[OptimizationGraph]:
+    def finalize_graph(self, graph_id: int) -> Optional[OptimizationGraph]:
         """
         Finalize graph and persist to storage (two-tier).
 
@@ -169,9 +169,11 @@ class OptimizationFoundry:
         - Tier 1: GraphRecord (~1KB) for LLM learning
         - Tier 2: GraphDetail (10-100KB) for visualization
 
+        v0.4.8: Removed success parameter. All finalized graphs are "completed".
+        Quality judgment is not encoded in schema - agent reasons from final_objective.
+
         Args:
             graph_id: Graph identifier
-            success: Whether optimization was successful
 
         Returns:
             OptimizationGraph if graph found, None otherwise
@@ -181,7 +183,7 @@ class OptimizationFoundry:
             return None
 
         # Finalize graph to get immutable record
-        record = graph.finalize(success)
+        record = graph.finalize()
 
         # Try to create problem signature from registered problem
         problem_signature = None
@@ -287,8 +289,7 @@ class OptimizationFoundry:
 
     def query_graphs(
         self,
-        problem_id: Optional[int] = None,  # v0.4.7: Changed from str to int
-        success: Optional[bool] = None,
+        problem_id: Optional[int] = None,
         n_dimensions: Optional[int] = None,
         limit: int = 100,
     ) -> List[GraphRecord]:
@@ -297,9 +298,11 @@ class OptimizationFoundry:
 
         This queries the compact GraphRecord format optimized for LLM learning.
 
+        v0.4.8: Removed success filter. Quality judgment is not in schema.
+        Agent should reason from final_objective values directly.
+
         Args:
             problem_id: Filter by exact problem ID (int)
-            success: Filter by success status
             n_dimensions: Filter by problem dimensions
             limit: Maximum number of results
 
@@ -307,19 +310,11 @@ class OptimizationFoundry:
             List of matching GraphRecords
 
         Example:
-            # Get all successful graphs for problem 7
-            records = foundry.query_graphs(
-                problem_id=7,
-                success=True,
-                limit=10
-            )
+            # Get all graphs for problem 7
+            records = foundry.query_graphs(problem_id=7, limit=10)
 
             # Get graphs for similar-sized problems
-            records = foundry.query_graphs(
-                n_dimensions=50,
-                success=True,
-                limit=5
-            )
+            records = foundry.query_graphs(n_dimensions=50, limit=5)
         """
         records = self.storage.load_all_graph_records()
 
@@ -330,10 +325,6 @@ class OptimizationFoundry:
             if problem_id is not None:
                 if record.problem_id != problem_id:
                     continue
-
-            # Success filter
-            if success is not None and record.success != success:
-                continue
 
             # Dimensions filter
             if n_dimensions is not None:

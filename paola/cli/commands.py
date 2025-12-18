@@ -44,20 +44,17 @@ class CommandHandler:
             self.console.print("\n[dim]No optimization graphs yet[/dim]\n")
             return
 
+        # v0.4.8: Removed Status column - quality judgment not in schema
         table = Table(title="Optimization Graphs")
         table.add_column("ID", style="cyan", justify="right")
         table.add_column("Problem")
         table.add_column("Nodes", justify="right")
         table.add_column("Pattern")
-        table.add_column("Status")
         table.add_column("Best Value", justify="right")
         table.add_column("Evals", justify="right")
         table.add_column("Time", justify="right")
 
         for record in records:
-            status = "✓" if record.success else "✗"
-            status_style = "green" if record.success else "red"
-
             # Get optimizers used
             optimizers = set()
             for node in list(record.nodes.values())[:3]:
@@ -72,7 +69,6 @@ class CommandHandler:
                 str(record.problem_id),
                 str(len(record.nodes)),
                 record.pattern,
-                f"[{status_style}]{status}[/{status_style}]",
                 f"{record.final_objective:.6f}" if record.final_objective else "N/A",
                 str(record.total_evaluations),
                 f"{record.total_wall_time:.1f}s"
@@ -92,10 +88,7 @@ class CommandHandler:
             self.console.print(f"\n[red]Graph #{graph_id} not found[/red]\n")
             return
 
-        # Status
-        status_text = "✓ Success" if record.success else "✗ Failed"
-        status_style = "green" if record.success else "red"
-
+        # v0.4.8: Removed success status - quality judgment not in schema
         # Find best node
         best_node_id = None
         best_objective = float('inf')
@@ -107,8 +100,11 @@ class CommandHandler:
         # Build ASCII graph structure
         graph_art = self._build_graph_ascii_from_record(record)
 
-        # Header
-        info = f"""[bold]Graph #{record.graph_id}[/bold]  {record.problem_id}  [{status_style}]{status_text}[/{status_style}]
+        # Format best objective
+        best_obj_str = f"{best_objective:.6e}" if best_objective != float('inf') else "N/A"
+
+        # Header (v0.4.8: removed success status, show objective instead)
+        info = f"""[bold]Graph #{record.graph_id}[/bold]  problem {record.problem_id}  [cyan]obj={best_obj_str}[/cyan]
 [dim]{record.pattern} pattern • {len(record.nodes)} nodes • {record.total_evaluations} evals • {record.total_wall_time:.1f}s[/dim]
 
 [bold]Structure:[/bold]
@@ -531,11 +527,11 @@ Iteration"""
         metrics = [
             ("Problem", [str(r.problem_id) for r in records]),
             ("Pattern", [r.pattern for r in records]),
+            # v0.4.8: removed Success row - quality judgment not in schema
             ("Objective", [f"{r.final_objective:.6e}" if r.final_objective else "N/A" for r in records]),
             ("Nodes", [str(len(r.nodes)) for r in records]),
             ("Evaluations", [str(r.total_evaluations) for r in records]),
             ("Time (s)", [f"{r.total_wall_time:.2f}" for r in records]),
-            ("Success", ["✓" if r.success else "✗" for r in records]),
         ]
 
         for metric_name, values in metrics:
@@ -567,41 +563,39 @@ Iteration"""
 
     def handle_graph_query(
         self,
-        problem_pattern: str = None,
+        problem_id: int = None,
         n_dimensions: int = None,
-        success: bool = None,
         limit: int = 5,
     ):
         """
         Query past optimization graphs for cross-graph learning.
 
+        v0.4.8: Removed success filter - quality judgment not in schema.
+        Compare final_objective values to evaluate strategies.
+
         Args:
-            problem_pattern: Problem ID pattern (e.g., "ackley*", "rosenbrock*")
+            problem_id: Filter by exact problem ID
             n_dimensions: Filter by problem dimensions
-            success: Filter by success status (True for successful only)
             limit: Maximum results to return
         """
-        # Query graphs
+        # Query graphs (v0.4.8: removed success filter)
         records = self.foundry.query_graphs(
-            problem_id=problem_pattern,
+            problem_id=problem_id,
             n_dimensions=n_dimensions,
-            success=success,
             limit=limit,
         )
 
         if not records:
             filters = []
-            if problem_pattern:
-                filters.append(f"problem='{problem_pattern}'")
+            if problem_id is not None:
+                filters.append(f"problem={problem_id}")
             if n_dimensions:
                 filters.append(f"dims={n_dimensions}")
-            if success is not None:
-                filters.append(f"success={success}")
             filter_str = ", ".join(filters) if filters else "none"
             self.console.print(f"\n[dim]No graphs found matching filters: {filter_str}[/dim]\n")
             return
 
-        # Create results table
+        # v0.4.8: Removed Status column - quality judgment not in schema
         table = Table(title=f"Query Results ({len(records)} graphs)")
         table.add_column("ID", style="cyan", justify="right")
         table.add_column("Problem")
@@ -609,7 +603,6 @@ Iteration"""
         table.add_column("Pattern")
         table.add_column("Strategy")
         table.add_column("Objective", justify="right")
-        table.add_column("Status")
 
         for record in records:
             # Get dimensions from problem signature
@@ -627,10 +620,6 @@ Iteration"""
             if len(strategy_parts) > 3:
                 strategy += " ..."
 
-            # Status
-            status = "✓" if record.success else "✗"
-            status_style = "green" if record.success else "red"
-
             table.add_row(
                 str(record.graph_id),
                 str(record.problem_id),
@@ -638,27 +627,27 @@ Iteration"""
                 record.pattern,
                 strategy,
                 f"{record.final_objective:.4e}" if record.final_objective else "N/A",
-                f"[{status_style}]{status}[/{status_style}]",
             )
 
         self.console.print()
         self.console.print(table)
 
-        # Show summary insights
-        successful = [r for r in records if r.success]
-        if successful:
-            best = min(successful, key=lambda r: r.final_objective or float('inf'))
-            self.console.print()
-            self.console.print(f"[dim]Best successful: Graph #{best.graph_id} → {best.final_objective:.4e}[/dim]")
+        # Show best result (v0.4.8: compare by objective, not success flag)
+        if records:
+            valid_records = [r for r in records if r.final_objective is not None]
+            if valid_records:
+                best = min(valid_records, key=lambda r: r.final_objective)
+                self.console.print()
+                self.console.print(f"[dim]Best objective: Graph #{best.graph_id} → {best.final_objective:.4e}[/dim]")
 
-            # Show common patterns among successful graphs
+            # Show common patterns among graphs (v0.4.8: all graphs, not just "successful")
             patterns = {}
-            for r in successful:
+            for r in records:
                 p = r.pattern
                 patterns[p] = patterns.get(p, 0) + 1
             if patterns:
                 most_common = max(patterns.items(), key=lambda x: x[1])
-                self.console.print(f"[dim]Most common pattern: {most_common[0]} ({most_common[1]}/{len(successful)} successful)[/dim]")
+                self.console.print(f"[dim]Most common pattern: {most_common[0]} ({most_common[1]}/{len(records)} graphs)[/dim]")
 
         self.console.print()
 
@@ -725,7 +714,7 @@ Iteration"""
                 "pattern": record.pattern,
                 "total_evaluations": record.total_evaluations,
                 "total_wall_time": record.total_wall_time,
-                "success": record.success,
+                # v0.4.8: removed success field
             }
         }
 
@@ -737,7 +726,7 @@ Iteration"""
             self.console.print(f"  Nodes: {len(record.nodes)}")
             self.console.print(f"  Best objective: {obj_str}")
             self.console.print(f"  Evaluations: {record.total_evaluations}")
-            self.console.print(f"  Status: {'✓ Success' if record.success else '✗ Failed'}")
+            # v0.4.8: removed success status - quality judgment not in schema
             self.console.print()
 
         except Exception as e:

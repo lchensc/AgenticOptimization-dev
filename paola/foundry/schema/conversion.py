@@ -182,6 +182,7 @@ def split_graph(
     decisions = [d.to_dict() for d in graph.decisions]
 
     # Build GraphRecord (Tier 1)
+    # v0.4.8: Map status to completed bool, removed success field
     record = GraphRecord(
         graph_id=graph.graph_id,
         problem_id=graph.problem_id,
@@ -191,8 +192,7 @@ def split_graph(
         pattern=graph.detect_pattern(),
         edges=edge_summaries,
         nodes=node_summaries,
-        status=graph.status,
-        success=graph.success,
+        completed=(graph.status == "completed"),  # v0.4.8: status -> completed
         final_objective=graph.final_objective,
         final_x=list(graph.final_x) if graph.final_x else None,
         total_evaluations=graph.total_evaluations,

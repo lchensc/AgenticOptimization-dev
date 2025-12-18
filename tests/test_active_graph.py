@@ -130,19 +130,19 @@ class TestActiveGraph:
         """Test creating an active graph."""
         graph = ActiveGraph(
             graph_id=1,
-            problem_id="test_problem",
+            problem_id=999,
             goal="Minimize test function",
         )
 
         assert graph.graph_id == 1
-        assert graph.problem_id == "test_problem"
+        assert graph.problem_id == 999
         assert graph.goal == "Minimize test function"
         assert len(graph.nodes) == 0
         assert len(graph.edges) == 0
 
     def test_generate_node_id(self):
         """Test node ID generation."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
 
         assert graph._generate_node_id() == "n1"
         assert graph._generate_node_id() == "n2"
@@ -150,7 +150,7 @@ class TestActiveGraph:
 
     def test_start_node(self):
         """Test starting a node."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
         init = make_gradient_init([0.5])
 
         active_node = graph.start_node(
@@ -165,7 +165,7 @@ class TestActiveGraph:
 
     def test_start_node_while_active_raises(self):
         """Test that starting a node while another is active raises error."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
         init = make_gradient_init([0.5])
 
         graph.start_node(
@@ -183,7 +183,7 @@ class TestActiveGraph:
 
     def test_start_node_with_parent(self):
         """Test starting a node with a parent."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
         init = make_gradient_init([0.5])
 
         # Complete first node
@@ -211,7 +211,7 @@ class TestActiveGraph:
 
     def test_start_node_invalid_parent_raises(self):
         """Test that starting a node with invalid parent raises error."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
         init = make_gradient_init([0.5])
 
         with pytest.raises(ValueError, match="not found"):
@@ -225,7 +225,7 @@ class TestActiveGraph:
 
     def test_start_node_parent_without_edge_type_raises(self):
         """Test that starting with parent but no edge type raises error."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
         init = make_gradient_init([0.5])
 
         # Complete first node
@@ -248,7 +248,7 @@ class TestActiveGraph:
 
     def test_complete_node(self):
         """Test completing a node."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
         init = make_gradient_init([0.5])
 
         graph.start_node(
@@ -270,7 +270,7 @@ class TestActiveGraph:
 
     def test_complete_node_with_edge(self):
         """Test that completing a node with parent creates edge."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
         init = make_gradient_init([0.5])
         progress = make_gradient_progress()
         result = make_gradient_result()
@@ -297,7 +297,7 @@ class TestActiveGraph:
 
     def test_complete_no_active_node_raises(self):
         """Test that completing when no active node raises error."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
 
         progress = make_gradient_progress()
         result = make_gradient_result()
@@ -307,7 +307,7 @@ class TestActiveGraph:
 
     def test_record_decision(self):
         """Test recording a decision."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
 
         graph.record_decision(
             decision_type="start_node",
@@ -322,7 +322,7 @@ class TestActiveGraph:
 
     def test_get_best_node(self):
         """Test getting best node."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
         init = make_gradient_init([0.5])
         progress = make_gradient_progress()
         result = make_gradient_result()
@@ -343,7 +343,7 @@ class TestActiveGraph:
 
     def test_get_graph_state(self):
         """Test getting graph state."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
         init = make_gradient_init([0.5])
         progress = make_gradient_progress()
         result = make_gradient_result()
@@ -354,7 +354,7 @@ class TestActiveGraph:
         state = graph.get_graph_state()
 
         assert state["graph_id"] == 1
-        assert state["problem_id"] == "test"
+        assert state["problem_id"] == 1
         assert state["n_nodes"] == 1
         assert state["n_edges"] == 0
         assert len(state["nodes"]) == 1
@@ -363,7 +363,7 @@ class TestActiveGraph:
 
     def test_detect_pattern(self):
         """Test pattern detection."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
         init = make_gradient_init([0.5])
         progress = make_gradient_progress()
         result = make_gradient_result()
@@ -391,7 +391,7 @@ class TestActiveGraph:
         """Test finalizing graph."""
         graph = ActiveGraph(
             graph_id=1,
-            problem_id="test",
+            problem_id=1,
             goal="Test optimization",
         )
         init = make_gradient_init([0.5])
@@ -404,26 +404,26 @@ class TestActiveGraph:
         graph.current_node.record_iteration({"iteration": 0, "objective": 0.5, "x": [0.5]})
         graph.complete_node(progress, result, 0.3, [0.3])
 
-        final_graph = graph.finalize(success=True)
+        final_graph = graph.finalize()
 
         assert isinstance(final_graph, OptimizationGraph)
         assert final_graph.graph_id == 1
-        assert final_graph.problem_id == "test"
+        assert final_graph.problem_id == 1
         assert final_graph.goal == "Test optimization"
-        assert final_graph.success is True
+        assert final_graph.status == "completed"
         assert final_graph.final_objective == 0.3
         assert final_graph.final_x == [0.3]
         assert final_graph.total_evaluations == 1
 
     def test_finalize_with_active_node_raises(self):
         """Test that finalizing with active node raises error."""
-        graph = ActiveGraph(graph_id=1, problem_id="test")
+        graph = ActiveGraph(graph_id=1, problem_id=1)
         init = make_gradient_init([0.5])
 
         graph.start_node(optimizer="scipy:L-BFGS-B", config={}, initialization=init)
 
         with pytest.raises(RuntimeError, match="still active"):
-            graph.finalize(success=True)
+            graph.finalize()
 
 
 class TestFoundryGraphAPI:
@@ -442,17 +442,17 @@ class TestFoundryGraphAPI:
     def test_create_graph(self, temp_foundry):
         """Test creating a graph through foundry."""
         graph = temp_foundry.create_graph(
-            problem_id="test_problem",
+            problem_id=999,
             goal="Minimize test function",
         )
 
         assert graph.graph_id == 1
-        assert graph.problem_id == "test_problem"
+        assert graph.problem_id == 999
         assert graph.goal == "Minimize test function"
 
     def test_get_active_graph(self, temp_foundry):
         """Test getting active graph."""
-        graph = temp_foundry.create_graph(problem_id="test")
+        graph = temp_foundry.create_graph(problem_id=1)
 
         retrieved = temp_foundry.get_graph(graph.graph_id)
         assert retrieved is graph
@@ -460,7 +460,7 @@ class TestFoundryGraphAPI:
     def test_finalize_graph(self, temp_foundry):
         """Test finalizing graph through foundry."""
         graph = temp_foundry.create_graph(
-            problem_id="test",
+            problem_id=1,
             goal="Test optimization",
         )
         init = make_gradient_init([0.5])
@@ -470,23 +470,23 @@ class TestFoundryGraphAPI:
         graph.start_node(optimizer="scipy:L-BFGS-B", config={}, initialization=init)
         graph.complete_node(progress, result, 0.3, [0.3])
 
-        record = temp_foundry.finalize_graph(graph.graph_id, success=True)
+        record = temp_foundry.finalize_graph(graph.graph_id)
 
         assert record is not None
         assert record.graph_id == 1
-        assert record.success is True
+        assert record.status == "completed"
         assert temp_foundry.get_graph(graph.graph_id) is None
 
     def test_load_graph(self, temp_foundry):
         """Test loading finalized graph."""
-        graph = temp_foundry.create_graph(problem_id="test")
+        graph = temp_foundry.create_graph(problem_id=1)
         init = make_gradient_init([0.5])
         progress = make_gradient_progress()
         result = make_gradient_result()
 
         graph.start_node(optimizer="scipy:L-BFGS-B", config={}, initialization=init)
         graph.complete_node(progress, result, 0.3, [0.3])
-        temp_foundry.finalize_graph(graph.graph_id, success=True)
+        temp_foundry.finalize_graph(graph.graph_id)
 
         loaded = temp_foundry.load_graph(1)
         assert loaded is not None
@@ -495,37 +495,38 @@ class TestFoundryGraphAPI:
     def test_load_all_graphs(self, temp_foundry):
         """Test loading all graphs."""
         for i in range(3):
-            graph = temp_foundry.create_graph(problem_id=f"test_{i}")
+            graph = temp_foundry.create_graph(problem_id=200 + i)
             init = make_gradient_init([0.5])
             progress = make_gradient_progress()
             result = make_gradient_result()
 
             graph.start_node(optimizer="scipy:L-BFGS-B", config={}, initialization=init)
             graph.complete_node(progress, result, 0.1, [0.1])
-            temp_foundry.finalize_graph(graph.graph_id, success=True)
+            temp_foundry.finalize_graph(graph.graph_id)
 
         graphs = temp_foundry.load_all_graphs()
         assert len(graphs) == 3
 
     def test_query_graphs(self, temp_foundry):
         """Test querying graphs with filters."""
+        # Create graphs with different problem IDs
         for i in range(3):
-            graph = temp_foundry.create_graph(problem_id=f"rosenbrock_{i}")
+            graph = temp_foundry.create_graph(problem_id=100 + i)  # v0.4.8: int IDs
             init = make_gradient_init([0.5])
             progress = make_gradient_progress()
             result = make_gradient_result()
 
             graph.start_node(optimizer="scipy:L-BFGS-B", config={}, initialization=init)
             graph.complete_node(progress, result, 0.1, [0.1])
-            temp_foundry.finalize_graph(graph.graph_id, success=(i % 2 == 0))
+            temp_foundry.finalize_graph(graph.graph_id)
 
-        # Query with wildcard
-        all_rosenbrock = temp_foundry.query_graphs(problem_id="rosenbrock*")
-        assert len(all_rosenbrock) == 3
+        # Query all graphs
+        all_graphs = temp_foundry.query_graphs()
+        assert len(all_graphs) == 3
 
-        # Query successful only
-        successful = temp_foundry.query_graphs(success=True)
-        assert len(successful) == 2
+        # Query by exact problem_id (v0.4.8: exact int match, no patterns)
+        prob_100 = temp_foundry.query_graphs(problem_id=100)
+        assert len(prob_100) == 1
 
 
 class TestGraphStorage:
@@ -543,7 +544,7 @@ class TestGraphStorage:
         """Test saving and loading a graph."""
         graph = ActiveGraph(
             graph_id=1,
-            problem_id="test_problem",
+            problem_id=999,
             goal="Minimize test function",
         )
         init = make_gradient_init([0.5])
@@ -553,7 +554,7 @@ class TestGraphStorage:
         graph.start_node(optimizer="scipy:L-BFGS-B", config={}, initialization=init)
         graph.complete_node(progress, result, 0.3, [0.3])
 
-        final_graph = graph.finalize(success=True)
+        final_graph = graph.finalize()
 
         # Save
         temp_storage.save_graph(final_graph)
@@ -563,9 +564,9 @@ class TestGraphStorage:
 
         assert loaded is not None
         assert loaded.graph_id == 1
-        assert loaded.problem_id == "test_problem"
+        assert loaded.problem_id == 999
         assert loaded.goal == "Minimize test function"
-        assert loaded.success is True
+        assert loaded.status == "completed"
         assert len(loaded.nodes) == 1
         assert "n1" in loaded.nodes
 
@@ -580,7 +581,7 @@ class TestGraphStorage:
         for i in range(3):
             graph = ActiveGraph(
                 graph_id=i + 1,
-                problem_id=f"test_{i}",
+                problem_id=200 + i,
             )
             init = make_gradient_init([0.5])
             progress = make_gradient_progress()
@@ -589,7 +590,7 @@ class TestGraphStorage:
             graph.start_node(optimizer="scipy:L-BFGS-B", config={}, initialization=init)
             graph.complete_node(progress, result, 0.1, [0.1])
 
-            final_graph = graph.finalize(success=True)
+            final_graph = graph.finalize()
             temp_storage.save_graph(final_graph)
 
         # Load all
