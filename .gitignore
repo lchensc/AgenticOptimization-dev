@@ -104,7 +104,8 @@ context/
 claude_tasks/
 .claude/
 
-# PAOLA CLI files
+# PAOLA runtime data
+.paola_foundry/
 .paola_runs/
 .paola_data/
 .paola_history
