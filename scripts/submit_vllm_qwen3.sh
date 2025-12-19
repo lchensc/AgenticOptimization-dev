@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=vllm-qwen3
 #SBATCH --partition=gpuidle
-#SBATCH --gres=gpu:2
+#SBATCH --gres=gpu:h100:2
 #SBATCH --mem=128G
 #SBATCH --time=10-00:00:00
 #SBATCH --output=logs/vllm_server_%j.log
@@ -81,16 +81,17 @@ echo "Detected: $GPU_COUNT x $GPU_NAME with ${GPU_MEM}MiB each"
 # Calculate total GPU memory
 TOTAL_MEM=$((GPU_MEM * GPU_COUNT))
 
-# Qwen3-32B needs ~60GB. Adjust max_model_len based on available memory
+# Qwen3-32B needs ~60GB for weights. With YaRN factor=2.0, we can use 64K context.
+# Adjust max_model_len based on available memory
 if [ $TOTAL_MEM -ge 160000 ]; then
-    # 160GB+ (e.g., 2x A100/H100): Full context
-    MAX_MODEL_LEN=32768
+    # 160GB+ (e.g., 2x A100/H100): Extended context with YaRN
+    MAX_MODEL_LEN=65536
 elif [ $TOTAL_MEM -ge 80000 ]; then
-    # 80-160GB (e.g., 2x A40 or 1x A100): Medium context
-    MAX_MODEL_LEN=16384
+    # 80-160GB (e.g., 2x A40 or 1x A100): Native context
+    MAX_MODEL_LEN=40960
 else
     # <80GB (e.g., 2x V100): Reduced context
-    MAX_MODEL_LEN=8192
+    MAX_MODEL_LEN=16384
 fi
 
 echo "Total GPU memory: ${TOTAL_MEM}MiB"
