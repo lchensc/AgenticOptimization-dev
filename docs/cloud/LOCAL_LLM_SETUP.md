@@ -12,11 +12,13 @@ Running a local LLM provides:
 
 ## Available Models
 
-| Model | Location | Size | Context | Best For |
-|-------|----------|------|---------|----------|
-| Qwen3-32B | `/scratch/longchen/LLM/Qwen3-32B` | 59GB | 40K | General purpose |
-| DeepSeek-R1-Distill-Qwen-32B | `/scratch/longchen/LLM/DeepSeek-R1-Distill-Qwen-32B` | 45GB | 128K | Reasoning tasks |
-| DeepSeek-R1-Distill-Llama-70B | `/scratch/longchen/LLM/DeepSeek-R1-Distill-Llama-70B` | 140GB | 128K | Complex reasoning |
+| Model | Location | Size | Context | Tool Calling | Best For |
+|-------|----------|------|---------|--------------|----------|
+| Qwen3-32B | `/scratch/longchen/LLM/Qwen3-32B` | 59GB | 40K | ✅ Yes | **Paola / Agentic tasks** |
+| DeepSeek-R1-Distill-Qwen-32B | `/scratch/longchen/LLM/DeepSeek-R1-Distill-Qwen-32B` | 45GB | 128K | ❌ No | Reasoning only |
+| DeepSeek-R1-Distill-Llama-70B | `/scratch/longchen/LLM/DeepSeek-R1-Distill-Llama-70B` | 140GB | 128K | ❌ No | Reasoning only |
+
+> ⚠️ **Important**: DeepSeek-R1 models do NOT support tool/function calling. They are reasoning models trained for chain-of-thought thinking, not agentic tasks. **Use Qwen3-32B for Paola.**
 
 ## Quick Start
 
@@ -25,14 +27,8 @@ Running a local LLM provides:
 ```bash
 cd /scratch/longchen/AgenticOptimization-dev
 
-# For Qwen3-32B (2x H100)
+# For Qwen3-32B (2x H100) - RECOMMENDED FOR PAOLA
 sbatch scripts/submit_vllm_qwen3.sh
-
-# For DeepSeek-R1-Distill-Qwen-32B (2x H100)
-sbatch scripts/submit_vllm_deepseek_qwen32b.sh
-
-# For DeepSeek-R1-Distill-Llama-70B (16x V100 on DGX)
-sbatch scripts/submit_vllm_deepseek.sh
 ```
 
 ### Step 2: Check Job Status and Get Node
@@ -50,8 +46,6 @@ tail -f logs/vllm_server_<jobid>.log
 ```bash
 export VLLM_API_BASE=http://<node>:8000/v1
 python -m paola.cli --model vllm:qwen3-32b
-# or: python -m paola.cli --model vllm:deepseek-r1-qwen32b
-# or: python -m paola.cli --model vllm:deepseek-r1
 ```
 
 ---
@@ -63,8 +57,8 @@ Use Python with `huggingface_hub` for reliable downloads:
 ```python
 from huggingface_hub import hf_hub_download, list_repo_files
 
-repo_id = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B"
-local_dir = "/scratch/longchen/LLM/DeepSeek-R1-Distill-Qwen-32B"
+repo_id = "Qwen/Qwen3-32B"
+local_dir = "/scratch/longchen/LLM/Qwen3-32B"
 
 # List and download all files
 files = list_repo_files(repo_id)
@@ -83,20 +77,17 @@ for filename in files:
 
 ## vLLM Server Scripts
 
-| Script | Model | GPUs | Tool Parser |
-|--------|-------|------|-------------|
-| `submit_vllm_qwen3.sh` | Qwen3-32B | 2x H100 | hermes |
-| `submit_vllm_deepseek_qwen32b.sh` | DeepSeek-R1 Qwen 32B | 2x H100 | hermes |
-| `submit_vllm_deepseek.sh` | DeepSeek-R1 Llama 70B | 16x V100 | llama3_json |
+| Script | Model | GPUs | Tool Calling |
+|--------|-------|------|--------------|
+| `submit_vllm_qwen3.sh` | Qwen3-32B | 2x H100 | ✅ Yes (hermes parser) |
 
 ### Tool Calling Configuration
 
-| Model Base | Tool Parser | vLLM Flag |
-|------------|-------------|-----------|
-| Qwen-based | `hermes` | `--tool-call-parser hermes` |
-| Llama-based | `llama3_json` | `--tool-call-parser llama3_json` |
+Qwen3-32B uses the `hermes` tool parser:
 
-All servers enable tool calling with: `--enable-auto-tool-choice`
+```bash
+--enable-auto-tool-choice --tool-call-parser hermes
+```
 
 ---
 
@@ -116,8 +107,6 @@ Use the `vllm:` prefix to specify vLLM models:
 
 ```bash
 python -m paola.cli --model vllm:qwen3-32b
-python -m paola.cli --model vllm:deepseek-r1-qwen32b
-python -m paola.cli --model vllm:deepseek-r1
 ```
 
 ### Programmatic Usage
@@ -141,15 +130,12 @@ response = llm.invoke("Solve the optimization problem...")
 | Model | GPUs | Load Time |
 |-------|------|-----------|
 | Qwen3-32B | 2x H100 | ~5 min |
-| DeepSeek-R1 Qwen 32B | 2x H100 | ~30 min |
-| DeepSeek-R1 Llama 70B | 16x V100 | ~40 min |
 
 ### Hardware Requirements
 
 | Model | Min GPUs | VRAM |
 |-------|----------|------|
-| 32B models | 2x H100 | 160GB |
-| 70B model | 16x V100 | 512GB |
+| Qwen3-32B | 2x H100 | 160GB |
 
 ---
 
@@ -165,7 +151,7 @@ tail -f logs/vllm_server_<jobid>.log
 
 ### Model loading slow
 
-H100 nodes have faster NVMe. For V100, use DGX nodes (dgx001) for faster I/O.
+H100 nodes have faster NVMe for model loading.
 
 ---
 
@@ -174,6 +160,15 @@ H100 nodes have faster NVMe. For V100, use DGX nodes (dgx001) for faster I/O.
 | File | Purpose |
 |------|---------|
 | `scripts/submit_vllm_qwen3.sh` | Qwen3-32B on H100 |
-| `scripts/submit_vllm_deepseek_qwen32b.sh` | DeepSeek-R1 Qwen 32B on H100 |
-| `scripts/submit_vllm_deepseek.sh` | DeepSeek-R1 Llama 70B on V100 |
 | `paola/llm/models.py` | LLM initialization with vLLM support |
+
+---
+
+## Why Not DeepSeek-R1?
+
+DeepSeek-R1 models are **reasoning models** designed for chain-of-thought thinking. They output `<think>...</think>` reasoning blocks instead of structured tool calls.
+
+- GitHub Issue #51: Function calling marked as "not planned"
+- vLLM docs: "reasoning model doesn't support tool calling"
+
+For agentic tasks like Paola that require tool calling, use **Qwen3-32B** instead.

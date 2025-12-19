@@ -577,8 +577,6 @@ class AgenticOptREPL:
             ("claude-3-5-haiku-latest", "Claude 3.5 Haiku - fast ($0.80/$4)"),
             ("claude-sonnet-4-20250514", "Claude Sonnet 4 - balanced ($3/$15)"),
             ("vllm:qwen3-32b", "Qwen3-32B via vLLM (local, free)"),
-            ("vllm:deepseek-r1", "DeepSeek R1 Distill 70B via vLLM (local, free)"),
-            ("vllm:deepseek-r1-qwen32b", "DeepSeek R1 Distill Qwen 32B via vLLM (local, free)"),
         ]
 
         self.console.print("\n[bold cyan]Available LLM Models:[/bold cyan]\n")
