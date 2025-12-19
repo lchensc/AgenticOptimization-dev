@@ -544,8 +544,23 @@ class AgenticOptREPL:
         self.console.print(Panel(help_text, border_style="cyan", padding=(1, 2)))
 
     def _clear_conversation(self):
-        """Clear conversation history (like Claude Code /clear)."""
+        """Clear conversation history with usage summary."""
+        # Show stats before clearing
+        msg_count = len(self.conversation_history)
+        stats = self.token_tracker.get_session_stats()
+
+        if msg_count > 0:
+            self.console.print(
+                f"[dim]Clearing {msg_count} messages "
+                f"({stats.total_input_tokens:,} input tokens)[/dim]"
+            )
+
+        # Clear history
         self.conversation_history = []
+
+        # Reset token tracker for fresh session
+        self.token_tracker.reset()
+
         self.console.print("[dim]✓ Conversation cleared[/dim]\n")
 
     def _show_model_info(self):
@@ -561,6 +576,9 @@ class AgenticOptREPL:
             ("qwen-max", "Qwen Max - most capable ($1.2/$6)"),
             ("claude-3-5-haiku-latest", "Claude 3.5 Haiku - fast ($0.80/$4)"),
             ("claude-sonnet-4-20250514", "Claude Sonnet 4 - balanced ($3/$15)"),
+            ("vllm:qwen3-32b", "Qwen3-32B via vLLM (local, free)"),
+            ("vllm:deepseek-r1", "DeepSeek R1 Distill 70B via vLLM (local, free)"),
+            ("vllm:deepseek-r1-qwen32b", "DeepSeek R1 Distill Qwen 32B via vLLM (local, free)"),
         ]
 
         self.console.print("\n[bold cyan]Available LLM Models:[/bold cyan]\n")
