@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=vllm-qwen3
+#SBATCH --job-name=vllm-server
 #SBATCH --partition=gpuidle
 #SBATCH --gres=gpu:h100:2
 #SBATCH --mem=128G

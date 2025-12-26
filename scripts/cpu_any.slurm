@@ -1,0 +1,1 @@
+srun -N 1 --partition=epyc-256 --mem=8G --time=24:00:00 --pty /bin/bash

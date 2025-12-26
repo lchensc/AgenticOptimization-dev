@@ -251,8 +251,15 @@ class EvaluatorStorage:
             config_file = base_dir / "evaluators" / f"{evaluator_id}.json"
 
             if config_file.exists():
-                with open(config_file) as f:
-                    return json.load(f)
+                try:
+                    with open(config_file) as f:
+                        return json.load(f)
+                except json.JSONDecodeError as e:
+                    import logging
+                    logging.getLogger(__name__).warning(
+                        f"Corrupted evaluator file {evaluator_id}.json: {e}"
+                    )
+                    return None
 
         return None
 
@@ -266,10 +273,18 @@ class EvaluatorStorage:
 
             if evaluators_dir.exists():
                 for config_file in evaluators_dir.glob("*.json"):
-                    with open(config_file) as f:
-                        config_dict = json.load(f)
-                        config = EvaluatorConfig.from_dict(config_dict)
-                        configs.append(config)
+                    try:
+                        with open(config_file) as f:
+                            config_dict = json.load(f)
+                            config = EvaluatorConfig.from_dict(config_dict)
+                            configs.append(config)
+                    except (json.JSONDecodeError, ValueError, KeyError) as e:
+                        # Skip corrupted files but log warning
+                        import logging
+                        logging.getLogger(__name__).warning(
+                            f"Skipping corrupted evaluator file {config_file.name}: {e}"
+                        )
+                        continue
 
         return configs
 
