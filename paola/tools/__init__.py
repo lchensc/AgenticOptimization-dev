@@ -1,24 +1,24 @@
 """
 Agent tools for Paola.
 
-Provides LangChain @tool decorated functions for:
-- Graph management (start_graph, get_graph_state, finalize_graph, query_past_graphs)
-- Optimization execution (run_optimization, get_problem_info, list_available_optimizers)
-- Analysis (analyze_convergence, analyze_efficiency, get_all_metrics, analyze_run_with_ai)
-- Evaluator management (foundry_list_evaluators, foundry_get_evaluator)
-- Cache operations (cache_get, cache_store, cache_clear, cache_stats)
-
-Note: Expert configuration is now handled via Skills infrastructure (paola.skills).
-
-v0.4.5: Added Pydantic validation schemas for type-safe tool arguments.
+Organized into logical modules:
+- problem.py: Problem formulation (create_nlp_problem, derive_problem, list_problems)
+- evaluator.py: Evaluator registration (foundry_store_evaluator, foundry_list_evaluators)
+- evaluator_tools.py: Function evaluation (evaluate_function, compute_gradient)
+- optimization_tools.py: Optimization execution (run_optimization, get_problem_info)
+- graph_tools.py: Graph management (start_graph, get_graph_state, finalize_graph)
+- observation_tools.py: Analysis tools (analyze_convergence, detect_pattern)
+- file_tools.py: File operations (read_file, write_file, execute_python)
+- cache_tools.py: Cache operations (cache_get, cache_store, cache_clear)
 """
 
-# Pydantic schemas for tool validation (v0.4.5)
+# Pydantic schemas for tool validation
 from paola.tools.schemas import (
     normalize_problem_id,
     ProblemIdType,
 )
 
+# Cache tools
 from paola.tools.cache_tools import (
     cache_get,
     cache_store,
@@ -32,13 +32,14 @@ from paola.tools.cache_agent_tools import (
     run_db_query,
 )
 
-# Optimization tools (LLM-driven architecture)
+# Optimization tools
 from paola.tools.optimization_tools import (
     run_optimization,
     get_problem_info,
     list_available_optimizers,
 )
 
+# Function evaluation tools
 from paola.tools.evaluator_tools import (
     evaluate_function,
     compute_gradient,
@@ -46,13 +47,17 @@ from paola.tools.evaluator_tools import (
     register_problem,
     clear_problem_registry,
     get_problem_by_id,
-    # Problem management (v0.4.3+)
+)
+
+# Problem formulation tools
+from paola.tools.problem import (
     create_nlp_problem,
     derive_problem,
     list_problems,
     get_problem_lineage,
 )
 
+# Observation tools
 from paola.tools.observation_tools import (
     analyze_convergence,
     detect_pattern,
@@ -61,16 +66,26 @@ from paola.tools.observation_tools import (
     compute_improvement_statistics,
 )
 
-from paola.tools.registration_tools import (
-    read_file,
-    execute_python,
+# Evaluator registration tools
+from paola.tools.evaluator import (
     foundry_store_evaluator,
     foundry_list_evaluators,
     foundry_get_evaluator,
+)
+
+# File operation tools
+from paola.tools.file_tools import (
+    read_file,
+    write_file,
+    execute_python,
+)
+
+# Backward compatibility - re-export from registration_tools
+from paola.tools.registration_tools import (
     ALL_REGISTRATION_TOOLS,
 )
 
-# Graph management tools (v0.3.x)
+# Graph management tools
 from paola.tools.graph_tools import (
     start_graph,
     get_graph_state,
@@ -82,7 +97,7 @@ from paola.tools.graph_tools import (
 )
 
 __all__ = [
-    # Pydantic schemas (v0.4.5)
+    # Pydantic schemas
     "normalize_problem_id",
     "ProblemIdType",
     # Cache tools
@@ -92,18 +107,18 @@ __all__ = [
     "cache_stats",
     "run_db_log",
     "run_db_query",
-    # Optimization tools (LLM-driven architecture)
+    # Optimization tools
     "run_optimization",
     "get_problem_info",
     "list_available_optimizers",
-    # Evaluator tools
+    # Function evaluation tools
     "evaluate_function",
     "compute_gradient",
     "create_benchmark_problem",
     "register_problem",
     "clear_problem_registry",
     "get_problem_by_id",
-    # Problem management (v0.4.3+)
+    # Problem formulation tools
     "create_nlp_problem",
     "derive_problem",
     "list_problems",
@@ -114,14 +129,17 @@ __all__ = [
     "check_feasibility",
     "get_gradient_quality",
     "compute_improvement_statistics",
-    # Registration tools
-    "read_file",
-    "execute_python",
+    # Evaluator registration tools
     "foundry_store_evaluator",
     "foundry_list_evaluators",
     "foundry_get_evaluator",
+    # File operation tools
+    "read_file",
+    "write_file",
+    "execute_python",
+    # Backward compatibility
     "ALL_REGISTRATION_TOOLS",
-    # Graph management tools (v0.3.x)
+    # Graph management tools
     "start_graph",
     "get_graph_state",
     "finalize_graph",

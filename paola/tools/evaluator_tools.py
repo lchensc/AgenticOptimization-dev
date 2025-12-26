@@ -1,12 +1,16 @@
 """
-Evaluator tools for the agentic optimization platform.
+Evaluator tools for function evaluation.
 
-Provides LangChain @tool decorated functions for function evaluation:
+Tools for function evaluation:
 - evaluate_function: Evaluate objective and constraints (with automatic caching)
 - compute_gradient: Compute gradients (analytical or finite-difference)
+- create_benchmark_problem: Create built-in benchmark problems
 
-v0.4.6: Single source of truth - all problem access via Foundry
-v0.4.5: Added Pydantic validation for problem_id (handles str/int coercion)
+Internal utilities:
+- _get_problem: Get problem evaluator from Foundry
+- register_problem: Register problem evaluator (deprecated)
+- clear_problem_registry: Clear problem cache
+- get_problem_by_id: Get problem by ID
 """
 
 from typing import Optional, Dict, Any, List, Union
@@ -20,8 +24,6 @@ from paola.tools.schemas import (
     ProblemIdType,
     EvaluateFunctionArgs,
     ComputeGradientArgs,
-    GetProblemByIdArgs,
-    DeriveProblemArgs,
 )
 from paola.backends.analytical import get_analytical_function
 
@@ -87,40 +89,19 @@ def evaluate_function(
     compute_constraints: bool = False,
 ) -> Dict[str, Any]:
     """
-    Evaluate objective function (and optionally constraints) at a design point.
-
-    This tool automatically checks the evaluation cache first. If the design
-    has been evaluated before (within tolerance), returns cached result instantly.
-    Otherwise, performs evaluation and stores result in cache.
-
-    IMPORTANT: Engineering simulations are 10,000× more expensive than optimizer
-    iterations (~$500 vs $0.05). Always use caching unless you have a specific
-    reason not to.
+    Evaluate objective function at a design point.
 
     Args:
-        problem_id: Problem identifier (int or str, auto-normalized)
+        problem_id: Problem identifier (int or str)
         design: Design vector to evaluate
-        use_cache: If True, check cache before evaluation (default: True)
-        compute_constraints: If True, also evaluate constraints (default: False)
+        use_cache: Check cache before evaluation (default: True)
+        compute_constraints: Also evaluate constraints (default: False)
 
     Returns:
-        Dict with:
-            - success: bool
-            - objective: float - objective function value
-            - constraints: Optional[Dict[str, float]] - constraint values (if requested)
-            - cost: float - computational cost (0 if cache hit)
-            - cache_hit: bool - whether result came from cache
-            - evaluation_time: float - time spent evaluating (seconds)
-            - message: str
+        success, objective, constraints, cost, cache_hit, evaluation_time
 
     Example:
-        result = evaluate_function(
-            problem_id=1,  # or "1" - both work
-            design=[-1.0, 1.0],
-            use_cache=True
-        )
-        objective = result["objective"]
-        was_cached = result["cache_hit"]
+        evaluate_function(problem_id=1, design=[-1.0, 1.0])
     """
     try:
         # Normalize problem_id (handles str/int from LLM)
@@ -132,7 +113,7 @@ def evaluate_function(
             if cached is not None:
                 return {
                     "success": True,
-                    "objective": cached["objectives"][0],  # Single objective for now
+                    "objective": cached["objectives"][0],
                     "constraints": cached.get("constraints"),
                     "cost": 0.0,
                     "cache_hit": True,
@@ -148,7 +129,6 @@ def evaluate_function(
         start_time = time.time()
 
         if hasattr(problem, "evaluate"):
-            # Analytical function
             objective = float(problem.evaluate(design_array))
         else:
             raise ValueError(f"Problem '{problem_id}' doesn't have evaluate() method")
@@ -156,14 +136,10 @@ def evaluate_function(
         # Evaluate constraints if requested
         constraints_dict = None
         if compute_constraints and hasattr(problem, "evaluate_constraint"):
-            # For now, assume single constraint
             c_val = float(problem.evaluate_constraint(design_array))
             constraints_dict = {"c1": c_val}
 
         eval_time = time.time() - start_time
-
-        # Determine cost (for analytical functions, use symbolic cost)
-        # In real engineering problems, this would be actual computational cost
         cost = 1.0  # 1 unit for analytical evaluation
 
         # Store in cache
@@ -172,7 +148,7 @@ def evaluate_function(
                 design=design,
                 problem_id=problem_id,
                 objectives=[objective],
-                gradient=None,  # Stored separately by compute_gradient
+                gradient=None,
                 constraints=constraints_dict,
                 cost=cost,
             )
@@ -205,39 +181,18 @@ def compute_gradient(
     """
     Compute gradient of objective function.
 
-    Supports multiple gradient computation methods:
-    - "analytical": Use analytical derivatives (fastest, most accurate if available)
-    - "finite-difference": Use finite-difference approximation (slower, more robust)
-
-    Like evaluate_function, this tool uses caching to avoid recomputing expensive
-    gradients (especially important for adjoint methods in CFD/FEA).
-
     Args:
-        problem_id: Problem identifier (int or str, auto-normalized)
+        problem_id: Problem identifier (int or str)
         design: Design vector
-        method: Gradient method - "analytical" or "finite-difference"
-        use_cache: If True, check cache before computation (default: True)
+        method: "analytical" or "finite-difference"
+        use_cache: Check cache before computation (default: True)
         fd_step: Step size for finite-difference (default: 1e-6)
 
     Returns:
-        Dict with:
-            - success: bool
-            - gradient: List[float] - gradient vector
-            - gradient_norm: float - L2 norm of gradient
-            - cost: float - computational cost
-            - cache_hit: bool
-            - method_used: str
-            - evaluation_time: float
-            - message: str
+        success, gradient, gradient_norm, cost, cache_hit, method_used
 
     Example:
-        result = compute_gradient(
-            problem_id=1,  # or "1" - both work
-            design=[-1.0, 1.0],
-            method="analytical"
-        )
-        gradient = result["gradient"]
-        grad_norm = result["gradient_norm"]
+        compute_gradient(problem_id=1, design=[-1.0, 1.0], method="analytical")
     """
     try:
         # Normalize problem_id (handles str/int from LLM)
@@ -302,13 +257,12 @@ def compute_gradient(
 
         # Determine cost
         if method == "analytical":
-            cost = 1.5  # Analytical gradient costs ~1.5× function evaluation for analytical functions
+            cost = 1.5
         else:  # finite-difference
-            cost = 2 * len(design_array)  # 2n function evaluations
+            cost = 2 * len(design_array)
 
         # Update cache with gradient
         if use_cache:
-            # Get cached objective or compute it
             cached = cache_get(design=design, problem_id=problem_id)
             if cached is not None:
                 objective = cached["objectives"][0]
@@ -316,9 +270,8 @@ def compute_gradient(
             else:
                 objective = float(problem.evaluate(design_array))
                 constraints = None
-                cost += 1.0  # Add cost of objective evaluation
+                cost += 1.0
 
-            # Store with gradient
             cache_store(
                 design=design,
                 problem_id=problem_id,
@@ -353,52 +306,22 @@ def create_benchmark_problem(
     dimension: Optional[int] = None,
 ) -> Dict[str, Any]:
     """
-    Create and register a built-in analytical benchmark problem.
-
-    IMPORTANT: Only use this if no suitable evaluator is registered in Foundry.
-    Always check foundry_list_evaluators first and prefer create_nlp_problem
-    with registered evaluators.
-
-    Available benchmark functions:
-    - "rosenbrock": Classic Rosenbrock function with narrow curved valley
-      Global minimum: f(1,1,...,1) = 0
-      Recommended bounds: [-5, 10] for each dimension
-    - "sphere": Simple quadratic bowl, easy to optimize
-      Global minimum: f(0,0,...,0) = 0
-      Recommended bounds: [-5, 5] for each dimension
-    - "constrained_rosenbrock": 2D Rosenbrock with circular constraint
-      Constrained minimum: f(0.786, 0.618) ≈ 0.046
-      Fixed at 2D, dimension parameter ignored
+    Create built-in analytical benchmark problem.
 
     Args:
-        problem_id: Unique identifier for this problem (e.g., "rosenbrock_10d")
-        function_name: Benchmark function name (case-insensitive)
-        dimension: Problem dimensionality (default: 2). Ignored for constrained_rosenbrock.
+        problem_id: Unique identifier (e.g., "rosenbrock_10d")
+        function_name: "rosenbrock", "sphere", or "constrained_rosenbrock"
+        dimension: Problem dimensionality (default: 2)
 
     Returns:
-        Dict with:
-            - success: bool
-            - problem_id: str - identifier to use in other tools
-            - function_name: str
-            - dimension: int
-            - global_optimum: Dict with x_opt and f_opt
-            - message: str
+        success, problem_id, function_name, dimension, global_optimum
 
     Example:
-        # Agent receives: "Solve 10D Rosenbrock problem"
-        # Agent calls:
-        result = create_benchmark_problem(
-            problem_id="rosenbrock_10d",
-            function_name="rosenbrock",
-            dimension=10
-        )
-        # Returns: {"success": True, "problem_id": "rosenbrock_10d", ...}
-        # Now agent can use "rosenbrock_10d" with run_scipy_optimization
+        create_benchmark_problem("rosenbrock_10d", "rosenbrock", 10)
     """
     try:
         from paola.tools.graph_tools import get_foundry
 
-        # Use global Foundry (single source of truth - v0.4.6)
         foundry = get_foundry()
         if foundry is None:
             return {
@@ -406,8 +329,6 @@ def create_benchmark_problem(
                 "message": "Foundry not initialized. CLI should call set_foundry() at startup.",
             }
 
-        # Check if problem_id already exists (string IDs for benchmark problems)
-        # Note: benchmark problems use string IDs, not numeric
         if problem_id in foundry._problem_cache:
             return {
                 "success": False,
@@ -418,7 +339,7 @@ def create_benchmark_problem(
         # Create analytical function
         problem = get_analytical_function(name=function_name, dimension=dimension)
 
-        # Register in Foundry's cache (benchmark problems are memory-only, not persisted)
+        # Register in Foundry's cache
         foundry._problem_cache[problem_id] = problem
 
         # Get optimum info
@@ -437,7 +358,6 @@ def create_benchmark_problem(
         }
 
     except ValueError as e:
-        # Invalid function name
         return {
             "success": False,
             "message": str(e),
@@ -475,473 +395,3 @@ def get_problem_by_id(problem_id: ProblemIdType) -> Optional[Any]:
     if foundry is None:
         return None
     return foundry.get_problem_evaluator(key)
-
-
-@tool
-def create_nlp_problem(
-    name: str,
-    objective_evaluator_id: str,
-    bounds: Any,  # Accept both explicit list OR compact BoundsSpec dict
-    objective_sense: str = "minimize",
-    inequality_constraints: Optional[List[Dict[str, Any]]] = None,
-    equality_constraints: Optional[List[Dict[str, Any]]] = None,
-    domain_hint: Optional[str] = None,
-    description: Optional[str] = None
-) -> Dict[str, Any]:
-    """
-    Create NLP optimization problem.
-
-    Args:
-        name: Problem name
-        objective_evaluator_id: Registered evaluator ID for objective f(x)
-        bounds: [[lo, hi], ...] or {"type": "uniform", "lower": lo, "upper": hi, "dimension": n}
-        objective_sense: "minimize" or "maximize"
-        inequality_constraints: [{"name": str, "evaluator_id": str, "type": ">=" or "<=", "value": float}]
-        equality_constraints: [{"name": str, "evaluator_id": str, "value": float}]
-        domain_hint: "shape_optimization" or "general"
-        description: Problem description
-
-    Example:
-        # Constrained optimization (register constraint evaluator first)
-        create_nlp_problem(
-            name="Portfolio",
-            objective_evaluator_id="sharpe_eval",
-            bounds=[[0, 1], [0, 1], [0, 1], [0, 1], [0, 1]],
-            inequality_constraints=[
-                {"name": "min_bonds", "evaluator_id": "bond_constraint", "type": ">=", "value": 0.0}
-            ]
-        )
-    """
-    try:
-        from paola.foundry import (
-            NLPProblem,
-            InequalityConstraint,
-            EqualityConstraint,
-            NLPEvaluator,
-            SolverSelector,
-        )
-        from paola.tools.graph_tools import get_foundry
-
-        # Use global Foundry (single source of truth - v0.4.6)
-        foundry = get_foundry()
-        if foundry is None:
-            return {
-                "success": False,
-                "message": "Foundry not initialized. CLI should call set_foundry() at startup.",
-            }
-
-        # Get next numeric problem_id (v0.4.3)
-        problem_id = foundry.storage.get_next_problem_id()
-
-        # Verify objective evaluator exists
-        try:
-            foundry.get_evaluator_config(objective_evaluator_id)
-        except KeyError:
-            available = foundry.list_evaluators()
-            return {
-                "success": False,
-                "message": (
-                    f"Objective evaluator '{objective_evaluator_id}' not found in Foundry.\n"
-                    f"Available evaluators: {[e['evaluator_id'] for e in available]}\n"
-                    f"Use foundry_list_evaluators to see all registered evaluators."
-                )
-            }
-
-        # Parse inequality constraints
-        ineq_constraints_objs = []
-        if inequality_constraints:
-            for cons_dict in inequality_constraints:
-                # Verify constraint evaluator exists
-                cons_eval_id = cons_dict["evaluator_id"]
-                try:
-                    foundry.get_evaluator_config(cons_eval_id)
-                except KeyError:
-                    return {
-                        "success": False,
-                        "message": f"Constraint evaluator '{cons_eval_id}' not found in Foundry."
-                    }
-
-                ineq_constraints_objs.append(InequalityConstraint(
-                    name=cons_dict["name"],
-                    evaluator_id=cons_dict["evaluator_id"],
-                    constraint_type=cons_dict["type"],
-                    value=float(cons_dict["value"])
-                ))
-
-        # Parse equality constraints
-        eq_constraints_objs = []
-        if equality_constraints:
-            for cons_dict in equality_constraints:
-                # Verify constraint evaluator exists
-                cons_eval_id = cons_dict["evaluator_id"]
-                try:
-                    foundry.get_evaluator_config(cons_eval_id)
-                except KeyError:
-                    return {
-                        "success": False,
-                        "message": f"Constraint evaluator '{cons_eval_id}' not found in Foundry."
-                    }
-
-                eq_constraints_objs.append(EqualityConstraint(
-                    name=cons_dict["name"],
-                    evaluator_id=cons_dict["evaluator_id"],
-                    value=float(cons_dict["value"]),
-                    tolerance=cons_dict.get("tolerance", 1e-6)
-                ))
-
-        # Parse bounds - support both compact format (dict) and explicit list
-        from paola.foundry.bounds_spec import parse_bounds_input
-
-        if isinstance(bounds, dict):
-            # Compact format: {"type": "uniform", "lower": -5, "upper": 10, "dimension": 50}
-            bounds_spec = parse_bounds_input(bounds)
-            explicit_bounds = bounds_spec.expand()
-            dimension = bounds_spec.get_dimension()
-        elif isinstance(bounds, list):
-            # Explicit format: [[-5, 10], [-5, 10], ...]
-            explicit_bounds = bounds
-            dimension = len(bounds)
-        else:
-            return {
-                "success": False,
-                "message": (
-                    f"Invalid bounds format. Expected dict (compact) or list (explicit).\n"
-                    f"Compact format: {{'type': 'uniform', 'lower': -5, 'upper': 10, 'dimension': 50}}\n"
-                    f"Explicit format: [[-5, 10], [-5, 10], ...]"
-                )
-            }
-
-        # Create NLPProblem specification (v0.4.3 - uses numeric IDs)
-        # Note: initial_point is NOT specified - Paola computes it automatically
-        # based on domain_hint, algorithm, and run history (The Paola Principle)
-        nlp_problem = NLPProblem(
-            problem_id=problem_id,  # Numeric ID
-            name=name,  # Human-readable name
-            n_variables=dimension,
-            n_constraints=0,  # Will be computed in __post_init__
-            objective_evaluator_id=objective_evaluator_id,
-            objective_sense=objective_sense,
-            bounds=explicit_bounds,
-            inequality_constraints=ineq_constraints_objs,
-            equality_constraints=eq_constraints_objs,
-            description=description or name,
-            domain_hint=domain_hint,
-            bounds_spec=bounds if isinstance(bounds, dict) else None
-        )
-
-        # Create NLPEvaluator (composite evaluator)
-        nlp_evaluator = NLPEvaluator.from_problem(nlp_problem, foundry)
-
-        # Register problem atomically (storage + cache) - v0.4.6 single source of truth
-        foundry.register_problem_evaluator(nlp_problem, nlp_evaluator)
-
-        # Recommend solvers
-        has_constraints = nlp_problem.is_constrained
-        recommended_solvers = SolverSelector.recommend_solver(
-            problem_type="NLP",
-            gradient_available=True,  # FoundryEvaluator always supports gradients
-            has_constraints=has_constraints
-        )
-
-        # Build message with domain hint if provided
-        hint_msg = f"  Domain hint: {domain_hint}\n" if domain_hint else ""
-
-        return {
-            "success": True,
-            "problem_id": problem_id,  # Numeric ID
-            "name": name,  # Human-readable name
-            "problem_type": "NLP",
-            "dimension": dimension,
-            "num_inequality_constraints": nlp_problem.num_inequality_constraints,
-            "num_equality_constraints": nlp_problem.num_equality_constraints,
-            "evaluators_used": nlp_problem.get_all_evaluator_ids(),
-            "recommended_solvers": recommended_solvers,
-            "domain_hint": domain_hint,
-            "message": (
-                f"Created NLP problem #{problem_id} '{name}':\n"
-                f"  Objective: {objective_sense} {objective_evaluator_id}\n"
-                f"  Dimension: {dimension}\n"
-                f"{hint_msg}"
-                f"  Inequality constraints: {nlp_problem.num_inequality_constraints}\n"
-                f"  Equality constraints: {nlp_problem.num_equality_constraints}\n"
-                f"  Recommended solvers: {', '.join(recommended_solvers[:2])}\n"
-                f"  Note: Initial point will be computed by Paola based on domain and algorithm"
-            )
-        }
-
-    except Exception as e:
-        import traceback
-        return {
-            "success": False,
-            "message": f"Error creating NLP problem: {str(e)}\n{traceback.format_exc()}",
-        }
-
-
-@tool(args_schema=DeriveProblemArgs)
-def derive_problem(
-    parent_problem_id: ProblemIdType,
-    derivation_type: str,
-    modifications: str,  # JSON string
-    new_name: Optional[str] = None,
-    reason: Optional[str] = None,
-    source_graph_id: Optional[int] = None,
-    source_node_id: Optional[str] = None,
-) -> Dict[str, Any]:
-    """
-    Derive new problem from existing one.
-
-    Args:
-        parent_problem_id: Problem ID to derive from
-        derivation_type: "narrow_bounds" or "widen_bounds"
-        modifications: JSON with parameters, e.g. '{"center": [...], "width_factor": 0.3}'
-        new_name: Name for derived problem
-        reason: Why this derivation
-        source_graph_id: Graph that motivated derivation
-        source_node_id: Node that motivated derivation
-
-    Returns:
-        success, problem_id, parent_problem_id
-
-    Example:
-        derive_problem(1, "narrow_bounds", '{"center": [1.2, 3.4], "width_factor": 0.3}')
-    """
-    try:
-        # Normalize problem_id (handles str/int from LLM)
-        parent_problem_id = normalize_problem_id(parent_problem_id)
-        import json as json_module
-        from paola.foundry.nlp_schema import NLPProblem
-        from paola.foundry.nlp_evaluator import NLPEvaluator
-        from paola.tools.graph_tools import get_foundry
-
-        # Use global Foundry (single source of truth - v0.4.6)
-        foundry = get_foundry()
-        if foundry is None:
-            return {
-                "success": False,
-                "message": "Foundry not initialized. CLI should call set_foundry() at startup.",
-            }
-
-        # Parse modifications
-        try:
-            mods = json_module.loads(modifications)
-        except json_module.JSONDecodeError as e:
-            return {
-                "success": False,
-                "message": f"Invalid JSON in modifications: {e}"
-            }
-
-        # Load parent problem from Foundry storage
-        parent = foundry.storage.load_problem(parent_problem_id)
-
-        if parent is None:
-            return {
-                "success": False,
-                "message": f"Parent problem #{parent_problem_id} not found in storage."
-            }
-
-        # Check that it's an NLPProblem
-        if not isinstance(parent, NLPProblem):
-            return {
-                "success": False,
-                "message": f"Parent problem #{parent_problem_id} is not an NLPProblem. "
-                           f"Derivation only supported for NLP problems currently."
-            }
-
-        # Get next numeric ID for derived problem (v0.4.3)
-        new_problem_id = foundry.storage.get_next_problem_id()
-
-        # Generate name if not provided
-        derived_name = new_name or f"{parent.name} ({derivation_type})"
-
-        # Apply derivation
-        if derivation_type == "narrow_bounds":
-            center = mods.get("center")
-            if center is None:
-                return {
-                    "success": False,
-                    "message": "narrow_bounds derivation requires 'center' in modifications"
-                }
-            width_factor = mods.get("width_factor", 0.3)
-
-            derived = parent.derive_narrow_bounds(
-                new_problem_id=new_problem_id,
-                new_name=derived_name,
-                center=center,
-                width_factor=width_factor,
-                reason=reason,
-                source_graph_id=source_graph_id,
-                source_node_id=source_node_id,
-            )
-
-        elif derivation_type == "widen_bounds":
-            width_factor = mods.get("width_factor", 1.5)
-
-            derived = parent.derive_widen_bounds(
-                new_problem_id=new_problem_id,
-                new_name=derived_name,
-                width_factor=width_factor,
-                reason=reason,
-            )
-
-        else:
-            return {
-                "success": False,
-                "message": f"Unknown derivation_type: {derivation_type}. "
-                           f"Supported: narrow_bounds, widen_bounds"
-            }
-
-        # Create NLPEvaluator and register atomically (v0.4.6 single source of truth)
-        nlp_evaluator = NLPEvaluator.from_problem(derived, foundry)
-        foundry.register_problem_evaluator(derived, nlp_evaluator)
-
-        return {
-            "success": True,
-            "problem_id": derived.problem_id,
-            "name": derived.name,
-            "parent_problem_id": derived.parent_problem_id,
-            "derivation_type": derived.derivation_type,
-            "n_variables": derived.n_variables,
-            "version": derived.version,
-            "message": (
-                f"Derived problem #{derived.problem_id} '{derived.name}' from #{parent_problem_id}:\n"
-                f"  Derivation: {derivation_type}\n"
-                f"  Variables: {derived.n_variables}\n"
-                f"  Version: {derived.version}\n"
-                f"  Reason: {reason or 'Not specified'}"
-            )
-        }
-
-    except Exception as e:
-        import traceback
-        return {
-            "success": False,
-            "message": f"Error deriving problem: {str(e)}\n{traceback.format_exc()}",
-        }
-
-
-@tool
-def list_problems(
-    problem_type: Optional[str] = None,
-    show_derived: bool = True,
-) -> Dict[str, Any]:
-    """
-    List all registered optimization problems.
-
-    Shows problems stored in Paola with their metadata and lineage info.
-
-    Args:
-        problem_type: Filter by type ("NLP", "LP", etc.). None for all.
-        show_derived: Include derived problems (default: True)
-
-    Returns:
-        Dict with:
-            - success: bool
-            - problems: List of problem summaries
-            - count: int
-
-    Example:
-        # List all NLP problems
-        result = list_problems(problem_type="NLP")
-
-        # List only root problems (no derived)
-        result = list_problems(show_derived=False)
-    """
-    try:
-        from paola.tools.graph_tools import get_foundry
-
-        # Use global Foundry (single source of truth - v0.4.6)
-        foundry = get_foundry()
-        if foundry is None:
-            return {
-                "success": False,
-                "message": "Foundry not initialized. CLI should call set_foundry() at startup.",
-            }
-
-        problems = foundry.storage.list_problems(
-            problem_type=problem_type,
-            show_derived=show_derived
-        )
-
-        return {
-            "success": True,
-            "problems": problems,
-            "count": len(problems),
-            "message": f"Found {len(problems)} problem(s)"
-        }
-
-    except Exception as e:
-        import traceback
-        return {
-            "success": False,
-            "message": f"Error listing problems: {str(e)}\n{traceback.format_exc()}",
-        }
-
-
-@tool
-def get_problem_lineage(problem_id: int) -> Dict[str, Any]:
-    """
-    Get the derivation lineage of a problem.
-
-    Shows the chain of derivations from root problem to this one,
-    including which graphs used each version.
-
-    Args:
-        problem_id: Numeric problem ID to trace lineage for
-
-    Returns:
-        Dict with:
-            - success: bool
-            - problem_id: int
-            - lineage: List[Dict] - Chain from root to this problem
-            - children: List[int] - Direct children of this problem
-
-    Example:
-        # Trace how problem #3 was derived
-        result = get_problem_lineage(3)
-        for p in result["lineage"]:
-            print(f"#{p['problem_id']} {p['name']} ({p.get('derivation_type', 'root')})")
-    """
-    try:
-        from paola.tools.graph_tools import get_foundry
-
-        # Use global Foundry (single source of truth - v0.4.6)
-        foundry = get_foundry()
-        if foundry is None:
-            return {
-                "success": False,
-                "message": "Foundry not initialized. CLI should call set_foundry() at startup.",
-            }
-
-        # Get lineage
-        lineage = foundry.storage.get_problem_lineage(problem_id)
-        if not lineage:
-            return {
-                "success": False,
-                "message": f"Problem #{problem_id} not found in storage."
-            }
-
-        # Get children
-        children = foundry.storage.get_problem_children(problem_id)
-
-        # Build chain string
-        chain_parts = [f"#{p['problem_id']}" for p in lineage]
-        chain_str = ' -> '.join(chain_parts)
-
-        return {
-            "success": True,
-            "problem_id": problem_id,
-            "lineage": lineage,
-            "children": children,
-            "message": (
-                f"Lineage for problem #{problem_id}:\n"
-                f"  Chain: {chain_str}\n"
-                f"  Children: {children if children else 'None'}"
-            )
-        }
-
-    except Exception as e:
-        import traceback
-        return {
-            "success": False,
-            "message": f"Error getting lineage: {str(e)}\n{traceback.format_exc()}",
-        }
