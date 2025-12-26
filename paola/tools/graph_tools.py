@@ -51,36 +51,17 @@ def start_graph(
     goal: str = "",
 ) -> Dict[str, Any]:
     """
-    Start a new optimization graph.
-
-    Must be called before any optimization. Creates a graph to track
-    the optimization process. The returned graph_id must be passed
-    to run_optimization.
+    Start optimization graph.
 
     Args:
-        problem_id: Numeric problem ID (from create_nlp_problem)
-        goal: Natural language description of optimization goal
+        problem_id: Problem ID from create_nlp_problem
+        goal: Description of optimization goal
 
     Returns:
-        Dict with:
-            - success: bool
-            - graph_id: int - Use this in run_optimization
-            - problem_id: int
-            - message: str
+        success, graph_id, problem_id
 
     Example:
-        result = start_graph(
-            problem_id=1,
-            goal="Minimize Rosenbrock function with multi-start strategy"
-        )
-        # Returns: {"success": True, "graph_id": 1, ...}
-
-        # Then run optimization
-        result = run_optimization(
-            graph_id=1,
-            optimizer="scipy:L-BFGS-B",
-            init_strategy="random"
-        )
+        start_graph(problem_id=1, goal="Minimize cost")
     """
     try:
         if _FOUNDRY is None:

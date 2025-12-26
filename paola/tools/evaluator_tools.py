@@ -489,63 +489,27 @@ def create_nlp_problem(
     description: Optional[str] = None
 ) -> Dict[str, Any]:
     """
-    Create Nonlinear Programming (NLP) problem from registered Foundry evaluators.
-
-    IMPORTANT - BOUNDS SPECIFICATION:
-    For problems with more than 5 variables, use COMPACT bounds format (not explicit arrays):
-
-    Compact format (REQUIRED for large problems):
-        {"type": "uniform", "lower": -5, "upper": 10, "dimension": 50}
-
-    Explicit format (only for small problems, <=5 variables):
-        [[-5, 10], [-5, 10]]
-
-    DO NOT use Python syntax like "[[-5, 10] for _ in range(50)]" - this is invalid JSON!
+    Create NLP optimization problem.
 
     Args:
-        name: Human-readable problem name (e.g., "Wing Design Optimization")
-        objective_evaluator_id: Evaluator ID for objective function f(x)
-        bounds: Variable bounds - use ONE of these formats:
-            - Compact (RECOMMENDED): {"type": "uniform", "lower": -5, "upper": 10, "dimension": 50}
-            - Grouped: {"type": "grouped", "groups": {"x": {"lower": 0, "upper": 1, "count": 30}, "y": {"lower": -1, "upper": 1, "count": 20}}}
-            - Explicit (small problems only): [[-5, 10], [-5, 10], [-5, 10]]
-        objective_sense: "minimize" or "maximize" (default: "minimize")
-        inequality_constraints: List of constraint specs:
-            [{"name": "c1", "evaluator_id": "eval_id", "type": "<=", "value": 100}]
-        equality_constraints: List of equality constraint specs:
-            [{"name": "eq1", "evaluator_id": "eval_id", "value": 0.0}]
-        domain_hint: Hint for initialization strategy:
-            - "shape_optimization": Initialize at zero (baseline geometry)
-            - "general": Initialize at center of bounds (default)
-        description: Human-readable problem description
+        name: Problem name
+        objective_evaluator_id: Registered evaluator ID for objective f(x)
+        bounds: [[lo, hi], ...] or {"type": "uniform", "lower": lo, "upper": hi, "dimension": n}
+        objective_sense: "minimize" or "maximize"
+        inequality_constraints: [{"name": str, "evaluator_id": str, "type": ">=" or "<=", "value": float}]
+        equality_constraints: [{"name": str, "evaluator_id": str, "value": float}]
+        domain_hint: "shape_optimization" or "general"
+        description: Problem description
 
-    Returns:
-        Dict with success, problem_id, dimension, etc.
-
-    Examples:
-        # 50-dimensional problem - use compact bounds
+    Example:
+        # Constrained optimization (register constraint evaluator first)
         create_nlp_problem(
-            problem_id="high_dim_problem",
-            objective_evaluator_id="rosenbrock_eval",
-            bounds={"type": "uniform", "lower": -5, "upper": 10, "dimension": 50}
-        )
-
-        # Small 2D problem - explicit bounds OK
-        create_nlp_problem(
-            problem_id="rosenbrock_2d",
-            objective_evaluator_id="rosenbrock_eval",
-            bounds=[[-5, 10], [-5, 10]]
-        )
-
-        # Grouped bounds for mixed variable types
-        create_nlp_problem(
-            problem_id="wing_design",
-            objective_evaluator_id="drag_eval",
-            bounds={"type": "grouped", "groups": {
-                "shape": {"lower": -0.05, "upper": 0.05, "count": 40},
-                "twist": {"lower": -15, "upper": 15, "count": 10}
-            }},
-            domain_hint="shape_optimization"
+            name="Portfolio",
+            objective_evaluator_id="sharpe_eval",
+            bounds=[[0, 1], [0, 1], [0, 1], [0, 1], [0, 1]],
+            inequality_constraints=[
+                {"name": "min_bonds", "evaluator_id": "bond_constraint", "type": ">=", "value": 0.0}
+            ]
         )
     """
     try:
@@ -724,43 +688,22 @@ def derive_problem(
     source_node_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    Derive a new problem from an existing one with modifications.
-
-    Use this to adapt search space based on optimization results.
-    The derived problem maintains lineage to the parent.
+    Derive new problem from existing one.
 
     Args:
-        parent_problem_id: Problem ID to derive from (int or str, auto-normalized)
-        derivation_type: Type of derivation:
-            - "narrow_bounds" - Shrink bounds around a region
-            - "widen_bounds" - Expand search space
-        modifications: JSON string with derivation-specific parameters:
-            narrow_bounds: {"center": [...], "width_factor": 0.3}
-            widen_bounds: {"width_factor": 1.5}
-        new_name: Optional name for derived problem (auto-generated if not provided)
-        reason: Why this derivation was needed
-        source_graph_id: Graph that motivated this derivation
-        source_node_id: Node that motivated this derivation
+        parent_problem_id: Problem ID to derive from
+        derivation_type: "narrow_bounds" or "widen_bounds"
+        modifications: JSON with parameters, e.g. '{"center": [...], "width_factor": 0.3}'
+        new_name: Name for derived problem
+        reason: Why this derivation
+        source_graph_id: Graph that motivated derivation
+        source_node_id: Node that motivated derivation
 
     Returns:
-        Dict with:
-            - success: bool
-            - problem_id: int (new derived problem ID)
-            - parent_problem_id: int
-            - derivation_type: str
-            - n_variables: int
-            - message: str
+        success, problem_id, parent_problem_id
 
-    Example (narrow bounds after global search):
-        # After TPE finds promising region at x=[1.2, 3.4, 5.6]
-        derive_problem(
-            parent_problem_id=1,  # or "1" - both work
-            derivation_type="narrow_bounds",
-            modifications='{"center": [1.2, 3.4, 5.6], "width_factor": 0.3}',
-            reason="Focus on region found by TPE in graph #42",
-            source_graph_id=42,
-            source_node_id="n1"
-        )
+    Example:
+        derive_problem(1, "narrow_bounds", '{"center": [1.2, 3.4], "width_factor": 0.3}')
     """
     try:
         # Normalize problem_id (handles str/int from LLM)

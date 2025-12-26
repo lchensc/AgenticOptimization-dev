@@ -68,99 +68,24 @@ def run_optimization(
     problem_id: Optional[ProblemIdType] = None,
 ) -> Dict[str, Any]:
     """
-    Execute optimization within a graph, creating a new node.
-
-    The LLM decides which optimizer and configuration to use based on:
-    - Problem characteristics (from get_problem_info)
-    - Available backends (from list_optimizers)
-    - Current graph state (from get_graph_state)
-    - Paola's learned knowledge of optimization algorithms
+    Run optimization, creating a new node in the graph.
 
     Args:
-        graph_id: Graph ID from start_graph (required)
-        optimizer: Backend specification:
-            - "scipy:SLSQP" - SciPy Sequential Least Squares
-            - "scipy:L-BFGS-B" - SciPy L-BFGS-B
-            - "scipy:trust-constr" - SciPy trust-constr
-            - "ipopt" - IPOPT interior-point optimizer
-            - "optuna:TPE" - Optuna Tree-structured Parzen Estimator
-        config: JSON string with optimizer-specific options.
-            SciPy: '{"ftol": 1e-6, "gtol": 1e-5}'
-            IPOPT: '{"tol": 1e-6, "mu_strategy": "adaptive"}'
-            Optuna: '{"n_trials": 100, "seed": 42}'
+        graph_id: Graph ID from start_graph
+        optimizer: "scipy:SLSQP", "scipy:L-BFGS-B", "scipy:trust-constr", "ipopt", "optuna:TPE"
+        config: JSON string with optimizer options
         max_iterations: Maximum iterations (default: 100)
-        init_strategy: Initialization strategy:
-            - "center" - center of bounds (default)
-            - "random" - random point within bounds
-            - "warm_start" - use parent_node's best solution (requires parent_node)
-        parent_node: Node ID to continue from (e.g., "n1", "n2")
-            Required if init_strategy="warm_start"
-        edge_type: Relationship type if parent_node specified:
-            - "warm_start" - Use parent's best x as starting point
-            - "restart" - Same config as parent, new random start
-            - "refine" - Local refinement from parent's solution
-            - "branch" - Explore different direction from parent
-            - "explore" - Global exploration seeded by parent
-        problem_id: Override the graph's default problem. Use this when
-            running on a derived problem (e.g., narrowed bounds).
-            If not specified, uses the graph's problem_id.
+        init_strategy: "center", "random", or "warm_start"
+        parent_node: Node ID to continue from (e.g., "n1")
+        edge_type: "warm_start", "refine", "branch", "explore"
+        problem_id: Override graph's problem (for derived problems)
 
     Returns:
-        Dict with:
-            success: bool
-            message: str
-            node_id: str - ID of created node (e.g., "n1", "n2")
-            best_x: List[float] - Best solution found
-            best_objective: float - Best objective value
-            optimizer_used: str
-            optimizer_family: str
-            n_iterations: int
-            n_evaluations: int
-            elapsed_time: float
-            parent_node: str or None
-            problem_id: str - Problem used (may differ from graph's default)
+        success, node_id, best_x, best_objective, n_evaluations, elapsed_time
 
-    Example (fresh start):
-        # First start a graph
-        start_graph(problem_id="rosenbrock_10d", goal="Minimize")
-
-        # Run with random initialization
-        run_optimization(
-            graph_id=1,
-            optimizer="scipy:L-BFGS-B",
-            init_strategy="random"
-        )
-
-    Example (warm-start from previous node):
-        # Check graph state
-        state = get_graph_state(graph_id=1)
-        # Agent sees: n1 has best_objective=0.08
-
-        # Warm-start from n1
-        run_optimization(
-            graph_id=1,
-            optimizer="scipy:SLSQP",
-            parent_node="n1",
-            edge_type="warm_start"
-        )
-
-    Example (run on derived problem with narrowed bounds):
-        # After TPE finds promising region, derive narrowed problem
-        derive_problem(
-            parent_problem_id="rosenbrock_10d",
-            derivation_type="narrow_bounds",
-            modifications='{"center": [1.2, 3.4], "width_factor": 0.3}'
-        )
-        # Returns: problem_id="rosenbrock_10d_v2"
-
-        # Run gradient optimizer on derived problem
-        run_optimization(
-            graph_id=1,
-            optimizer="scipy:SLSQP",
-            problem_id="rosenbrock_10d_v2",  # Override with derived problem
-            parent_node="n1",
-            edge_type="refine"
-        )
+    Example:
+        run_optimization(graph_id=1, optimizer="scipy:SLSQP")
+        run_optimization(graph_id=1, optimizer="scipy:L-BFGS-B", parent_node="n1", edge_type="warm_start")
     """
     from .evaluator_tools import _get_problem
     from .graph_tools import _FOUNDRY

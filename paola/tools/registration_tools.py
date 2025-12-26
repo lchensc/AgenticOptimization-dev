@@ -138,30 +138,21 @@ def foundry_store_evaluator(
     description: str = None
 ) -> Dict[str, Any]:
     """
-    Register Python function evaluator in Foundry.
-
-    This stores metadata about your evaluator so it can be used in optimization problems.
-    The evaluator file must exist and contain the specified callable.
+    Register evaluator function in Foundry.
 
     Args:
-        evaluator_id: Unique ID (e.g., "rosenbrock_eval")
-        name: Human-readable name (e.g., "Rosenbrock 2D Function")
-        file_path: Absolute path to .py file (e.g., ".paola_data/evaluators/rosenbrock.py")
-        callable_name: Function name to call (default: "evaluate")
-        description: Optional description of what this evaluator does
-
-    Returns:
-        {"success": True, "evaluator_id": "...", "message": "..."}
-        {"success": False, "error": "..."}
+        evaluator_id: Unique ID
+        name: Human-readable name
+        file_path: Path to .py file
+        callable_name: Function name (default: "evaluate")
+        description: Description
 
     Example:
-        foundry_store_evaluator(
-            evaluator_id="rosenbrock_eval",
-            name="Rosenbrock 2D",
-            file_path=".paola_data/evaluators/rosenbrock.py",
-            callable_name="evaluate",
-            description="2D Rosenbrock function with minimum at (1, 1)"
-        )
+        # Register objective
+        foundry_store_evaluator("sharpe_eval", "Sharpe Ratio", "portfolio.py", "evaluate")
+
+        # Register constraint function
+        foundry_store_evaluator("bond_constraint", "Min Bonds", "portfolio.py", "constraint_min_bonds")
     """
     try:
         from paola.foundry import (
