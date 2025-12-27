@@ -1,29 +1,62 @@
 """
-Optimizer wrappers for the agentic optimization platform.
+Optimizer backends for the agentic optimization platform.
 
-Provides run-to-completion backends: SciPyBackend, IPOPTBackend, OptunaBackend
+Provides a modular architecture for optimization backends:
+- base.py: OptimizerBackend abstract base class
+- result.py: OptimizationResult (single + multi-objective)
+- wrapper.py: ObjectiveWrapper, GradientWrapper utilities
+- registry.py: Backend registration and lookup
+- backends/: Individual backend implementations
+
+Usage:
+    from paola.optimizers import get_backend, list_backends
+
+    backend = get_backend("scipy")
+    result = backend.optimize(objective, bounds, x0, config)
 """
 
-# Run-to-completion backends (LLM-driven architecture)
-from paola.optimizers.backends import (
-    OptimizerBackend,
-    OptimizationResult,
-    SciPyBackend,
-    IPOPTBackend,
-    OptunaBackend,
+# Core abstractions
+from paola.optimizers.base import OptimizerBackend
+from paola.optimizers.result import OptimizationResult
+from paola.optimizers.wrapper import (
+    ObjectiveWrapper,
+    GradientWrapper,
+    MultiObjectiveWrapper,
+)
+
+# Registry functions
+from paola.optimizers.registry import (
     get_backend,
     list_backends,
     get_available_backends,
+    register_backend,
+    get_registry,
+    BackendRegistry,
+)
+
+# Backend implementations
+from paola.optimizers.backends import (
+    SciPyBackend,
+    IPOPTBackend,
+    OptunaBackend,
 )
 
 __all__ = [
-    # Backends (LLM-driven)
+    # Core abstractions
     "OptimizerBackend",
     "OptimizationResult",
-    "SciPyBackend",
-    "IPOPTBackend",
-    "OptunaBackend",
+    "ObjectiveWrapper",
+    "GradientWrapper",
+    "MultiObjectiveWrapper",
+    # Registry
     "get_backend",
     "list_backends",
     "get_available_backends",
+    "register_backend",
+    "get_registry",
+    "BackendRegistry",
+    # Backends
+    "SciPyBackend",
+    "IPOPTBackend",
+    "OptunaBackend",
 ]

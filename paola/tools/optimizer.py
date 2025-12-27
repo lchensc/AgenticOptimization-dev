@@ -27,7 +27,7 @@ import time
 import logging
 import json
 
-from ..optimizers.backends import (
+from ..optimizers import (
     get_backend,
     list_backends,
     get_available_backends,
