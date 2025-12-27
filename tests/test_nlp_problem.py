@@ -20,8 +20,9 @@ from paola.foundry.nlp_evaluator import NLPEvaluator
 from paola.foundry.problem_types import ProblemTypeDetector, SolverSelector
 from paola.foundry import OptimizationFoundry, FileStorage
 from paola.foundry.evaluator_schema import create_python_function_config
-from paola.tools.evaluator_tools import create_nlp_problem, clear_problem_registry
-from paola.tools.graph_tools import set_foundry
+from paola.tools.problem import create_nlp_problem
+from paola.tools.evaluation import clear_problem_registry
+from paola.tools.graph import set_foundry
 
 
 class TestNLPSchema:

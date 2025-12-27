@@ -4,12 +4,12 @@ Agent tools for Paola.
 Organized into logical modules:
 - problem.py: Problem formulation (create_nlp_problem, derive_problem, list_problems)
 - evaluator.py: Evaluator registration (foundry_store_evaluator, foundry_list_evaluators)
-- evaluator_tools.py: Function evaluation (evaluate_function, compute_gradient)
-- optimization_tools.py: Optimization execution (run_optimization, get_problem_info)
-- graph_tools.py: Graph management (start_graph, get_graph_state, finalize_graph)
-- observation_tools.py: Analysis tools (analyze_convergence, detect_pattern)
+- evaluation.py: Function evaluation (evaluate_function, compute_gradient)
+- optimizer.py: Optimization execution (run_optimization, get_problem_info)
+- graph.py: Graph management (start_graph, get_graph_state, finalize_graph)
+- analysis.py: Analysis tools (analyze_convergence, detect_pattern)
 - file_tools.py: File operations (read_file, write_file, execute_python)
-- cache_tools.py: Cache operations (cache_get, cache_store, cache_clear)
+- cache.py: Cache operations (cache_get, cache_store, cache_clear)
 """
 
 # Pydantic schemas for tool validation
@@ -19,28 +19,24 @@ from paola.tools.schemas import (
 )
 
 # Cache tools
-from paola.tools.cache_tools import (
+from paola.tools.cache import (
     cache_get,
     cache_store,
-    run_db_log,
-)
-
-# LangChain-wrapped cache tools for agent use
-from paola.tools.cache_agent_tools import (
     cache_clear,
     cache_stats,
+    run_db_log,
     run_db_query,
 )
 
 # Optimization tools
-from paola.tools.optimization_tools import (
+from paola.tools.optimizer import (
     run_optimization,
     get_problem_info,
     list_available_optimizers,
 )
 
 # Function evaluation tools
-from paola.tools.evaluator_tools import (
+from paola.tools.evaluation import (
     evaluate_function,
     compute_gradient,
     create_benchmark_problem,
@@ -58,7 +54,7 @@ from paola.tools.problem import (
 )
 
 # Observation tools
-from paola.tools.observation_tools import (
+from paola.tools.analysis import (
     analyze_convergence,
     detect_pattern,
     check_feasibility,
@@ -86,7 +82,7 @@ from paola.tools.registration_tools import (
 )
 
 # Graph management tools
-from paola.tools.graph_tools import (
+from paola.tools.graph import (
     start_graph,
     get_graph_state,
     finalize_graph,

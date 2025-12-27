@@ -18,7 +18,7 @@ import numpy as np
 from langchain_core.tools import tool
 import time
 
-from paola.tools.cache_tools import cache_get, cache_store
+from paola.tools.cache import cache_get, cache_store
 from paola.tools.schemas import (
     normalize_problem_id,
     ProblemIdType,
@@ -40,7 +40,7 @@ def _get_problem(problem_id: ProblemIdType) -> Any:
     Raises:
         ValueError: If problem not found in storage
     """
-    from paola.tools.graph_tools import get_foundry
+    from paola.tools.graph import get_foundry
 
     key = normalize_problem_id(problem_id)
     foundry = get_foundry()
@@ -71,7 +71,7 @@ def register_problem(problem_id: ProblemIdType, problem: Any) -> None:
         problem_id: Problem ID (str or int, normalized to int)
         problem: Problem evaluator (NLPEvaluator or similar)
     """
-    from paola.tools.graph_tools import get_foundry
+    from paola.tools.graph import get_foundry
 
     key = normalize_problem_id(problem_id)
     foundry = get_foundry()
@@ -320,7 +320,7 @@ def create_benchmark_problem(
         create_benchmark_problem("rosenbrock_10d", "rosenbrock", 10)
     """
     try:
-        from paola.tools.graph_tools import get_foundry
+        from paola.tools.graph import get_foundry
 
         foundry = get_foundry()
         if foundry is None:
@@ -372,7 +372,7 @@ def create_benchmark_problem(
 # Utility functions
 def clear_problem_registry():
     """Clear problem evaluator cache in Foundry."""
-    from paola.tools.graph_tools import get_foundry
+    from paola.tools.graph import get_foundry
 
     foundry = get_foundry()
     if foundry is not None:
@@ -388,7 +388,7 @@ def get_problem_by_id(problem_id: ProblemIdType) -> Optional[Any]:
     Returns:
         Problem evaluator or None if not found
     """
-    from paola.tools.graph_tools import get_foundry
+    from paola.tools.graph import get_foundry
 
     key = normalize_problem_id(problem_id)
     foundry = get_foundry()

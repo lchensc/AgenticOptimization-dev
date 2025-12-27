@@ -3,6 +3,8 @@ Cache and provenance tools for evaluation efficiency.
 
 Critical for preventing re-evaluation during line searches and population duplicates.
 Engineering simulations: 10,000× more expensive than optimizer iterations.
+
+Provides both core functions (for internal use) and LangChain-wrapped tools (for agent use).
 """
 
 from typing import Optional
@@ -13,6 +15,7 @@ import json
 import hashlib
 import logging
 from datetime import datetime
+from langchain_core.tools import tool
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +46,10 @@ def _design_to_key(design: list[float], problem_id: str, tolerance: float = 1e-9
     key_hash = hashlib.md5(f"{problem_id}:{design_str}".encode()).hexdigest()
     return key_hash
 
+
+# =============================================================================
+# CORE CACHE FUNCTIONS (for internal use)
+# =============================================================================
 
 def cache_get(
     design: list[float],
@@ -154,9 +161,9 @@ def cache_store(
     }
 
 
-def cache_clear(problem_id: Optional[str] = None) -> dict:
+def _cache_clear_internal(problem_id: Optional[str] = None) -> dict:
     """
-    Clear evaluation cache.
+    Clear evaluation cache (internal function).
 
     Args:
         problem_id: If specified, only clear cache for this problem.
@@ -186,9 +193,9 @@ def cache_clear(problem_id: Optional[str] = None) -> dict:
         return {"cleared": True, "entries_removed": len(to_remove)}
 
 
-def cache_stats() -> dict:
+def _cache_stats_internal() -> dict:
     """
-    Get cache statistics.
+    Get cache statistics (internal function).
 
     Returns:
         {
@@ -338,9 +345,9 @@ def _init_run_database(db_path: str = ":memory:") -> None:
     logger.info(f"Initialized run database: {db_path}")
 
 
-def run_db_query(optimizer_id: str, limit: Optional[int] = None) -> list[dict]:
+def _run_db_query_internal(optimizer_id: str, limit: Optional[int] = None) -> list[dict]:
     """
-    Query run database.
+    Query run database (internal function).
 
     Args:
         optimizer_id: Optimizer ID to query
@@ -388,3 +395,94 @@ def run_db_query(optimizer_id: str, limit: Optional[int] = None) -> list[dict]:
         })
 
     return entries
+
+
+# =============================================================================
+# LANGCHAIN-WRAPPED TOOLS (for agent use)
+# =============================================================================
+
+@tool
+def cache_stats() -> dict:
+    """
+    Get evaluation cache statistics.
+
+    Shows how many simulation results are cached and estimated cost savings.
+    Use this to monitor cache effectiveness during optimization.
+
+    Returns:
+        {
+            "total_entries": 145,           # Number of cached evaluations
+            "total_cost_saved": 72.5,       # Estimated CPU hours saved
+            "hit_rate": 0.0                 # Cache hit rate (TODO: implement tracking)
+        }
+
+    Example:
+        Check cache status:
+        cache_stats()
+    """
+    return _cache_stats_internal()
+
+
+@tool
+def cache_clear(problem_id: Optional[str] = None) -> dict:
+    """
+    Clear evaluation cache.
+
+    Use when:
+    - Problem formulation changes (invalidates cached results)
+    - Starting completely new optimization
+    - Cache grows too large
+
+    Args:
+        problem_id: If specified, only clear cache for this problem.
+                   If None, clear entire cache.
+
+    Returns:
+        {"cleared": True, "entries_removed": 145}
+
+    Example:
+        Clear entire cache:
+        cache_clear()
+
+        Clear for specific problem:
+        cache_clear(problem_id="prob_001")
+    """
+    return _cache_clear_internal(problem_id)
+
+
+@tool
+def run_db_query(optimizer_id: str, limit: Optional[int] = None) -> list[dict]:
+    """
+    Query optimization run database.
+
+    Retrieves history of evaluations, adaptations, and decisions
+    for a specific optimization run.
+
+    Use when:
+    - Analyzing optimization trajectory
+    - Debugging convergence issues
+    - Understanding past decisions
+
+    Args:
+        optimizer_id: Optimizer instance ID to query
+        limit: Maximum number of entries to return (most recent first)
+
+    Returns:
+        List of log entries with design, objectives, and reasoning.
+        Each entry: {
+            "id": 12,
+            "optimizer_id": "opt_001",
+            "iteration": 10,
+            "design": [1.0, 2.0, ...],
+            "objectives": [0.0245],
+            "action": "evaluate",
+            "reasoning": "Proposed by SLSQP line search",
+            "metadata": {...},
+            "timestamp": "2025-12-10T10:30:00"
+        }
+
+    Example:
+        Get last 10 entries for current optimizer:
+        run_db_query(optimizer_id="opt_001", limit=10)
+    """
+    return _run_db_query_internal(optimizer_id, limit)

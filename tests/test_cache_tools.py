@@ -3,13 +3,13 @@ Tests for cache tools.
 """
 
 import pytest
-from paola.tools.cache_tools import (
+from paola.tools.cache import (
     cache_get,
     cache_store,
     cache_clear,
     cache_stats,
     run_db_log,
-    run_db_query
+    _run_db_query_internal as run_db_query
 )
 
 

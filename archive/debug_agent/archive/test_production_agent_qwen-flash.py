@@ -8,8 +8,8 @@ Same goal, same tools, same verbose output format.
 import logging
 from paola.agent.react_agent import build_optimization_agent
 from paola.tools.optimizer_tools import run_scipy_optimization
-from paola.tools.evaluator_tools import create_benchmark_problem
-from paola.tools.observation_tools import analyze_convergence
+from paola.tools.evaluation import create_benchmark_problem
+from paola.tools.analysis import analyze_convergence
 from paola.callbacks import CallbackManager, RichConsoleCallback
 from langchain_core.messages import HumanMessage
 

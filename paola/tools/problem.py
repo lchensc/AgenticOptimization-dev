@@ -61,7 +61,7 @@ def create_nlp_problem(
             NLPEvaluator,
             SolverSelector,
         )
-        from paola.tools.graph_tools import get_foundry
+        from paola.tools.graph import get_foundry
 
         # Use global Foundry (single source of truth - v0.4.6)
         foundry = get_foundry()
@@ -250,7 +250,7 @@ def derive_problem(
         import json as json_module
         from paola.foundry.nlp_schema import NLPProblem
         from paola.foundry.nlp_evaluator import NLPEvaluator
-        from paola.tools.graph_tools import get_foundry
+        from paola.tools.graph import get_foundry
 
         # Use global Foundry (single source of truth - v0.4.6)
         foundry = get_foundry()
@@ -377,7 +377,7 @@ def list_problems(
         list_problems(problem_type="NLP")
     """
     try:
-        from paola.tools.graph_tools import get_foundry
+        from paola.tools.graph import get_foundry
 
         foundry = get_foundry()
         if foundry is None:
@@ -421,7 +421,7 @@ def get_problem_lineage(problem_id: int) -> Dict[str, Any]:
         get_problem_lineage(3)
     """
     try:
-        from paola.tools.graph_tools import get_foundry
+        from paola.tools.graph import get_foundry
 
         foundry = get_foundry()
         if foundry is None:

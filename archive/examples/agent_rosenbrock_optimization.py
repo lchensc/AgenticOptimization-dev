@@ -26,7 +26,7 @@ load_dotenv()
 from paola import Agent
 from paola.backends.analytical import Rosenbrock
 from paola.tools import register_problem, clear_problem_registry, clear_optimizer_registry
-from paola.tools.cache_tools import cache_clear
+from paola.tools.cache import cache_clear
 
 
 def run_agent_optimization():

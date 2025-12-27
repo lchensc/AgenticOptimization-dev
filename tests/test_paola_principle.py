@@ -313,9 +313,9 @@ class TestCreateNLPProblemCompactBounds:
         """Setup a test evaluator and foundry."""
         import os
         from paola.foundry import OptimizationFoundry, FileStorage
-        from paola.tools.graph_tools import set_foundry
+        from paola.tools.graph import set_foundry
         from paola.tools.registration_tools import write_file, foundry_store_evaluator
-        from paola.tools.evaluator_tools import clear_problem_registry
+        from paola.tools.evaluation import clear_problem_registry
 
         # Clear any existing problems
         clear_problem_registry()
@@ -352,7 +352,7 @@ def evaluate(x):
 
     def test_uniform_compact_bounds(self):
         """Test create_nlp_problem with uniform compact bounds."""
-        from paola.tools.evaluator_tools import create_nlp_problem
+        from paola.tools.problem import create_nlp_problem
 
         result = create_nlp_problem.invoke({
             "name": "Uniform Test",
@@ -365,7 +365,7 @@ def evaluate(x):
 
     def test_grouped_compact_bounds(self):
         """Test create_nlp_problem with grouped compact bounds."""
-        from paola.tools.evaluator_tools import create_nlp_problem, clear_problem_registry
+        from paola.tools.problem import create_nlp_problem, clear_problem_registry
 
         clear_problem_registry()
 
@@ -388,7 +388,7 @@ def evaluate(x):
 
     def test_explicit_bounds_backward_compatible(self):
         """Test create_nlp_problem still accepts explicit bounds."""
-        from paola.tools.evaluator_tools import create_nlp_problem, clear_problem_registry
+        from paola.tools.problem import create_nlp_problem, clear_problem_registry
 
         clear_problem_registry()
 
