@@ -108,6 +108,21 @@ from .cmaes import (
     CMAESResult,
 )
 
+# Evolutionary family (pymoo GA, DE, PSO, ES)
+from .evolutionary import (
+    EvolutionaryInitialization,
+    EvolutionaryProgress,
+    EvolutionaryResult,
+)
+
+# Multi-objective family (NSGA-II, NSGA-III, MOEA/D)
+from .multiobjective import (
+    MultiObjectiveInitialization,
+    MOGeneration,
+    MultiObjectiveProgress,
+    MultiObjectiveResult,
+)
+
 # Registry
 from .registry import (
     OptimizerFamilySchema,
@@ -164,6 +179,15 @@ __all__ = [
     "CMAESGeneration",
     "CMAESProgress",
     "CMAESResult",
+    # Evolutionary (pymoo)
+    "EvolutionaryInitialization",
+    "EvolutionaryProgress",
+    "EvolutionaryResult",
+    # Multi-objective (pymoo)
+    "MultiObjectiveInitialization",
+    "MOGeneration",
+    "MultiObjectiveProgress",
+    "MultiObjectiveResult",
     # Registry
     "OptimizerFamilySchema",
     "ComponentRegistry",

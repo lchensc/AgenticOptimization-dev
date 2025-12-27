@@ -1,0 +1,426 @@
+# pymoo Optimizer Options Reference
+# Based on pymoo v0.6.1 documentation
+# Format: Each algorithm is a category with its options directly listed
+
+# =============================================================================
+# COMMON OPTIONS (Apply to all algorithms)
+# =============================================================================
+
+common:
+  pop_size:
+    type: int
+    default: 100
+    description: >
+      Population size. Larger populations explore more but require more
+      evaluations per generation.
+    when_to_adjust: >
+      Increase to 200-500 for complex landscapes. Decrease to 20-50 for
+      expensive function evaluations.
+    range: [10, 1000]
+
+  n_gen:
+    type: int
+    default: 100
+    description: Maximum number of generations.
+    when_to_adjust: >
+      Increase for complex problems. Monitor convergence to avoid waste.
+
+  seed:
+    type: int
+    default: null
+    description: Random seed for reproducibility.
+
+  verbose:
+    type: bool
+    default: false
+    description: Print progress during optimization.
+
+  n_offsprings:
+    type: int
+    default: null
+    description: >
+      Number of offspring per generation. If null, equals pop_size.
+    when_to_adjust: >
+      Set lower than pop_size for steady-state algorithms.
+
+# =============================================================================
+# TERMINATION OPTIONS
+# =============================================================================
+
+termination:
+  n_max_gen:
+    type: int
+    default: 100
+    description: Maximum number of generations.
+
+  n_max_evals:
+    type: int
+    default: null
+    description: Maximum number of function evaluations.
+
+  time:
+    type: str or float
+    default: null
+    description: >
+      Time limit. Can be seconds (float) or string like "01:30:00" (HH:MM:SS).
+
+  ftol:
+    type: float
+    default: 1e-6
+    description: >
+      Tolerance for change in objective function value.
+      Triggers early termination when progress stalls.
+
+  xtol:
+    type: float
+    default: 1e-6
+    description: >
+      Tolerance for change in design variables.
+      Triggers early termination when population converges.
+
+  period:
+    type: int
+    default: 20
+    description: >
+      Number of generations to consider for ftol/xtol convergence check.
+
+# =============================================================================
+# GA - Genetic Algorithm
+# Best for: General purpose, handles constraints well
+# =============================================================================
+
+GA:
+  crossover:
+    type: str or object
+    options: ["SBX", "PCX", "DEX", "EXP", "PMX", "OX"]
+    default: "SBX"
+    description: >
+      Crossover operator. SBX (Simulated Binary Crossover) is standard
+      for continuous problems.
+    options_detail:
+      SBX: "Simulated Binary Crossover - continuous variables"
+      PCX: "Parent Centric Crossover"
+      DEX: "Differential Evolution Crossover"
+      PMX: "Partially Matched Crossover - permutation"
+      OX: "Order Crossover - permutation"
+
+  crossover_eta:
+    type: float
+    default: 15
+    description: >
+      Distribution index for SBX. Higher values create offspring closer
+      to parents.
+    when_to_adjust: >
+      Decrease to 5-10 for more exploration. Increase to 20-30 for refinement.
+    range: [1, 50]
+
+  crossover_prob:
+    type: float
+    default: 0.9
+    description: Probability of crossover between parents.
+    range: [0.0, 1.0]
+
+  mutation:
+    type: str or object
+    options: ["PM", "PolynomialMutation", "NoMutation"]
+    default: "PM"
+    description: >
+      Mutation operator. PM (Polynomial Mutation) is standard for continuous.
+
+  mutation_eta:
+    type: float
+    default: 20
+    description: >
+      Distribution index for polynomial mutation. Higher values create
+      smaller mutations.
+    when_to_adjust: >
+      Decrease to 10-15 for more exploration. Increase for fine-tuning.
+    range: [1, 50]
+
+  mutation_prob:
+    type: float
+    default: null
+    description: >
+      Probability of mutation per variable. If null, defaults to 1/n_var.
+    range: [0.0, 1.0]
+
+  selection:
+    type: str or object
+    options: ["tournament", "random", "roulette"]
+    default: "tournament"
+    description: Selection operator for parent selection.
+
+  tournament_size:
+    type: int
+    default: 2
+    description: Size of tournament for tournament selection.
+    range: [2, 10]
+
+  eliminate_duplicates:
+    type: bool
+    default: true
+    description: Remove duplicate individuals from population.
+
+# =============================================================================
+# DE - Differential Evolution
+# Best for: Continuous optimization, fast convergence
+# =============================================================================
+
+DE:
+  variant:
+    type: str
+    options: ["DE/rand/1/bin", "DE/best/1/bin", "DE/rand/2/bin", "DE/best/2/bin"]
+    default: "DE/rand/1/bin"
+    description: >
+      DE mutation strategy. Format: DE/base/n_diff/crossover.
+    options_detail:
+      "DE/rand/1/bin": "Random base, 1 difference vector, binomial crossover"
+      "DE/best/1/bin": "Best base, 1 difference vector, binomial crossover"
+      "DE/rand/2/bin": "Random base, 2 difference vectors, binomial crossover"
+
+  F:
+    type: float or tuple
+    default: 0.5
+    description: >
+      Differential weight (mutation factor). Controls step size.
+      Can be tuple (F_min, F_max) for dither.
+    when_to_adjust: >
+      Increase to 0.8-1.0 for more exploration. Decrease to 0.3-0.5 for
+      exploitation.
+    range: [0.0, 2.0]
+
+  CR:
+    type: float
+    default: 0.7
+    description: >
+      Crossover probability. Higher values create offspring more different
+      from parents.
+    when_to_adjust: >
+      Increase to 0.9 for separable problems. Decrease to 0.3-0.5 for
+      non-separable problems.
+    range: [0.0, 1.0]
+
+  dither:
+    type: str
+    options: ["vector", "scalar", "none"]
+    default: "none"
+    description: >
+      Randomize F each generation. "vector" randomizes per dimension,
+      "scalar" per individual.
+
+  jitter:
+    type: bool
+    default: false
+    description: Add small random perturbation to F for each mutation.
+
+# =============================================================================
+# PSO - Particle Swarm Optimization
+# Best for: Continuous, exploration, natural parallelism
+# =============================================================================
+
+PSO:
+  w:
+    type: float
+    default: 0.9
+    description: >
+      Inertia weight. Controls momentum. Decreases linearly during
+      optimization in adaptive PSO.
+    when_to_adjust: >
+      Higher (0.9) for exploration, lower (0.4) for exploitation.
+    range: [0.0, 1.0]
+
+  c1:
+    type: float
+    default: 2.0
+    description: >
+      Cognitive parameter. Weight of personal best attraction.
+    range: [0.0, 4.0]
+
+  c2:
+    type: float
+    default: 2.0
+    description: >
+      Social parameter. Weight of global best attraction.
+    range: [0.0, 4.0]
+
+  v_max:
+    type: float
+    default: null
+    description: >
+      Maximum velocity. If null, no velocity clamping.
+      Prevents particles from leaving bounds.
+
+  adaptive:
+    type: bool
+    default: true
+    description: >
+      Use adaptive inertia weight that decreases over generations.
+
+  initial_velocity:
+    type: str
+    options: ["random", "zero"]
+    default: "random"
+    description: Initial velocity strategy for particles.
+
+# =============================================================================
+# CMA-ES - Covariance Matrix Adaptation Evolution Strategy
+# Best for: Continuous, noisy, self-adapting
+# =============================================================================
+
+CMA-ES:
+  sigma:
+    type: float
+    default: 0.5
+    description: >
+      Initial step size (standard deviation). Critical parameter.
+      Should be about 1/4 of expected search range.
+    when_to_adjust: >
+      Increase if variables have large range. Decrease for fine-tuning.
+
+  restarts:
+    type: int
+    default: 0
+    description: >
+      Number of restarts with increased population (IPOP-CMA-ES style).
+      Each restart doubles population.
+
+  normalize:
+    type: bool
+    default: true
+    description: Normalize variables to [0, 1] internally.
+
+  parallelize:
+    type: bool
+    default: true
+    description: Parallelize function evaluations if possible.
+
+# =============================================================================
+# NSGA-II - Non-dominated Sorting Genetic Algorithm II
+# Best for: Multi-objective (2-3 objectives), fast non-dominated sorting
+# =============================================================================
+
+NSGA-II:
+  # Inherits GA crossover/mutation options
+
+  crowding_distance:
+    type: str
+    options: ["cd", "pcd", "mnn"]
+    default: "cd"
+    description: >
+      Crowding distance metric for diversity preservation.
+    options_detail:
+      cd: "Classic crowding distance"
+      pcd: "Pruning crowding distance"
+      mnn: "M-nearest neighbors"
+
+# =============================================================================
+# NSGA-III - Reference Point Based NSGA
+# Best for: Many objectives (4+), reference point based
+# =============================================================================
+
+NSGA-III:
+  ref_dirs:
+    type: str or array
+    options: ["das-dennis", "energy", "layer-energy"]
+    default: "das-dennis"
+    description: >
+      Reference direction generation method. "das-dennis" is standard.
+      Can also pass precomputed array of shape (n_points, n_objectives).
+
+  n_partitions:
+    type: int
+    default: 12
+    description: >
+      Number of partitions for das-dennis reference direction generation.
+      Affects number of reference points: C(H+m-1, m-1) where H=n_partitions, m=n_objectives.
+    when_to_adjust: >
+      Increase for better spread. Decrease if too many reference points.
+
+  pop_per_ref_point:
+    type: int
+    default: 1
+    description: Population size multiplier per reference point.
+
+# =============================================================================
+# MOEA/D - Multi-Objective Evolutionary Algorithm based on Decomposition
+# Best for: Many objectives, decomposition approach
+# =============================================================================
+
+MOEA/D:
+  ref_dirs:
+    type: str or array
+    default: "das-dennis"
+    description: Reference direction generation (same as NSGA-III).
+
+  n_neighbors:
+    type: int
+    default: 20
+    description: >
+      Number of neighboring weight vectors for mating restriction.
+    when_to_adjust: >
+      Increase for more diversity. Decrease for faster convergence.
+    range: [5, 50]
+
+  decomposition:
+    type: str
+    options: ["tchebi", "pbi", "asf"]
+    default: "tchebi"
+    description: >
+      Scalarization function for decomposition.
+    options_detail:
+      tchebi: "Tchebycheff (minimax) approach"
+      pbi: "Penalty-based Boundary Intersection"
+      asf: "Achievement Scalarizing Function"
+
+  prob_neighbor_mating:
+    type: float
+    default: 0.9
+    description: >
+      Probability of selecting mates from neighborhood vs entire population.
+    range: [0.0, 1.0]
+
+# =============================================================================
+# AGE-MOEA - Adaptive Geometry Estimation MOEA
+# Best for: Any number of objectives, adaptive
+# =============================================================================
+
+AGE-MOEA:
+  # Uses standard GA crossover/mutation options
+  # No algorithm-specific parameters needed
+
+# =============================================================================
+# SMS-EMOA - S-Metric Selection EMOA
+# Best for: 2-3 objectives, hypervolume-based
+# =============================================================================
+
+SMS-EMOA:
+  ref_point:
+    type: array
+    default: null
+    description: >
+      Reference point for hypervolume calculation. If null, computed
+      from nadir point of current population.
+
+# =============================================================================
+# CONSTRAINT HANDLING
+# =============================================================================
+
+constraints:
+  constraint_handling:
+    type: str
+    options: ["parameter-less", "penalty", "epsilon", "stochastic-ranking"]
+    default: "parameter-less"
+    description: >
+      Strategy for handling constraints.
+    options_detail:
+      parameter-less: "Deb's parameter-less approach (feasibility first)"
+      penalty: "Static penalty function"
+      epsilon: "Epsilon constraint handling"
+      stochastic-ranking: "Stochastic ranking of feasibility and objective"
+
+  cv_tolerance:
+    type: float
+    default: 1e-6
+    description: >
+      Constraint violation tolerance. Violations below this are considered
+      feasible.

@@ -12,6 +12,8 @@ from .gradient import GradientInitialization, GradientProgress, GradientResult
 from .bayesian import BayesianInitialization, BayesianProgress, BayesianResult
 from .population import PopulationInitialization, PopulationProgress, PopulationResult
 from .cmaes import CMAESInitialization, CMAESProgress, CMAESResult
+from .evolutionary import EvolutionaryInitialization, EvolutionaryProgress, EvolutionaryResult
+from .multiobjective import MultiObjectiveInitialization, MultiObjectiveProgress, MultiObjectiveResult
 
 
 @dataclass
@@ -148,7 +150,7 @@ COMPONENT_REGISTRY.register_family(
     initialization_class=PopulationInitialization,
     progress_class=PopulationProgress,
     result_class=PopulationResult,
-    optimizers=["de", "ga", "nsga2", "nsga3", "pso", "pymoo"],
+    optimizers=["de", "ga", "pso"],  # Legacy population-based
 )
 
 COMPONENT_REGISTRY.register_family(
@@ -157,4 +159,22 @@ COMPONENT_REGISTRY.register_family(
     progress_class=CMAESProgress,
     result_class=CMAESResult,
     optimizers=["cmaes", "cma"],
+)
+
+# pymoo single-objective evolutionary algorithms
+COMPONENT_REGISTRY.register_family(
+    family="evolutionary",
+    initialization_class=EvolutionaryInitialization,
+    progress_class=EvolutionaryProgress,
+    result_class=EvolutionaryResult,
+    optimizers=["pymoo", "pymoo-ga", "pymoo-de", "pymoo-pso", "pymoo-es", "pymoo-brkga"],
+)
+
+# pymoo multi-objective algorithms
+COMPONENT_REGISTRY.register_family(
+    family="multiobjective",
+    initialization_class=MultiObjectiveInitialization,
+    progress_class=MultiObjectiveProgress,
+    result_class=MultiObjectiveResult,
+    optimizers=["nsga2", "nsga3", "moead", "agemoea", "smsemoa", "ctaea"],
 )

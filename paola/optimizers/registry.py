@@ -106,11 +106,12 @@ class BackendRegistry:
         Override or extend this method to add custom backends.
         """
         # Import backends here to avoid circular imports
-        from .backends import SciPyBackend, IPOPTBackend, OptunaBackend
+        from .backends import SciPyBackend, IPOPTBackend, OptunaBackend, PymooBackend
 
         self.register(SciPyBackend())
         self.register(IPOPTBackend())
         self.register(OptunaBackend())
+        self.register(PymooBackend())
 
         logger.info(f"Initialized {len(self._backends)} optimizer backends")
 

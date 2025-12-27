@@ -10,6 +10,7 @@ categories:
       - ipopt
       - scipy
       - optuna
+      - pymoo
 
   domains:
     description: Domain-specific optimization expertise
@@ -75,3 +76,27 @@ skills:
       - multi-objective
       - black-box
       - derivative-free
+
+  pymoo:
+    path: optimizers/pymoo
+    description: >
+      pymoo multi-objective optimization with evolutionary algorithms (GA, DE,
+      PSO, CMA-ES) and multi-objective methods (NSGA-II, NSGA-III, MOEA/D,
+      AGE-MOEA). Best for Pareto optimization and global search.
+    keywords:
+      - pymoo
+      - evolutionary
+      - genetic algorithm
+      - GA
+      - DE
+      - differential evolution
+      - PSO
+      - particle swarm
+      - CMA-ES
+      - NSGA-II
+      - NSGA-III
+      - MOEA/D
+      - multi-objective
+      - Pareto
+      - population-based
+      - global optimization

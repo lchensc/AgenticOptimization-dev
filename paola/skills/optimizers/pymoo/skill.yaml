@@ -1,0 +1,226 @@
+# pymoo Optimizer Skill
+# Paola Skills v1.0
+
+# === METADATA (Level 1 - Always indexed) ===
+name: pymoo
+version: "1.0.0"
+category: optimizers
+
+description: >
+  pymoo is a comprehensive multi-objective optimization library providing
+  single-objective (GA, DE, PSO, CMA-ES) and multi-objective (NSGA-II, NSGA-III,
+  MOEA/D, AGE-MOEA) evolutionary algorithms with full Pareto front support.
+
+when_to_use:
+  - Multi-objective optimization requiring Pareto fronts
+  - Population-based global search (escaping local minima)
+  - Black-box optimization without gradients
+  - Noisy or discontinuous objective functions
+  - Problems with many local optima
+  - Constrained optimization with complex constraint landscapes
+  - When hypervolume or IGD metrics are needed
+
+when_not_to_use:
+  - Smooth convex problems - use gradient-based (SciPy, IPOPT)
+  - Very high dimensional (1000+ variables) - too slow
+  - Need reproducible exact solutions (stochastic nature)
+  - Limited function evaluation budget (<100 evals) - use local methods
+  - Problems requiring warm-start with Lagrange multipliers
+
+keywords:
+  - pymoo
+  - evolutionary
+  - genetic algorithm
+  - GA
+  - DE
+  - differential evolution
+  - PSO
+  - particle swarm
+  - CMA-ES
+  - NSGA-II
+  - NSGA-III
+  - MOEA/D
+  - AGE-MOEA
+  - multi-objective
+  - Pareto
+  - population-based
+  - global optimization
+
+# === OVERVIEW (Level 2 - Loaded on skill activation) ===
+overview: |
+  ## pymoo Optimization Overview
+
+  pymoo provides state-of-the-art evolutionary algorithms for both single-objective
+  and multi-objective optimization. All algorithms are population-based and
+  derivative-free, making them ideal for global search.
+
+  ### Algorithm Selection Guide
+
+  #### Single-Objective Algorithms
+
+  | Algorithm | Best For | Key Strength |
+  |-----------|----------|--------------|
+  | GA | General purpose | Flexible operators, handles constraints |
+  | DE | Continuous, smooth | Fast convergence, few parameters |
+  | PSO | Continuous, exploration | Natural parallelism, simple tuning |
+  | CMA-ES | Continuous, noisy | Self-adapting, robust |
+  | ES | High-dimensional | Evolution strategies |
+  | BRKGA | Combinatorial | Biased random-key encoding |
+
+  #### Multi-Objective Algorithms
+
+  | Algorithm | Best For | Objectives |
+  |-----------|----------|------------|
+  | NSGA-II | 2-3 objectives | Most common, fast non-dominated sorting |
+  | NSGA-III | 4+ objectives | Reference point based |
+  | MOEA/D | Many objectives | Decomposition approach |
+  | AGE-MOEA | Any | Adaptive geometry estimation |
+  | SMS-EMOA | 2-3 objectives | Hypervolume-based selection |
+  | C-TAEA | Constrained | Constraint handling focus |
+
+  ### Multi-Objective Metrics
+
+  pymoo computes standard MO metrics:
+
+  - **Hypervolume**: Volume dominated by Pareto front (higher is better)
+  - **IGD**: Inverted Generational Distance (lower is better)
+  - **Spread**: Diversity of solutions on front
+
+  ### Integration with Paola
+
+  When using `run_optimization(optimizer="pymoo:ALGORITHM", ...)`:
+
+  1. **Algorithm syntax**: Use `pymoo:GA`, `pymoo:NSGA-II`, etc.
+
+  2. **Multi-objective**: For multi-objective problems, provide `n_objectives`
+     in config and use NSGA-II/III or MOEA/D.
+
+  3. **Constraints**: pymoo handles constraints via penalty or repair methods.
+     Pass constraints in standard format.
+
+  4. **Pareto output**: Multi-objective results include `pareto_set` (solutions)
+     and `pareto_front` (objective values) in OptimizationResult.
+
+  5. **Seed control**: Set `seed` in config for reproducibility.
+
+  ### Termination Criteria
+
+  | Criterion | Description |
+  |-----------|-------------|
+  | n_gen | Maximum generations |
+  | n_eval | Maximum evaluations |
+  | time | Wall clock time limit |
+  | ftol | Function value tolerance |
+  | xtol | Design variable tolerance |
+
+# === RESOURCES (Level 3 - Loaded on demand) ===
+resources:
+  options: options.yaml
+
+# === RELATIONSHIPS ===
+related_skills:
+  - scipy
+  - optuna
+
+# === PAOLA INTEGRATION (Unique to Paola Skills) ===
+paola:
+  optimizer_name: pymoo
+  backend: PymooBackend
+  requires_gradient: false
+  supports_constraints: true
+  supports_multiobjective: true
+  supports_warm_start: true  # Via initial population
+
+  algorithms:
+    # Single-objective
+    GA:
+      family: evolutionary
+      objectives: single
+      best_for: "General-purpose genetic algorithm"
+      key_params: [pop_size, n_gen, crossover, mutation]
+    DE:
+      family: evolutionary
+      objectives: single
+      best_for: "Continuous optimization, fast convergence"
+      key_params: [pop_size, n_gen, F, CR, variant]
+    PSO:
+      family: evolutionary
+      objectives: single
+      best_for: "Exploration, natural parallelism"
+      key_params: [pop_size, n_gen, w, c1, c2]
+    CMA-ES:
+      family: evolutionary
+      objectives: single
+      best_for: "Noisy objectives, self-adapting"
+      key_params: [pop_size, n_gen, sigma]
+    ES:
+      family: evolutionary
+      objectives: single
+      best_for: "Evolution strategies"
+      key_params: [pop_size, n_gen, n_offspring]
+    BRKGA:
+      family: evolutionary
+      objectives: single
+      best_for: "Combinatorial, biased random-key"
+      key_params: [pop_size, n_gen, n_elites, n_mutants]
+
+    # Multi-objective
+    NSGA-II:
+      family: multiobjective
+      objectives: 2-3
+      best_for: "Standard multi-objective, fast"
+      key_params: [pop_size, n_gen, crossover, mutation]
+    NSGA-III:
+      family: multiobjective
+      objectives: 4+
+      best_for: "Many objectives, reference points"
+      key_params: [pop_size, n_gen, ref_dirs, crossover, mutation]
+    MOEA/D:
+      family: multiobjective
+      objectives: many
+      best_for: "Decomposition-based, many objectives"
+      key_params: [pop_size, n_gen, ref_dirs, n_neighbors]
+    AGE-MOEA:
+      family: multiobjective
+      objectives: any
+      best_for: "Adaptive geometry estimation"
+      key_params: [pop_size, n_gen]
+    SMS-EMOA:
+      family: multiobjective
+      objectives: 2-3
+      best_for: "Hypervolume-based selection"
+      key_params: [pop_size, n_gen]
+    C-TAEA:
+      family: multiobjective
+      objectives: any
+      best_for: "Constrained multi-objective"
+      key_params: [pop_size, n_gen, ref_dirs]
+
+  graph_integration:
+    warm_start_support: |
+      pymoo algorithms can warm-start from previous populations via
+      `initial_population` in config. This enables graph-based progressive
+      refinement across multiple optimization nodes.
+
+    typical_usage: |
+      - Global search: Start with GA or DE, wide exploration
+      - Refinement: Use smaller population or local search
+      - Multi-objective: NSGA-II for 2-3 obj, NSGA-III for 4+
+
+  learning:
+    track_options:
+      - algorithm
+      - pop_size
+      - n_gen
+      - crossover
+      - mutation
+    success_indicators:
+      - termination_reason_contains: "ftol"
+      - termination_reason_contains: "xtol"
+    failure_patterns:
+      - pattern: "No feasible solution"
+        likely_cause: "Constraints too tight or conflicting"
+        suggested_action: "Relax constraints or check definitions"
+      - pattern: "Maximum generations reached"
+        likely_cause: "Insufficient generations for convergence"
+        suggested_action: "Increase n_gen or pop_size"
