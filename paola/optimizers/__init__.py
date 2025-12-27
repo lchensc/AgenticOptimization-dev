@@ -39,6 +39,7 @@ from paola.optimizers.backends import (
     SciPyBackend,
     IPOPTBackend,
     OptunaBackend,
+    PymooBackend,
 )
 
 __all__ = [
@@ -59,4 +60,5 @@ __all__ = [
     "SciPyBackend",
     "IPOPTBackend",
     "OptunaBackend",
+    "PymooBackend",
 ]

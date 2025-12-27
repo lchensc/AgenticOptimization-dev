@@ -35,12 +35,30 @@ from ..optimizers import (
 from ..foundry import (
     COMPONENT_REGISTRY,
     EdgeType,
+    # Gradient family
     GradientInitialization,
     GradientProgress,
     GradientResult,
+    # Bayesian family
     BayesianInitialization,
     BayesianProgress,
     BayesianResult,
+    # Evolutionary family (pymoo SOO)
+    EvolutionaryInitialization,
+    EvolutionaryProgress,
+    EvolutionaryResult,
+    # Multi-objective family (pymoo MOO)
+    MultiObjectiveInitialization,
+    MultiObjectiveProgress,
+    MultiObjectiveResult,
+    # Population family (legacy)
+    PopulationInitialization,
+    PopulationProgress,
+    PopulationResult,
+    # CMA-ES family
+    CMAESInitialization,
+    CMAESProgress,
+    CMAESResult,
 )
 from .schemas import (
     normalize_problem_id,
@@ -72,7 +90,11 @@ def run_optimization(
 
     Args:
         graph_id: Graph ID from start_graph
-        optimizer: "scipy:SLSQP", "scipy:L-BFGS-B", "scipy:trust-constr", "ipopt", "optuna:TPE"
+        optimizer: Backend:method specification. Supported:
+            - Gradient: "scipy:SLSQP", "scipy:L-BFGS-B", "ipopt"
+            - Bayesian: "optuna:TPE", "optuna:CMA-ES"
+            - Evolutionary: "pymoo:GA", "pymoo:DE", "pymoo:PSO", "pymoo:CMA-ES"
+            - Multi-objective: "pymoo:NSGA-II", "pymoo:NSGA-III", "pymoo:MOEA/D"
         config: JSON string with optimizer options
         max_iterations: Maximum iterations (default: 100)
         init_strategy: "center", "random", or "warm_start"
@@ -82,6 +104,7 @@ def run_optimization(
 
     Returns:
         success, node_id, best_x, best_objective, n_evaluations, elapsed_time
+        For multi-objective: also includes is_multiobjective, n_pareto_solutions, hypervolume
 
     Example:
         run_optimization(graph_id=1, optimizer="scipy:SLSQP")
@@ -228,6 +251,32 @@ def run_optimization(
                 warm_start_trials=None,
                 n_initial_random=config_dict.get("n_startup_trials", 10),
             )
+        elif family == "evolutionary":
+            initialization = EvolutionaryInitialization(
+                specification={"type": init_strategy, "parent_node": parent_node},
+                pop_size=config_dict.get("pop_size", 100),
+                seed=config_dict.get("seed"),
+                initial_population=None,
+            )
+        elif family == "multiobjective":
+            initialization = MultiObjectiveInitialization(
+                specification={"type": init_strategy, "parent_node": parent_node},
+                pop_size=config_dict.get("pop_size", 100),
+                n_objectives=config_dict.get("n_objectives", 2),
+                seed=config_dict.get("seed"),
+            )
+        elif family == "cmaes":
+            initialization = CMAESInitialization(
+                specification={"type": init_strategy, "parent_node": parent_node},
+                x0=x0.tolist(),
+                sigma0=config_dict.get("sigma", 0.5),
+            )
+        elif family == "population":
+            initialization = PopulationInitialization(
+                specification={"type": init_strategy, "parent_node": parent_node},
+                pop_size=config_dict.get("pop_size", 50),
+                seed=config_dict.get("seed"),
+            )
         else:
             # Default to gradient-style for unknown families
             initialization = GradientInitialization(
@@ -308,8 +357,74 @@ def run_optimization(
                 n_complete_trials=len(result.history),
                 n_pruned_trials=0,
             )
+        elif family == "evolutionary":
+            progress = EvolutionaryProgress()
+            for i, h in enumerate(result.history):
+                progress.add_generation(
+                    generation=i + 1,
+                    best_fitness=h.get("best_f", h.get("f", 0.0)),
+                    mean_fitness=h.get("mean_f", 0.0),
+                    best_individual=h.get("x", []),
+                    diversity=h.get("diversity"),
+                    constraint_violation=h.get("constraint_violation"),
+                )
+            result_component = EvolutionaryResult(
+                termination_reason=result.message,
+                n_generations=result.n_iterations,
+                final_pop_size=config_dict.get("pop_size", 100),
+                final_diversity=None,
+            )
+        elif family == "multiobjective":
+            progress = MultiObjectiveProgress()
+            for i, h in enumerate(result.history):
+                progress.add_generation(
+                    generation=i + 1,
+                    n_nondominated=h.get("n_nondominated", 0),
+                    hypervolume=h.get("hypervolume"),
+                    igd=h.get("igd"),
+                    spread=h.get("spread"),
+                )
+            result_component = MultiObjectiveResult(
+                termination_reason=result.message,
+                n_generations=result.n_iterations,
+                n_pareto_solutions=result.n_pareto_solutions if hasattr(result, 'n_pareto_solutions') else 0,
+                final_hypervolume=result.hypervolume if hasattr(result, 'hypervolume') else None,
+                pareto_ref=None,  # Would reference GraphDetail storage
+            )
+        elif family == "cmaes":
+            progress = CMAESProgress()
+            for i, h in enumerate(result.history):
+                progress.add_generation(
+                    generation=i + 1,
+                    best_fitness=h.get("best_f", h.get("f", 0.0)),
+                    mean_fitness=h.get("mean_f", 0.0),
+                    sigma=h.get("sigma"),
+                    condition_number=h.get("condition_number"),
+                )
+            result_component = CMAESResult(
+                termination_reason=result.message,
+                n_generations=result.n_iterations,
+                final_sigma=None,
+                final_condition_number=None,
+            )
+        elif family == "population":
+            progress = PopulationProgress()
+            for i, h in enumerate(result.history):
+                progress.add_generation(
+                    generation=i + 1,
+                    best_fitness=h.get("best_f", h.get("f", 0.0)),
+                    mean_fitness=h.get("mean_f", 0.0),
+                    best_individual=h.get("x", []),
+                    diversity=h.get("diversity"),
+                )
+            result_component = PopulationResult(
+                termination_reason=result.message,
+                n_generations=result.n_iterations,
+                final_pop_size=config_dict.get("pop_size", 50),
+                final_diversity=None,
+            )
         else:
-            # Default to gradient-style
+            # Default to gradient-style for unknown families
             progress = GradientProgress()
             for h in result.history:
                 progress.add_iteration(
@@ -323,26 +438,26 @@ def run_optimization(
 
         # Complete node
         best_x = (
-            result.final_design.tolist()
-            if isinstance(result.final_design, np.ndarray)
-            else list(result.final_design)
+            result.best_x.tolist()
+            if isinstance(result.best_x, np.ndarray)
+            else list(result.best_x)
         )
 
         completed_node = graph.complete_node(
             progress=progress,
             result=result_component,
-            best_objective=result.final_objective,
+            best_objective=result.best_f,
             best_x=best_x,
             success=result.success,
         )
 
         # Return result
-        return {
+        response = {
             "success": result.success,
             "message": result.message,
             "node_id": completed_node.node_id,
             "best_x": best_x,
-            "best_objective": float(result.final_objective),
+            "best_objective": float(result.best_f),
             "optimizer_used": optimizer,
             "optimizer_family": family,
             "n_iterations": result.n_iterations,
@@ -350,8 +465,16 @@ def run_optimization(
             "n_gradient_evals": result.n_gradient_evals,
             "elapsed_time": elapsed,
             "parent_node": parent_node,
-            "problem_id": actual_problem_id,  # v0.4.1: Problem used (may differ from graph default)
+            "problem_id": actual_problem_id,
         }
+
+        # Add multi-objective fields if applicable
+        if hasattr(result, 'is_multiobjective') and result.is_multiobjective:
+            response["is_multiobjective"] = True
+            response["n_pareto_solutions"] = result.n_pareto_solutions
+            response["hypervolume"] = result.hypervolume
+
+        return response
 
     except Exception as e:
         import traceback
