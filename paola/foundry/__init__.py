@@ -56,6 +56,15 @@ from .schema import (
     CMAESGeneration,
     CMAESProgress,
     CMAESResult,
+    # Evolutionary family (pymoo SOO)
+    EvolutionaryInitialization,
+    EvolutionaryProgress,
+    EvolutionaryResult,
+    # Multi-objective family (pymoo MOO)
+    MultiObjectiveInitialization,
+    MOGeneration,
+    MultiObjectiveProgress,
+    MultiObjectiveResult,
     # Registry
     COMPONENT_REGISTRY,
 )
@@ -120,6 +129,15 @@ __all__ = [
     "CMAESGeneration",
     "CMAESProgress",
     "CMAESResult",
+    # Evolutionary family (pymoo SOO)
+    "EvolutionaryInitialization",
+    "EvolutionaryProgress",
+    "EvolutionaryResult",
+    # Multi-objective family (pymoo MOO)
+    "MultiObjectiveInitialization",
+    "MOGeneration",
+    "MultiObjectiveProgress",
+    "MultiObjectiveResult",
     # Registry
     "COMPONENT_REGISTRY",
     # Evaluator registration
