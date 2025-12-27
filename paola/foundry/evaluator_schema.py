@@ -119,9 +119,17 @@ class InputInterface(BaseModel):
 class OutputInterface(BaseModel):
     """Output interface specification."""
 
-    format: Literal["scalar", "dict", "tuple", "auto"] = Field(
+    format: Literal["scalar", "dict", "tuple", "array", "auto"] = Field(
         default="auto",
         description="Return value format"
+    )
+    n_outputs: int = Field(
+        default=1,
+        description="Number of output values (explicit declaration, no guessing)"
+    )
+    output_names: Optional[List[str]] = Field(
+        None,
+        description="Names for each output (e.g., ['f1', 'f2'] or ['drag', 'lift'])"
     )
     keys: Optional[List[str]] = Field(
         None,

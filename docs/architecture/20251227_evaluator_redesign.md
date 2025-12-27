@@ -1,8 +1,43 @@
 # Evaluator Architecture Redesign
 
 **Date:** 2025-12-27
-**Status:** Proposal
+**Status:** Implemented (Simpler Fix)
 **Problem:** Current `FoundryEvaluator` is hacky with too many if-else conditions and format guessing
+
+## Implementation Summary
+
+Instead of creating a separate evaluator module (which would break Foundry as single source of truth),
+we applied a simpler fix directly to the existing infrastructure:
+
+### Changes Made
+
+1. **Added `n_outputs` to `OutputInterface`** (`evaluator_schema.py:126-128`):
+   ```python
+   n_outputs: int = Field(default=1, description="Number of output values (explicit declaration)")
+   output_names: Optional[List[str]] = Field(None, description="Names for each output")
+   ```
+
+2. **Added `"array"` format type** (`evaluator_schema.py:122`):
+   ```python
+   format: Literal["scalar", "dict", "tuple", "array", "auto"]
+   ```
+
+3. **Updated `_parse_result`** (`evaluator.py:317-430`):
+   - Uses explicit `n_outputs` when > 1 to determine format (no guessing)
+   - Uses `output_names` for named outputs instead of generic `f0`, `f1`
+   - Falls back to auto-detection only for legacy configs
+
+### Why Not a Separate Module?
+
+Initially, a separate `paola/evaluators/` module was created with:
+- `EvaluatorSpec` (new schema)
+- `EvaluatorRegistry` (in-memory)
+- `load_evaluator()` (new loader)
+
+This was **reverted** because:
+1. Foundry is the single source of truth for all data
+2. A separate registry would create dual sources of truth
+3. The simpler fix (adding `n_outputs` to existing schema) achieves the same goal
 
 ## Current Issues
 

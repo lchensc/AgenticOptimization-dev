@@ -157,6 +157,11 @@ def split_graph(
             wall_time=node.wall_time,
             start_objective=start_objective,
             best_objective=node.best_objective,
+            # MOO fields (v0.4.9)
+            is_multiobjective=getattr(node, 'is_multiobjective', False),
+            n_pareto_solutions=getattr(node, 'n_pareto_solutions', None),
+            hypervolume=getattr(node, 'hypervolume', None),
+            pareto_ref=getattr(node, 'pareto_ref', None),
         )
 
         # Node detail (Tier 2) - full trajectory
@@ -183,6 +188,22 @@ def split_graph(
 
     # Build GraphRecord (Tier 1)
     # v0.4.8: Map status to completed bool, removed success field
+    # v0.4.9: Add MOO fields
+
+    # Determine MOO fields from best MOO node
+    is_moo = any(getattr(n, 'is_multiobjective', False) for n in graph.nodes.values())
+    final_hypervolume = None
+    n_final_pareto_solutions = None
+    final_pareto_ref = None
+
+    if is_moo:
+        # Find node with best hypervolume
+        moo_nodes = [n for n in graph.nodes.values() if getattr(n, 'is_multiobjective', False)]
+        best_moo = max(moo_nodes, key=lambda n: getattr(n, 'hypervolume', 0) or 0)
+        final_hypervolume = getattr(best_moo, 'hypervolume', None)
+        n_final_pareto_solutions = getattr(best_moo, 'n_pareto_solutions', None)
+        final_pareto_ref = getattr(best_moo, 'pareto_ref', None)
+
     record = GraphRecord(
         graph_id=graph.graph_id,
         problem_id=graph.problem_id,
@@ -198,6 +219,11 @@ def split_graph(
         total_evaluations=graph.total_evaluations,
         total_wall_time=graph.total_wall_time,
         decisions=decisions,
+        # MOO fields (v0.4.9)
+        is_multiobjective=is_moo,
+        final_hypervolume=final_hypervolume,
+        n_final_pareto_solutions=n_final_pareto_solutions,
+        final_pareto_ref=final_pareto_ref,
     )
 
     # Build GraphDetail (Tier 2)

@@ -258,15 +258,26 @@ class PymooBackend(OptimizerBackend):
             )
 
         # Extract configuration
-        algorithm_name = config.get("algorithm", "GA")
+        # "method" is set by run_optimization from optimizer spec (e.g., "pymoo:NSGA-II")
+        # "algorithm" can be set directly in config
+        algorithm_name = config.get("algorithm", config.get("method", "GA"))
         n_gen = config.get("n_gen", config.get("n_generations", config.get("max_iterations", 100)))
         seed = config.get("seed")
 
-        # Check if multi-objective
-        objectives = config.get("objectives", [objective])
-        if not isinstance(objectives, list):
-            objectives = [objectives]
-        n_obj = len(objectives)
+        # Determine number of objectives
+        # Agent specifies n_obj in config for MOO (preferred method)
+        # Fall back to counting objectives list for backward compatibility
+        if "n_obj" in config:
+            n_obj = config["n_obj"]
+            # Single objective function that returns array for MOO
+            objectives = [objective]
+        else:
+            # Legacy: multiple objective functions in list
+            objectives = config.get("objectives", [objective])
+            if not isinstance(objectives, list):
+                objectives = [objectives]
+            n_obj = len(objectives)
+
         is_moo = n_obj > 1
 
         # Use appropriate algorithm for MOO
@@ -291,6 +302,9 @@ class PymooBackend(OptimizerBackend):
         history = []
         n_evals = [0]
 
+        # Check if using single array-returning objective (from config n_obj)
+        use_array_objective = "n_obj" in config and n_obj > 1
+
         # Create pymoo Problem
         class PaolaProblem(ElementwiseProblem):
             def __init__(self):
@@ -306,7 +320,14 @@ class PymooBackend(OptimizerBackend):
                 n_evals[0] += 1
 
                 # Evaluate objectives
-                f_values = [float(obj(x)) for obj in objectives]
+                if use_array_objective:
+                    # Single objective function returning array (MOO via config n_obj)
+                    f_result = objectives[0](x)
+                    f_values = np.asarray(f_result).flatten().tolist()
+                else:
+                    # Multiple objective functions or single SOO function
+                    f_values = [float(obj(x)) for obj in objectives]
+
                 out["F"] = f_values if is_moo else f_values[0]
 
                 # Record history

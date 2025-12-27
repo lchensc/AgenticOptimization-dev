@@ -81,10 +81,16 @@ class NodeSummary:
     n_evaluations: int
     wall_time: float
     start_objective: Optional[float]  # Objective at iteration 1
-    best_objective: Optional[float]  # Best objective achieved
+    best_objective: Optional[float]  # Best objective achieved (SOO) or representative (MOO)
+
+    # MOO-specific fields (v0.4.9)
+    is_multiobjective: bool = False
+    n_pareto_solutions: Optional[int] = None  # Number of Pareto-optimal solutions
+    hypervolume: Optional[float] = None  # Hypervolume indicator
+    pareto_ref: Optional[str] = None  # Reference to ParetoStorage file
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "node_id": self.node_id,
             "optimizer": self.optimizer,
             "optimizer_family": self.optimizer_family,
@@ -98,6 +104,13 @@ class NodeSummary:
             "start_objective": self.start_objective,
             "best_objective": self.best_objective,
         }
+        # MOO fields (only include if relevant)
+        if self.is_multiobjective:
+            result["is_multiobjective"] = True
+            result["n_pareto_solutions"] = self.n_pareto_solutions
+            result["hypervolume"] = self.hypervolume
+            result["pareto_ref"] = self.pareto_ref
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "NodeSummary":
@@ -114,6 +127,11 @@ class NodeSummary:
             wall_time=data.get("wall_time", 0.0),
             start_objective=data.get("start_objective"),
             best_objective=data.get("best_objective"),
+            # MOO fields
+            is_multiobjective=data.get("is_multiobjective", False),
+            n_pareto_solutions=data.get("n_pareto_solutions"),
+            hypervolume=data.get("hypervolume"),
+            pareto_ref=data.get("pareto_ref"),
         )
 
 
@@ -177,16 +195,22 @@ class GraphRecord:
     # v0.4.8: completed = execution status (did graph finish without crashing?)
     # Quality judgment removed from schema - agent reasons from final_objective
     completed: bool = True
-    final_objective: Optional[float] = None
-    final_x: Optional[List[float]] = None
+    final_objective: Optional[float] = None  # SOO or representative for MOO
+    final_x: Optional[List[float]] = None  # SOO or representative for MOO
     total_evaluations: int = 0
     total_wall_time: float = 0.0
+
+    # MOO-specific outcome (v0.4.9)
+    is_multiobjective: bool = False
+    final_hypervolume: Optional[float] = None
+    n_final_pareto_solutions: Optional[int] = None
+    final_pareto_ref: Optional[str] = None  # Reference to ParetoStorage file
 
     # Decisions (reasoning strings)
     decisions: List[Dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "graph_id": self.graph_id,
             "problem_id": self.problem_id,
             "created_at": self.created_at,
@@ -202,6 +226,13 @@ class GraphRecord:
             "total_wall_time": self.total_wall_time,
             "decisions": self.decisions,
         }
+        # MOO fields (only include if relevant)
+        if self.is_multiobjective:
+            result["is_multiobjective"] = True
+            result["final_hypervolume"] = self.final_hypervolume
+            result["n_final_pareto_solutions"] = self.n_final_pareto_solutions
+            result["final_pareto_ref"] = self.final_pareto_ref
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "GraphRecord":
@@ -239,6 +270,11 @@ class GraphRecord:
             total_evaluations=data.get("total_evaluations", 0),
             total_wall_time=data.get("total_wall_time", 0.0),
             decisions=data.get("decisions", []),
+            # MOO fields (v0.4.9)
+            is_multiobjective=data.get("is_multiobjective", False),
+            final_hypervolume=data.get("final_hypervolume"),
+            n_final_pareto_solutions=data.get("n_final_pareto_solutions"),
+            final_pareto_ref=data.get("final_pareto_ref"),
         )
 
     def to_json(self) -> str:

@@ -92,8 +92,9 @@ overview: |
 
   1. **Algorithm syntax**: Use `pymoo:GA`, `pymoo:NSGA-II`, etc.
 
-  2. **Multi-objective**: For multi-objective problems, provide `n_objectives`
-     in config and use NSGA-II/III or MOEA/D.
+  2. **Multi-objective (CRITICAL)**: For MOO algorithms (NSGA-II, NSGA-III, MOEA/D, etc.),
+     you MUST pass `n_obj` in optimizer_config. Get this from the evaluator's
+     n_outputs field. Without n_obj, the algorithm runs in single-objective mode!
 
   3. **Constraints**: pymoo handles constraints via penalty or repair methods.
      Pass constraints in standard format.
@@ -102,6 +103,13 @@ overview: |
      and `pareto_front` (objective values) in OptimizationResult.
 
   5. **Seed control**: Set `seed` in config for reproducibility.
+
+  6. **MOO example**:
+     ```python
+     # For bi-objective problem with evaluator having n_outputs=2:
+     optimizer_config = '{"n_obj": 2, "pop_size": 100, "n_gen": 100}'
+     run_optimization(optimizer="pymoo:NSGA-II", optimizer_config=optimizer_config)
+     ```
 
   ### Termination Criteria
 

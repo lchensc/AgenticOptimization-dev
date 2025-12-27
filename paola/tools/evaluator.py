@@ -7,7 +7,7 @@ Tools for managing evaluator functions in Foundry:
 - foundry_get_evaluator: Get evaluator configuration
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from langchain_core.tools import tool
 
 
@@ -17,7 +17,9 @@ def foundry_store_evaluator(
     name: str,
     file_path: str,
     callable_name: str = "evaluate",
-    description: str = None
+    description: str = None,
+    n_outputs: int = 1,
+    output_names: List[str] = None
 ) -> Dict[str, Any]:
     """
     Register evaluator function in Foundry.
@@ -28,10 +30,18 @@ def foundry_store_evaluator(
         file_path: Path to .py file
         callable_name: Function name (default: "evaluate")
         description: Description
+        n_outputs: Number of output values (default: 1). For MOO, set to number of objectives.
+        output_names: Names for each output (e.g., ["f1", "f2"] or ["drag", "lift"])
 
     Example:
-        # Register objective
+        # Register single-objective evaluator
         foundry_store_evaluator("sharpe_eval", "Sharpe Ratio", "portfolio.py", "evaluate")
+
+        # Register multi-objective evaluator (MOO)
+        foundry_store_evaluator(
+            "moo_eval", "MOO Objectives", "moo.py", "evaluate",
+            n_outputs=2, output_names=["f1", "f2"]
+        )
 
         # Register constraint function
         foundry_store_evaluator("bond_constraint", "Min Bonds", "portfolio.py", "constraint_min_bonds")
@@ -41,6 +51,10 @@ def foundry_store_evaluator(
             OptimizationFoundry,
             FileStorage,
             create_python_function_config
+        )
+        from paola.foundry.evaluator_schema import (
+            EvaluatorInterface,
+            OutputInterface,
         )
         from datetime import datetime
         from pathlib import Path
@@ -52,12 +66,25 @@ def foundry_store_evaluator(
                 "error": f"File not found: {file_path}"
             }
 
+        # Determine output format based on n_outputs
+        output_format = "array" if n_outputs > 1 else "auto"
+
+        # Create interface with explicit n_outputs
+        interface = EvaluatorInterface(
+            output=OutputInterface(
+                format=output_format,
+                n_outputs=n_outputs,
+                output_names=output_names,
+            )
+        )
+
         # Create configuration using convenience function
         config = create_python_function_config(
             evaluator_id=evaluator_id,
             name=name,
             file_path=file_path,
             callable_name=callable_name,
+            interface=interface,
             metadata={
                 "description": description or name,
                 "tags": [],

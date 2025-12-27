@@ -35,6 +35,16 @@ common:
     default: false
     description: Print progress during optimization.
 
+  n_obj:
+    type: int
+    default: 1
+    description: >
+      REQUIRED for multi-objective algorithms (NSGA-II, NSGA-III, MOEA/D, etc.).
+      Number of objectives. Set to evaluator's n_outputs value.
+      Without this, MOO algorithms run in single-objective mode!
+    when_to_adjust: >
+      Always set to match your evaluator's n_outputs for MOO problems.
+
   n_offsprings:
     type: int
     default: null

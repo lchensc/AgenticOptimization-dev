@@ -77,6 +77,11 @@ class ActiveNode:
         best_objective: float,
         best_x: List[float],
         success: bool = True,
+        # MOO fields (v0.4.9)
+        is_multiobjective: bool = False,
+        n_pareto_solutions: Optional[int] = None,
+        hypervolume: Optional[float] = None,
+        pareto_ref: Optional[str] = None,
     ) -> OptimizationNode:
         """
         Finalize node and return immutable OptimizationNode.
@@ -87,6 +92,10 @@ class ActiveNode:
             best_objective: Final best objective value
             best_x: Final best x vector
             success: Whether optimization succeeded
+            is_multiobjective: Whether this is MOO result
+            n_pareto_solutions: Number of Pareto-optimal solutions
+            hypervolume: Hypervolume indicator value
+            pareto_ref: Reference to ParetoStorage file
 
         Returns:
             Immutable OptimizationNode record
@@ -106,6 +115,11 @@ class ActiveNode:
             initialization=self.initialization,
             progress=progress,
             result=result,
+            # MOO fields (v0.4.9)
+            is_multiobjective=is_multiobjective,
+            n_pareto_solutions=n_pareto_solutions,
+            hypervolume=hypervolume,
+            pareto_ref=pareto_ref,
         )
 
 
@@ -210,6 +224,11 @@ class ActiveGraph:
         best_objective: float,
         best_x: List[float],
         success: bool = True,
+        # MOO fields (v0.4.9)
+        is_multiobjective: bool = False,
+        n_pareto_solutions: Optional[int] = None,
+        hypervolume: Optional[float] = None,
+        pareto_ref: Optional[str] = None,
     ) -> OptimizationNode:
         """
         Complete current node and add to graph.
@@ -220,6 +239,10 @@ class ActiveGraph:
             best_objective: Final best objective
             best_x: Final best x vector
             success: Whether optimization succeeded
+            is_multiobjective: Whether this is MOO result
+            n_pareto_solutions: Number of Pareto-optimal solutions
+            hypervolume: Hypervolume indicator value
+            pareto_ref: Reference to ParetoStorage file
 
         Returns:
             Completed OptimizationNode record
@@ -233,6 +256,11 @@ class ActiveGraph:
             best_objective=best_objective,
             best_x=best_x,
             success=success,
+            # MOO fields (v0.4.9)
+            is_multiobjective=is_multiobjective,
+            n_pareto_solutions=n_pareto_solutions,
+            hypervolume=hypervolume,
+            pareto_ref=pareto_ref,
         )
 
         # Add node to graph

@@ -78,7 +78,7 @@ logger = logging.getLogger(__name__)
 def run_optimization(
     graph_id: int,
     optimizer: str,
-    config: Optional[str] = None,
+    optimizer_config: Optional[str] = None,
     max_iterations: int = 100,
     init_strategy: str = "center",
     parent_node: Optional[str] = None,
@@ -95,7 +95,7 @@ def run_optimization(
             - Bayesian: "optuna:TPE", "optuna:CMA-ES"
             - Evolutionary: "pymoo:GA", "pymoo:DE", "pymoo:PSO", "pymoo:CMA-ES"
             - Multi-objective: "pymoo:NSGA-II", "pymoo:NSGA-III", "pymoo:MOEA/D"
-        config: JSON string with optimizer options
+        optimizer_config: JSON string with optimizer options (e.g., '{"n_obj": 2, "pop_size": 100}')
         max_iterations: Maximum iterations (default: 100)
         init_strategy: "center", "random", or "warm_start"
         parent_node: Node ID to continue from (e.g., "n1")
@@ -109,6 +109,7 @@ def run_optimization(
     Example:
         run_optimization(graph_id=1, optimizer="scipy:SLSQP")
         run_optimization(graph_id=1, optimizer="scipy:L-BFGS-B", parent_node="n1", edge_type="warm_start")
+        run_optimization(graph_id=1, optimizer="pymoo:NSGA-II", optimizer_config='{"n_obj": 2, "pop_size": 100}')
     """
     from .evaluation import _get_problem
     from .graph import _FOUNDRY
@@ -159,15 +160,15 @@ def run_optimization(
                 "message": f"Backend '{backend_name}' is not installed.",
             }
 
-        # Parse config
+        # Parse optimizer_config
         config_dict = {}
-        if config:
+        if optimizer_config:
             try:
-                config_dict = json.loads(config)
+                config_dict = json.loads(optimizer_config)
             except json.JSONDecodeError as e:
                 return {
                     "success": False,
-                    "message": f"Invalid config JSON: {e}",
+                    "message": f"Invalid optimizer_config JSON: {e}",
                 }
 
         # Add method to config
@@ -294,8 +295,26 @@ def run_optimization(
         )
 
         # Prepare objective function
-        def objective(x):
-            return float(problem.evaluate(x))
+        # Agent specifies n_obj in config for MOO (no auto-detection)
+        n_obj = config_dict.get("n_obj", 1)
+        if n_obj > 1:
+            # MOO: return array of objectives
+            # Agent must ensure evaluator is registered with matching n_outputs
+            def objective(x):
+                result = problem.objective_eval.evaluate(np.atleast_1d(x))
+                # Extract objectives in order: f0, f1, f2, ... or by output_names
+                values = []
+                for i in range(n_obj):
+                    key = f"f{i}"
+                    if key in result.objectives:
+                        values.append(result.objectives[key])
+                    elif i == 0 and "objective" in result.objectives:
+                        values.append(result.objectives["objective"])
+                return np.array(values)
+        else:
+            # SOO: return single float
+            def objective(x):
+                return float(problem.evaluate(x))
 
         # Prepare gradient if available
         gradient = None
@@ -389,7 +408,7 @@ def run_optimization(
                 n_generations=result.n_iterations,
                 n_pareto_solutions=result.n_pareto_solutions if hasattr(result, 'n_pareto_solutions') else 0,
                 final_hypervolume=result.hypervolume if hasattr(result, 'hypervolume') else None,
-                pareto_ref=None,  # Would reference GraphDetail storage
+                pareto_ref=None,  # Will be set below if applicable
             )
         elif family == "cmaes":
             progress = CMAESProgress()
@@ -436,6 +455,44 @@ def run_optimization(
                 termination_reason=result.message,
             )
 
+        # Store Pareto front to ParetoStorage for any MOO result (v0.4.9)
+        pareto_ref = None
+        if result.is_multiobjective and result.pareto_set is not None and result.pareto_front is not None:
+            try:
+                from ..foundry.schema.pareto import ParetoFront
+                from ..foundry.storage.pareto_storage import ParetoStorage
+
+                # Get objective names from evaluator if available
+                objective_names = [f"f{i}" for i in range(result.pareto_front.shape[1])]
+                if hasattr(problem, "objective_eval") and hasattr(problem.objective_eval, "output_names"):
+                    if problem.objective_eval.output_names:
+                        objective_names = problem.objective_eval.output_names
+
+                # Create ParetoFront
+                pareto_front_obj = ParetoFront.from_arrays(
+                    pareto_set=result.pareto_set,
+                    pareto_front=result.pareto_front,
+                    objective_names=objective_names,
+                    hypervolume=result.hypervolume,
+                    graph_id=graph_id,
+                    node_id=active_node.node_id,
+                    algorithm=optimizer,
+                    n_generations=result.n_iterations,
+                )
+
+                # Store to ParetoStorage
+                # FileStorage uses base_dir, not base_path
+                storage_path = str(_FOUNDRY.storage.base_dir)
+                pareto_storage = ParetoStorage(storage_path)
+                pareto_ref = pareto_storage.store(pareto_front_obj)
+                logger.info(f"Stored Pareto front: {pareto_ref}")
+
+                # Update result_component if it has pareto_ref field
+                if hasattr(result_component, 'pareto_ref'):
+                    result_component.pareto_ref = pareto_ref
+            except Exception as e:
+                logger.warning(f"Could not store Pareto front: {e}")
+
         # Complete node
         best_x = (
             result.best_x.tolist()
@@ -443,12 +500,23 @@ def run_optimization(
             else list(result.best_x)
         )
 
+        # Prepare MOO fields for node completion (v0.4.9)
+        moo_kwargs = {}
+        if result.is_multiobjective:
+            moo_kwargs = {
+                "is_multiobjective": True,
+                "n_pareto_solutions": result.n_pareto_solutions,
+                "hypervolume": result.hypervolume,
+                "pareto_ref": pareto_ref,  # Set earlier if Pareto storage succeeded
+            }
+
         completed_node = graph.complete_node(
             progress=progress,
             result=result_component,
             best_objective=result.best_f,
             best_x=best_x,
             success=result.success,
+            **moo_kwargs,
         )
 
         # Return result
@@ -473,6 +541,9 @@ def run_optimization(
             response["is_multiobjective"] = True
             response["n_pareto_solutions"] = result.n_pareto_solutions
             response["hypervolume"] = result.hypervolume
+            # Add pareto_ref if stored (v0.4.9)
+            if pareto_ref:
+                response["pareto_ref"] = pareto_ref
 
         return response
 

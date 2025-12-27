@@ -316,7 +316,9 @@ class FoundryEvaluator(EvaluationBackend):
 
     def _parse_result(self, raw_result, execution_time: float) -> EvaluationResult:
         """
-        Parse user's return value based on discovered interface.
+        Parse user's return value based on interface specification.
+
+        Uses explicit n_outputs when declared to avoid format guessing.
 
         Handles multiple return formats:
         - Single scalar: return 0.5
@@ -335,8 +337,14 @@ class FoundryEvaluator(EvaluationBackend):
         """
         interface = self.config.get('interface', {}).get('output', {})
         output_format = interface.get('format', 'auto')
+        n_outputs = interface.get('n_outputs', 1)
+        output_names = interface.get('output_names')
 
-        # Auto-detect if not specified
+        # Use explicit n_outputs to determine format when n_outputs > 1
+        if n_outputs > 1 and output_format == 'auto':
+            output_format = 'array'
+
+        # Auto-detect only if format is still 'auto' (fallback for legacy configs)
         if output_format == 'auto' or not output_format:
             if isinstance(raw_result, tuple):
                 output_format = 'tuple'
@@ -380,15 +388,26 @@ class FoundryEvaluator(EvaluationBackend):
                 # Scalar wrapped in array
                 objectives = {'objective': float(arr)}
             elif arr.ndim == 1:
+                # Use explicit n_outputs to truncate/validate
+                arr = arr[:n_outputs]
+
                 if len(arr) == 1:
                     # Single-element array - treat as scalar
-                    objectives = {'objective': float(arr[0])}
+                    name = output_names[0] if output_names else 'objective'
+                    objectives = {name: float(arr[0])}
                 else:
-                    # Multi-objective array: first value is primary "objective"
-                    # Also store indexed values for MOO access
-                    objectives = {'objective': float(arr[0])}
+                    # Multi-objective array
+                    # Always include f0, f1, ... keys (for MOO wrapper)
+                    # Plus output_names if provided (for user-friendly access)
+                    objectives = {}
                     for i, v in enumerate(arr):
+                        # Always add f{i} key for consistent MOO access
                         objectives[f'f{i}'] = float(v)
+                        # Also add output_names key if provided
+                        if output_names and i < len(output_names):
+                            objectives[output_names[i]] = float(v)
+                    # Also set 'objective' to first value for compatibility
+                    objectives['objective'] = float(arr[0])
             else:
                 raise ValueError(f"Expected 1D array, got shape {arr.shape}")
             constraints = {}
@@ -406,6 +425,7 @@ class FoundryEvaluator(EvaluationBackend):
             metadata={
                 'evaluator_id': self.evaluator_id,
                 'execution_time': execution_time,
+                'n_outputs': n_outputs,
             }
         )
 

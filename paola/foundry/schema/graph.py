@@ -161,6 +161,12 @@ class OptimizationNode:
     best_objective: Optional[float] = None
     best_x: Optional[List[float]] = None  # Best solution vector
 
+    # MOO-specific fields (v0.4.9)
+    is_multiobjective: bool = False
+    n_pareto_solutions: Optional[int] = None  # Number of Pareto-optimal solutions
+    hypervolume: Optional[float] = None  # Hypervolume indicator
+    pareto_ref: Optional[str] = None  # Reference to ParetoStorage file
+
     # Polymorphic components (per optimizer family)
     # These are Optional because they're populated during/after execution
     initialization: Optional[Any] = None  # InitializationComponent
@@ -177,7 +183,7 @@ class OptimizationNode:
 
     def to_dict(self) -> Dict[str, Any]:
         """Serialize to dictionary."""
-        return {
+        result = {
             "node_id": self.node_id,
             "optimizer": self.optimizer,
             "optimizer_family": self.optimizer_family,
@@ -193,6 +199,13 @@ class OptimizationNode:
             "progress": self.progress.to_dict() if self.progress else None,
             "result": self.result.to_dict() if self.result else None,
         }
+        # MOO fields (only include if relevant)
+        if self.is_multiobjective:
+            result["is_multiobjective"] = True
+            result["n_pareto_solutions"] = self.n_pareto_solutions
+            result["hypervolume"] = self.hypervolume
+            result["pareto_ref"] = self.pareto_ref
+        return result
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'OptimizationNode':
@@ -230,6 +243,11 @@ class OptimizationNode:
             wall_time=data.get("wall_time", 0.0),
             best_objective=data.get("best_objective"),
             best_x=data.get("best_x"),
+            # MOO fields (v0.4.9)
+            is_multiobjective=data.get("is_multiobjective", False),
+            n_pareto_solutions=data.get("n_pareto_solutions"),
+            hypervolume=data.get("hypervolume"),
+            pareto_ref=data.get("pareto_ref"),
             initialization=initialization,
             progress=progress,
             result=result,

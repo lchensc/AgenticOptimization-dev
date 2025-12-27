@@ -62,7 +62,8 @@ class RunOptimizationArgs(BaseModel):
 
     graph_id: int = Field(description="Graph ID from start_graph")
     optimizer: str = Field(description="Backend spec like 'scipy:SLSQP' or 'optuna:TPE'")
-    config: Optional[str] = Field(default=None, description="JSON string with optimizer options")
+    # Note: Named 'optimizer_config' to avoid conflict with LangChain's RunnableConfig
+    optimizer_config: Optional[str] = Field(default=None, description="JSON string with optimizer options")
     max_iterations: int = Field(default=100, description="Maximum iterations")
     init_strategy: str = Field(default="center", description="Initialization: center, random, warm_start")
     parent_node: Optional[str] = Field(default=None, description="Node ID to continue from (e.g., 'n1')")
