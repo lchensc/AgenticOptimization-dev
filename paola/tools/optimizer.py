@@ -87,8 +87,8 @@ def run_optimization(
         run_optimization(graph_id=1, optimizer="scipy:SLSQP")
         run_optimization(graph_id=1, optimizer="scipy:L-BFGS-B", parent_node="n1", edge_type="warm_start")
     """
-    from .evaluator_tools import _get_problem
-    from .graph_tools import _FOUNDRY
+    from .evaluation import _get_problem
+    from .graph import _FOUNDRY
 
     try:
         # Check foundry
@@ -388,7 +388,7 @@ def get_problem_info(problem_id: ProblemIdType) -> Dict[str, Any]:
             has_gradient: bool - Gradient available
             description: str - Problem description
     """
-    from .evaluator_tools import _get_problem
+    from .evaluation import _get_problem
 
     try:
         # Normalize problem_id (handles str/int from LLM) - v0.4.5

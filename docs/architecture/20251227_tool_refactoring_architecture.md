@@ -1,16 +1,17 @@
 # Paola Tools Architecture Refactoring
 
 **Date**: December 26-27, 2025
-**Commits**: `9df62b8`, `fe6c9b9`, `e940958`
+**Commits**: `9df62b8`, `fe6c9b9`, `e940958`, `58aa573`
 **Philosophy**: Progressive disclosure, trust LLM intelligence, minimal context
 
 ---
 
 ## Overview
 
-The Paola tools underwent a two-phase refactoring to:
+The Paola tools underwent a three-phase refactoring to:
 1. **Simplify tool docstrings** (60-70% reduction) - trust LLM intelligence
 2. **Reorganize into logical modules** - improve maintainability and reduce context
+3. **Rename modules for consistency** - clear naming, no _tools suffix confusion
 
 This document describes the architectural changes and rationale.
 
@@ -137,22 +138,24 @@ Example:
 **After reorganization**:
 Tools organized by **logical responsibility**, not implementation details.
 
-### New Architecture
+### New Architecture (After Phase 3)
 
 ```
 paola/tools/
-├── problem.py              # Problem formulation
-├── evaluator.py            # Evaluator registration
-├── file_tools.py           # File operations
-├── evaluator_tools.py      # Function evaluation (internal)
-├── optimization_tools.py   # Optimization execution
-├── graph_tools.py          # Graph management
-├── observation_tools.py    # Analysis tools
-├── cache_tools.py          # Evaluation caching
-├── registration_tools.py   # Backward compatibility
+├── problem.py              # Problem formulation (create_nlp_problem, derive_problem)
+├── evaluator.py            # Evaluator registration (foundry_store_evaluator)
+├── evaluation.py           # Function evaluation (evaluate_function, compute_gradient)
+├── optimizer.py            # Optimization execution (run_optimization)
+├── graph.py                # Graph management (start_graph, finalize_graph)
+├── analysis.py             # Analysis tools (analyze_convergence, detect_pattern)
+├── cache.py                # Evaluation caching (cache_get, cache_store, cache_clear)
+├── file_tools.py           # File operations (read_file, write_file)
+├── registration_tools.py   # Backward compatibility re-exports
 ├── schemas.py              # Pydantic validation
 └── __init__.py             # Public API
 ```
+
+**Naming Convention**: Noun form without `_tools` suffix for clarity. Exception: `file_tools.py` kept for distinction from stdlib.
 
 ### Module Responsibilities
 
@@ -187,16 +190,16 @@ paola/tools/
 
 **Why separate**: File operations are general utilities, not optimization-specific. Clear separation from Foundry evaluator registration.
 
-#### `evaluator_tools.py` (REFACTORED - 398 lines, down from 948)
+#### `evaluation.py` (RENAMED from evaluator_tools.py - 398 lines)
 **Purpose**: Internal function evaluation tools
 
-**Kept**:
+**Contains**:
 - `evaluate_function` - Evaluate objective at design point
 - `compute_gradient` - Compute gradients
 - `create_benchmark_problem` - Create analytical test functions
 - Helper functions: `_get_problem`, `register_problem`, `clear_problem_registry`
 
-**Why keep**: These are internal evaluation utilities, not user-facing problem formulation tools.
+**Why renamed**: Avoids confusion with `evaluator.py` (registration vs execution).
 
 #### `registration_tools.py` (REFACTORED - 26 lines, down from 331)
 **Purpose**: Backward compatibility re-exports
@@ -475,6 +478,36 @@ All existing tests pass with new architecture:
 - `9df62b8` - Simplify tool docstrings with minimal examples
 - `fe6c9b9` - Reorganize tools into logical modules
 - `e940958` - Fix import path in repl.py after tool reorganization
+- `58aa573` - Rename modules for consistency (Phase 3)
+
+---
+
+## Phase 3: Module Renaming (Commit `58aa573`)
+
+### Problem Statement
+
+After Phase 2, the tools folder had inconsistent naming:
+- Some modules used `_tools` suffix (optimization_tools.py, graph_tools.py)
+- Some didn't (problem.py, evaluator.py)
+- Naming conflicts: evaluator.py vs evaluator_tools.py
+- Split cache files: cache_tools.py vs cache_agent_tools.py
+
+### Solution: Consistent Naming
+
+| Old Name | New Name | Rationale |
+|----------|----------|-----------|
+| `optimization_tools.py` | `optimizer.py` | Noun form, no suffix |
+| `graph_tools.py` | `graph.py` | Noun form, no suffix |
+| `observation_tools.py` | `analysis.py` | Better describes purpose |
+| `evaluator_tools.py` | `evaluation.py` | Avoids confusion with evaluator.py |
+| `cache_tools.py` + `cache_agent_tools.py` | `cache.py` | Merged, single module |
+
+### Import Updates
+
+All internal imports updated throughout:
+- `paola/tools/*.py` - Internal cross-references
+- `paola/cli/repl.py` - CLI imports
+- `tests/*.py` - Test imports
 
 ---
 
@@ -484,7 +517,9 @@ The tools refactoring achieved:
 
 ✅ **60-70% reduction** in docstring size (trust LLM intelligence)
 ✅ **Logical module organization** (clear responsibility separation)
-✅ **Backward compatibility** (old imports still work)
+✅ **Consistent naming** (noun form, no _tools suffix confusion)
+✅ **Merged cache modules** (single cache.py with internal + tool functions)
+✅ **Backward compatibility** (old imports via re-exports)
 ✅ **Clear constraint example** (addresses portfolio optimization failure)
 ✅ **Better discoverability** (tools organized by user intent)
 ✅ **Context savings** (10K tokens per session)

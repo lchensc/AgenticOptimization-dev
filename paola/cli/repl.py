@@ -17,8 +17,8 @@ from ..tools.problem import (
     list_problems,
     get_problem_lineage,
 )
-from ..tools.graph_tools import start_graph, get_graph_state, finalize_graph, query_past_graphs, get_past_graph, set_foundry
-from ..tools.analysis import analyze_convergence as analyze_convergence_new, analyze_efficiency, get_all_metrics, analyze_run_with_ai
+from ..tools.graph import start_graph, get_graph_state, finalize_graph, query_past_graphs, get_past_graph, set_foundry
+from ..tools.analysis import analyze_convergence as analyze_convergence_new
 from ..callbacks import CallbackManager
 from ..foundry import FileStorage, StorageBackend, OptimizationFoundry
 from ..llm import TokenTracker, LangChainTokenCallback, format_session_stats
@@ -98,7 +98,7 @@ class AgenticOptREPL:
         from ..skills import get_skill_tools
 
         # Import LLM-driven optimization tools (Paola Principle)
-        from ..tools.optimization_tools import (
+        from ..tools.optimizer import (
             run_optimization,
             get_problem_info,
             list_available_optimizers,
@@ -142,11 +142,7 @@ class AgenticOptREPL:
 
             # Analysis (deterministic)
             analyze_convergence_new,
-            analyze_efficiency,
-            get_all_metrics,
-
-            # Analysis (AI-powered)
-            analyze_run_with_ai,
+            # TODO: analyze_efficiency, get_all_metrics, analyze_run_with_ai not yet implemented
 
             # Evaluator management
             read_file,
