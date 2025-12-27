@@ -123,6 +123,12 @@ from .multiobjective import (
     MultiObjectiveResult,
 )
 
+# Pareto front (v1.0 MOO)
+from .pareto import (
+    ParetoSolution,
+    ParetoFront,
+)
+
 # Registry
 from .registry import (
     OptimizerFamilySchema,
@@ -188,6 +194,9 @@ __all__ = [
     "MOGeneration",
     "MultiObjectiveProgress",
     "MultiObjectiveResult",
+    # Pareto front (v1.0 MOO)
+    "ParetoSolution",
+    "ParetoFront",
     # Registry
     "OptimizerFamilySchema",
     "ComponentRegistry",

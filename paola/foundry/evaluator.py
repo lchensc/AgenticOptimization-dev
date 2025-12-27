@@ -324,6 +324,7 @@ class FoundryEvaluator(EvaluationBackend):
         - Tuple (obj, cons): return ({"drag": 0.2}, {"lift": 0.5})
         - Tuple (obj, grad): return (0.5, np.array([...]))
         - NumPy scalar: return np.float64(0.5)
+        - List/array (MOO): return [f1, f2] or np.array([f1, f2])
 
         Args:
             raw_result: Raw return value from user's function
@@ -343,6 +344,8 @@ class FoundryEvaluator(EvaluationBackend):
                 output_format = 'dict'
             elif isinstance(raw_result, (int, float, np.number)):
                 output_format = 'scalar'
+            elif isinstance(raw_result, (list, np.ndarray)):
+                output_format = 'array'
             else:
                 raise ValueError(f"Cannot auto-detect format for type: {type(raw_result)}")
 
@@ -370,6 +373,26 @@ class FoundryEvaluator(EvaluationBackend):
             else:
                 raise ValueError(f"Unexpected tuple length: {len(raw_result)}")
 
+        elif output_format == 'array':
+            # List or numpy array of objective values (for MOO)
+            arr = np.asarray(raw_result)
+            if arr.ndim == 0:
+                # Scalar wrapped in array
+                objectives = {'objective': float(arr)}
+            elif arr.ndim == 1:
+                if len(arr) == 1:
+                    # Single-element array - treat as scalar
+                    objectives = {'objective': float(arr[0])}
+                else:
+                    # Multi-objective array: first value is primary "objective"
+                    # Also store indexed values for MOO access
+                    objectives = {'objective': float(arr[0])}
+                    for i, v in enumerate(arr):
+                        objectives[f'f{i}'] = float(v)
+            else:
+                raise ValueError(f"Expected 1D array, got shape {arr.shape}")
+            constraints = {}
+
         else:
             raise ValueError(f"Unsupported output format: {output_format}")
 
@@ -383,7 +406,6 @@ class FoundryEvaluator(EvaluationBackend):
             metadata={
                 'evaluator_id': self.evaluator_id,
                 'execution_time': execution_time,
-                'design': design.tolist() if isinstance(raw_result, np.ndarray) else None
             }
         )
 

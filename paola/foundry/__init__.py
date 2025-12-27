@@ -21,8 +21,15 @@ learning (knowledge base), and analysis are built.
 """
 
 from .foundry import OptimizationFoundry
-from .problem import Problem
-from .storage import StorageBackend, FileStorage
+from .problem import (
+    Problem,
+    Variable,
+    Objective,
+    Constraint,
+    OptimizationProblem,
+    DerivationType,
+)
+from .storage import StorageBackend, FileStorage, ParetoStorage
 
 # v0.3.0 Graph schema classes
 from .schema import (
@@ -65,6 +72,9 @@ from .schema import (
     MOGeneration,
     MultiObjectiveProgress,
     MultiObjectiveResult,
+    # Pareto front (v1.0 MOO)
+    ParetoSolution,
+    ParetoFront,
     # Registry
     COMPONENT_REGISTRY,
 )
@@ -91,12 +101,23 @@ from .nlp_schema import NLPProblem, InequalityConstraint, EqualityConstraint
 from .nlp_evaluator import NLPEvaluator
 from .problem_types import ProblemTypeDetector, SolverSelector
 
+# MOO evaluator support
+from .moo_evaluator import MOOEvaluator, ArrayEvaluatorCache, create_moo_evaluator
+
 __all__ = [
     # Core
     "OptimizationFoundry",
-    "Problem",
     "StorageBackend",
     "FileStorage",
+    "ParetoStorage",
+    # Unified problem schema (v1.0)
+    "Variable",
+    "Objective",
+    "Constraint",
+    "OptimizationProblem",
+    "DerivationType",
+    # Legacy
+    "Problem",
     # v0.3.x Graph-based architecture
     "EdgeType",
     "OptimizationEdge",
@@ -138,6 +159,9 @@ __all__ = [
     "MOGeneration",
     "MultiObjectiveProgress",
     "MultiObjectiveResult",
+    # Pareto front (v1.0 MOO)
+    "ParetoSolution",
+    "ParetoFront",
     # Registry
     "COMPONENT_REGISTRY",
     # Evaluator registration
@@ -165,4 +189,8 @@ __all__ = [
     "NLPEvaluator",
     "ProblemTypeDetector",
     "SolverSelector",
+    # MOO evaluator
+    "MOOEvaluator",
+    "ArrayEvaluatorCache",
+    "create_moo_evaluator",
 ]

@@ -92,6 +92,16 @@ from paola.tools.graph import (
     get_foundry,
 )
 
+# Pareto front tools
+from paola.tools.pareto import (
+    query_pareto,
+    compare_pareto_fronts,
+    list_pareto_fronts,
+    set_pareto_storage,
+    get_pareto_storage,
+    PARETO_TOOLS,
+)
+
 __all__ = [
     # Pydantic schemas
     "normalize_problem_id",
@@ -143,4 +153,11 @@ __all__ = [
     "get_past_graph",
     "set_foundry",
     "get_foundry",
+    # Pareto front tools
+    "query_pareto",
+    "compare_pareto_fronts",
+    "list_pareto_fronts",
+    "set_pareto_storage",
+    "get_pareto_storage",
+    "PARETO_TOOLS",
 ]
