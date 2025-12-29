@@ -90,35 +90,55 @@ overview: |
   | Known threshold | Threshold | Stop if worse than target |
   | Noisy evaluations | Patient + Median | Wait before pruning |
 
-  ### Integration with Paola
+  ### Integration with Paola Recording API
 
-  When using `run_optimization(optimizer="optuna:SAMPLER", ...)`
+  **Single-objective optimization:**
+  ```python
+  import paola
+  import optuna
+  import json
 
-  1. **Sampler syntax**: Use `optuna:TPE`, `optuna:CMA-ES`, `optuna:GP`, etc.
+  # Get RecordingObjective (problem_id is INTEGER from list_problems/create_nlp_problem)
+  f = paola.objective(problem_id=7, goal="Black-box optimization with TPE")
 
-  2. **Config options**:
-     ```json
-     {
-       "sampler": "TPE",
-       "n_trials": 100,
-       "seed": 42,
-       "sampler_options": {"n_startup_trials": 10, "multivariate": true},
-       "pruner": "Hyperband",
-       "pruner_options": {"min_resource": 1, "reduction_factor": 3}
-     }
-     ```
+  # Define bounds (from get_problem_info or manually)
+  bounds = [(-5, 5), (-5, 5)]
 
-  3. **IMPORTANT - Bounds are NOT set via sampler_options**:
-     Bounds come from the problem definition (`create_nlp_problem`).
-     The sampler operates within these bounds automatically.
-     To change bounds, register a new problem with different bounds.
+  def objective(trial):
+      x = [trial.suggest_float(f"x{i}", lb, ub) for i, (lb, ub) in enumerate(bounds)]
+      return f(x)  # f is callable, records evaluation
 
-  4. **Warm-starting**: Optuna supports warm-starting via `source_trials` in
-     CMA-ES or by enqueuing known good points. Use `init_strategy="warm_start"`
-     with parent node.
+  study = optuna.create_study(sampler=optuna.samplers.TPESampler(seed=42))
+  study.optimize(objective, n_trials=100)
 
-  5. **Multi-objective**: For Pareto optimization, use NSGA-II/NSGA-III samplers
-     and return multiple objectives from the evaluator.
+  summary = paola.checkpoint(f, script="...", reasoning="TPE for black-box")
+  print(json.dumps(summary))
+  ```
+
+  **Multi-objective (MOO) optimization:**
+  ```python
+  # For Pareto front with 2 objectives
+  def moo_objective(trial):
+      x = [trial.suggest_float(f"x{i}", lb, ub) for i, (lb, ub) in enumerate(bounds)]
+      result = f(x)  # Returns array [f1, f2] for MOO evaluator
+      return result[0], result[1]
+
+  study = optuna.create_study(
+      directions=["minimize", "minimize"],
+      sampler=optuna.samplers.NSGAIISampler(seed=42)
+  )
+  study.optimize(moo_objective, n_trials=200)
+
+  # Access Pareto front
+  pareto_trials = study.best_trials
+  ```
+
+  **Key points:**
+  - `problem_id` is an INTEGER from `list_problems()` or `create_nlp_problem()`
+  - Call `study.optimize(...)` directly - NOT `f.run_optimization(...)`
+  - Bounds come from problem definition (use `get_problem_info()`)
+  - For MOO: use `NSGAIISampler` or `NSGAIIISampler` with `directions=["minimize", "minimize"]`
+  - Warm-start: enqueue known good points via `study.enqueue_trial()`
 
 # === RESOURCES (Level 3 - Loaded on demand) ===
 resources:

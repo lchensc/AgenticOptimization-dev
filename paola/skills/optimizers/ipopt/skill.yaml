@@ -46,20 +46,62 @@ overview: |
   - **Scaling**: Automatic gradient-based scaling or user-provided
   - **Hessian Options**: Exact, limited-memory BFGS, or approximation
 
-  ### Integration with Paola
+  ### Integration with Paola Recording API
 
-  When using `run_optimization(optimizer="ipopt", ...)`:
+  ```python
+  import paola
+  import cyipopt
+  import numpy as np
+  import json
 
-  1. **Warm-starting**: If using `init_strategy="warm_start"`, you MUST also set
-     `warm_start_init_point: "yes"` in the config. The graph edge provides x0,
-     but IPOPT needs this flag to initialize multipliers properly.
+  # Get RecordingObjective (problem_id is INTEGER from list_problems/create_nlp_problem)
+  f = paola.objective(problem_id=7, goal="Large-scale NLP with IPOPT")
 
-  2. **No Hessian**: If your evaluator doesn't provide Hessian, set
-     `hessian_approximation: "limited-memory"` and consider increasing
-     `limited_memory_max_history` to 10-20.
+  # Define IPOPT problem wrapper
+  class IpoptWrapper:
+      def __init__(self, recording_obj, n, lb, ub):
+          self.f = recording_obj
+          self.n = n
+          self.lb = np.array(lb)
+          self.ub = np.array(ub)
 
-  3. **Large-scale**: For 1000+ variables, ensure `linear_solver: "mumps"`
-     and consider `nlp_scaling_method: "gradient-based"`.
+      def objective(self, x):
+          return self.f(x)  # f is callable, records evaluation
+
+      def gradient(self, x):
+          # Finite difference (or analytical if available)
+          eps = 1e-8
+          grad = np.zeros(self.n)
+          f0 = self.f(x)
+          for i in range(self.n):
+              x_plus = x.copy()
+              x_plus[i] += eps
+              grad[i] = (self.f(x_plus) - f0) / eps
+          return grad
+
+  # Create and solve
+  wrapper = IpoptWrapper(f, n=2, lb=[-5, -5], ub=[5, 5])
+  nlp = cyipopt.Problem(
+      n=2, m=0,  # n vars, m constraints
+      lb=wrapper.lb, ub=wrapper.ub,
+      problem_obj=wrapper
+  )
+  nlp.add_option('max_iter', 100)
+  nlp.add_option('hessian_approximation', 'limited-memory')
+
+  x0 = np.zeros(2)
+  x, info = nlp.solve(x0)
+
+  summary = paola.checkpoint(f, script="...", reasoning="IPOPT for large-scale NLP")
+  print(json.dumps(summary))
+  ```
+
+  **Key points:**
+  - `problem_id` is an INTEGER from `list_problems()` or `create_nlp_problem()`
+  - Call `nlp.solve(...)` directly - NOT `f.run_optimization(...)`
+  - For warm-start: set `warm_start_init_point='yes'` and use `f.get_warm_start()` for x0
+  - Use `hessian_approximation='limited-memory'` if no analytical Hessian
+  - For large-scale (1000+ vars): use `linear_solver='mumps'`
 
   ### Option Categories
 

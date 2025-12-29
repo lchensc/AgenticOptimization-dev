@@ -32,9 +32,12 @@ from scipy.optimize import minimize
 import json
 
 # Start new optimization graph
+# NOTE: problem_id is INTEGER from list_problems() or create_nlp_problem()
+#       NOT evaluator_id (string like "moo_eval" from foundry_list_evaluators)
 f = paola.objective(problem_id=7, goal="Minimize drag")
 
-# Run any optimizer - f records all evaluations
+# Run any optimizer - f is callable, records all evaluations
+# Call optimizer directly: minimize(f, ...) NOT f.run_optimization(...)
 result = minimize(f, x0, method='SLSQP', bounds=bounds)
 
 # Checkpoint: save script and get summary
@@ -56,7 +59,9 @@ summary = paola.complete(f, script=SCRIPT)
 ## How to Execute
 
 1. **Gather problem info** using tools:
-   - get_problem_info(problem_id) → bounds, objectives, constraints
+   - list_problems() → get problem_id (INTEGER, e.g., 7, 31)
+   - get_problem_info(problem_id) → bounds, constraints (problem_id MUST be int)
+   - foundry_list_evaluators() → evaluator registry (string IDs, NOT for paola.objective)
    - query_past_graphs(...) → learn from successful history
    - load_skill("scipy") → optimizer configuration details
 

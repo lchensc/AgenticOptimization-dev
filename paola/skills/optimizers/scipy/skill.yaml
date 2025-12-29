@@ -69,21 +69,35 @@ overview: |
   | SLSQP | Yes | Yes | Optional | No |
   | trust-constr | Yes | Yes | Optional | Optional |
 
-  ### Integration with Paola
+  ### Integration with Paola Recording API
 
-  When using `run_optimization(optimizer="scipy:METHOD", ...)`:
+  ```python
+  import paola
+  from scipy.optimize import minimize
+  import numpy as np
+  import json
 
-  1. **Method syntax**: Use `scipy:SLSQP`, `scipy:L-BFGS-B`, etc.
+  # Get RecordingObjective (problem_id is INTEGER from list_problems/create_nlp_problem)
+  f = paola.objective(problem_id=7, goal="Minimize with SLSQP")
 
-  2. **Gradient handling**: If your evaluator provides gradients, SciPy will use them.
-     Otherwise, set `jac` option to `'2-point'` or `'3-point'` for numerical approximation.
+  # Get bounds from problem info tool or define manually
+  bounds = [(-5, 5), (-5, 5)]
+  x0 = np.zeros(len(bounds))
 
-  3. **Constraints**: For SLSQP and trust-constr, constraints are passed via
-     the problem definition, not the config.
+  # Call scipy directly - f is callable, records all evaluations
+  result = minimize(f, x0, method='SLSQP', bounds=bounds)
 
-  4. **Warm-starting**: SciPy methods accept x0 from parent node via
-     `init_strategy="warm_start"`, but do not warm-start multipliers
-     (use IPOPT if multiplier warm-start is critical).
+  # Checkpoint to save progress
+  summary = paola.checkpoint(f, script="...", reasoning="SLSQP for smooth constrained")
+  print(json.dumps(summary))
+  ```
+
+  **Key points:**
+  - `problem_id` is an INTEGER from `list_problems()` or `create_nlp_problem()`
+  - Call `minimize(f, ...)` directly - NOT `f.run_optimization(...)`
+  - Use `jac='2-point'` or `'3-point'` for numerical gradients
+  - Constraints come from problem definition (not optimizer config)
+  - Warm-start: use `f.get_warm_start()` for x0 from previous node
 
   ### Option Categories
 

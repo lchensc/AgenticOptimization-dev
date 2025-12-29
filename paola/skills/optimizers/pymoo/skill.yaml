@@ -86,30 +86,53 @@ overview: |
   - **IGD**: Inverted Generational Distance (lower is better)
   - **Spread**: Diversity of solutions on front
 
-  ### Integration with Paola
+  ### Integration with Paola Recording API
 
-  When using `run_optimization(optimizer="pymoo:ALGORITHM", ...)`:
+  ```python
+  import paola
+  from pymoo.algorithms.moo.nsga2 import NSGA2
+  from pymoo.core.problem import Problem
+  from pymoo.optimize import minimize as pymoo_minimize
+  import numpy as np
+  import json
 
-  1. **Algorithm syntax**: Use `pymoo:GA`, `pymoo:NSGA-II`, etc.
+  # Get RecordingObjective (problem_id is INTEGER from list_problems/create_nlp_problem)
+  f = paola.objective(problem_id=7, goal="Multi-objective optimization with NSGA-II")
 
-  2. **Multi-objective (CRITICAL)**: For MOO algorithms (NSGA-II, NSGA-III, MOEA/D, etc.),
-     you MUST pass `n_obj` in optimizer_config. Get this from the evaluator's
-     n_outputs field. Without n_obj, the algorithm runs in single-objective mode!
+  # Wrap for pymoo
+  class PaolaProblem(Problem):
+      def __init__(self, recording_obj, n_var, xl, xu, n_obj):
+          super().__init__(n_var=n_var, n_obj=n_obj, xl=np.array(xl), xu=np.array(xu))
+          self.f = recording_obj
 
-  3. **Constraints**: pymoo handles constraints via penalty or repair methods.
-     Pass constraints in standard format.
+      def _evaluate(self, X, out, *args, **kwargs):
+          F = []
+          for x in X:
+              result = self.f(x)  # f is callable, records evaluation
+              F.append(result if isinstance(result, (list, np.ndarray)) else [result])
+          out["F"] = np.array(F)
 
-  4. **Pareto output**: Multi-objective results include `pareto_set` (solutions)
-     and `pareto_front` (objective values) in OptimizationResult.
+  # Set up problem and algorithm
+  problem = PaolaProblem(f, n_var=2, xl=[-5, -5], xu=[5, 5], n_obj=2)
+  algorithm = NSGA2(pop_size=100)
 
-  5. **Seed control**: Set `seed` in config for reproducibility.
+  # Run optimization
+  res = pymoo_minimize(problem, algorithm, ("n_gen", 100), seed=42, verbose=False)
 
-  6. **MOO example**:
-     ```python
-     # For bi-objective problem with evaluator having n_outputs=2:
-     optimizer_config = '{"n_obj": 2, "pop_size": 100, "n_gen": 100}'
-     run_optimization(optimizer="pymoo:NSGA-II", optimizer_config=optimizer_config)
-     ```
+  # Access Pareto front
+  print(f"Pareto front shape: {res.F.shape}")
+  print(f"Best solutions: {res.X[:5]}")
+
+  summary = paola.checkpoint(f, script="...", reasoning="NSGA-II for bi-objective MOO")
+  print(json.dumps(summary))
+  ```
+
+  **Key points:**
+  - `problem_id` is an INTEGER from `list_problems()` or `create_nlp_problem()`
+  - Call `pymoo_minimize(...)` directly - NOT `f.run_optimization(...)`
+  - `n_obj` is set in the Problem class, matching evaluator's output count
+  - Pareto results: `res.F` (objectives), `res.X` (decision variables)
+  - For constraints: override `_evaluate` to set `out["G"]` for constraint values
 
   ### Termination Criteria
 
