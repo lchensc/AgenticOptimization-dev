@@ -5,6 +5,10 @@ v0.3.0: Graph-based architecture
 - Graph = complete optimization task (may involve multiple nodes)
 - Node = single optimizer execution
 
+v0.5.0 (v0.2.0 redesign): start_graph is DEPRECATED
+- Use paola.objective(problem_id) instead - creates graph and returns RecordingObjective
+- See paola.api module for Recording API
+
 Uses OptimizationFoundry with dependency injection for data foundation.
 
 Design Principle: "Graph externalizes state, agent makes decisions."
@@ -12,6 +16,7 @@ Design Principle: "Graph externalizes state, agent makes decisions."
 - The agent explicitly decides which node to continue from
 - The system does NOT automatically select "best" - that's the agent's decision
 """
+import warnings
 
 from typing import Dict, Any, Optional
 from langchain_core.tools import tool
@@ -62,7 +67,19 @@ def start_graph(
 
     Example:
         start_graph(problem_id=1, goal="Minimize cost")
+
+    .. deprecated:: 0.5.0
+        Use paola.objective(problem_id) instead.
+        Returns RecordingObjective that can be called directly.
     """
+    warnings.warn(
+        "start_graph is deprecated in v0.5.0. "
+        "Use paola.objective(problem_id) instead. "
+        "See paola.api for the Recording API.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     try:
         if _FOUNDRY is None:
             return {

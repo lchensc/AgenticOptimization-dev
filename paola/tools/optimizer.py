@@ -15,10 +15,16 @@ v0.3.0: Graph-based architecture
 
 v0.4.5: Pydantic validation for problem_id (handles str/int coercion)
 
+v0.5.0 (v0.2.0 redesign): run_optimization is DEPRECATED
+- LLM now writes Python code directly using paola.objective(), scipy, optuna, etc.
+- Use paola.objective(problem_id) to get RecordingObjective callable
+- See paola.api module for Recording API
+
 Architecture:
     LLM reasons → selects optimizer → constructs config → calls run_optimization
     (Intelligence)                                        (Execution)
 """
+import warnings
 
 from typing import Optional, Dict, Any
 import numpy as np
@@ -110,7 +116,19 @@ def run_optimization(
         run_optimization(graph_id=1, optimizer="scipy:SLSQP")
         run_optimization(graph_id=1, optimizer="scipy:L-BFGS-B", parent_node="n1", edge_type="warm_start")
         run_optimization(graph_id=1, optimizer="pymoo:NSGA-II", optimizer_config='{"n_obj": 2, "pop_size": 100}')
+
+    .. deprecated:: 0.5.0
+        Use paola.objective() with scipy/optuna directly instead.
+        LLM now writes Python optimization code directly.
     """
+    warnings.warn(
+        "run_optimization is deprecated in v0.5.0. "
+        "Use paola.objective(problem_id) and call scipy/optuna directly. "
+        "See paola.api for the Recording API.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     from .evaluation import _get_problem
     from .graph import _FOUNDRY
 

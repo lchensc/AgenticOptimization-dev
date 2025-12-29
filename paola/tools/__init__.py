@@ -1,12 +1,16 @@
 """
 Agent tools for Paola.
 
+v0.2.0: LLM writes Python code directly. Deprecated tools:
+- run_optimization → Use paola.objective() + scipy/optuna directly
+- start_graph → Use paola.objective()
+
 Organized into logical modules:
 - problem.py: Problem formulation (create_nlp_problem, derive_problem, list_problems)
 - evaluator.py: Evaluator registration (foundry_store_evaluator, foundry_list_evaluators)
 - evaluation.py: Function evaluation (evaluate_function, compute_gradient)
-- optimizer.py: Optimization execution (run_optimization, get_problem_info)
-- graph.py: Graph management (start_graph, get_graph_state, finalize_graph)
+- optimizer.py: Problem info (get_problem_info) [run_optimization deprecated]
+- graph.py: Graph queries (query_past_graphs, get_graph_state) [start_graph deprecated]
 - analysis.py: Analysis tools (analyze_convergence, detect_pattern)
 - file_tools.py: File operations (read_file, write_file, execute_python)
 - cache.py: Cache operations (cache_get, cache_store, cache_clear)
@@ -113,8 +117,7 @@ __all__ = [
     "cache_stats",
     "run_db_log",
     "run_db_query",
-    # Optimization tools
-    "run_optimization",
+    # Optimization tools (run_optimization deprecated in v0.2.0)
     "get_problem_info",
     "list_available_optimizers",
     # Function evaluation tools
@@ -145,8 +148,7 @@ __all__ = [
     "execute_python",
     # Backward compatibility
     "ALL_REGISTRATION_TOOLS",
-    # Graph management tools
-    "start_graph",
+    # Graph management tools (start_graph deprecated in v0.2.0)
     "get_graph_state",
     "finalize_graph",
     "query_past_graphs",
