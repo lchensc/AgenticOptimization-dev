@@ -212,6 +212,177 @@ class OptimizationFoundry:
 
         return record
 
+    def finalize_graph_from_journal(self, graph_id: int) -> Optional[GraphRecord]:
+        """
+        Finalize a graph using journal data when graph is not in _active_graphs.
+
+        This handles the cross-process case where:
+        - Graph was created in subprocess via paola.objective()
+        - Subprocess called checkpoint() which logged to journal
+        - Subprocess exited, losing _active_graphs state
+        - Main process needs to finalize
+
+        v0.2.1: Journal-based finalization for subprocess isolation.
+
+        Args:
+            graph_id: Graph ID to finalize
+
+        Returns:
+            GraphRecord if successful, None if graph not found in journal
+
+        Raises:
+            ValueError: If graph already finalized
+        """
+        from .journal import GraphJournal
+        from .schema.graph_record import NodeSummary, EdgeSummary
+        from datetime import datetime
+
+        journal_path = self.storage.base_dir / "journal.jsonl"
+        journal = GraphJournal(journal_path)
+
+        # Get full graph data from journal
+        graph_data = journal.get_full_graph_data(graph_id)
+        if graph_data is None:
+            return None
+
+        if graph_data.get("status") == "finalized":
+            raise ValueError(f"Graph {graph_id} already finalized")
+
+        # Build NodeSummary objects from journal data
+        nodes = {}
+        edges = []
+        for node_id, node_data in graph_data.get("nodes", {}).items():
+            nodes[node_id] = NodeSummary(
+                node_id=node_id,
+                optimizer=node_data.get("optimizer", "unknown"),
+                optimizer_family=self._infer_optimizer_family(node_data.get("optimizer", "")),
+                config={},  # Not available from journal
+                init_strategy="unknown",  # Not available from journal
+                parent_node=node_data.get("parent_node"),
+                edge_type=node_data.get("edge_type"),
+                status=node_data.get("status", "completed"),
+                n_evaluations=node_data.get("n_evaluations", 0),
+                wall_time=node_data.get("wall_time", 0.0),
+                start_objective=None,  # Not available from journal
+                best_objective=node_data.get("best_f"),
+            )
+
+            # Build edge if parent relationship exists
+            parent = node_data.get("parent_node")
+            edge_type = node_data.get("edge_type")
+            if parent and edge_type:
+                edges.append(EdgeSummary(
+                    source=parent,
+                    target=node_id,
+                    edge_type=edge_type,
+                ))
+
+        # Try to get problem signature
+        problem_signature = None
+        problem_id = graph_data.get("problem_id")
+        if problem_id:
+            problem = self.storage.load_problem(problem_id)
+            if problem:
+                constraint_types = []
+                if hasattr(problem, 'inequality_constraints') and problem.inequality_constraints:
+                    constraint_types.extend(["inequality"] * len(problem.inequality_constraints))
+                if hasattr(problem, 'equality_constraints') and problem.equality_constraints:
+                    constraint_types.extend(["equality"] * len(problem.equality_constraints))
+
+                problem_signature = create_problem_signature(
+                    n_dimensions=problem.n_variables,
+                    bounds=getattr(problem, 'bounds', None),
+                    n_constraints=problem.n_constraints,
+                    constraint_types=constraint_types if constraint_types else None,
+                    domain_hint=getattr(problem, 'domain_hint', None),
+                )
+
+        # Detect pattern
+        pattern = self._detect_pattern_from_nodes(nodes, edges)
+
+        # Convert created_at timestamp to ISO format
+        created_at_ts = graph_data.get("created_at")
+        if created_at_ts:
+            created_at = datetime.fromtimestamp(created_at_ts).isoformat()
+        else:
+            created_at = datetime.now().isoformat()
+
+        # Create GraphRecord directly
+        record = GraphRecord(
+            graph_id=graph_id,
+            problem_id=problem_id,
+            created_at=created_at,
+            goal=graph_data.get("goal"),
+            problem_signature=problem_signature,
+            pattern=pattern,
+            edges=edges,
+            nodes=nodes,
+            completed=True,
+            final_objective=graph_data.get("best_f"),
+            final_x=graph_data.get("best_x"),
+            total_evaluations=graph_data.get("total_evaluations", 0),
+            total_wall_time=graph_data.get("total_wall_time", 0.0),
+            decisions=[],  # Not available from journal
+        )
+
+        # Save to storage using the new method
+        self.storage.save_graph_from_record(record)
+
+        # Mark as finalized in journal
+        journal.append({
+            "type": "finalized",
+            "graph_id": graph_id,
+        })
+
+        return record
+
+    def _infer_optimizer_family(self, optimizer: str) -> str:
+        """Infer optimizer family from optimizer string."""
+        if not optimizer:
+            return "unknown"
+
+        lower = optimizer.lower()
+        if "scipy" in lower:
+            if any(m in lower for m in ["slsqp", "l-bfgs-b", "bfgs", "cg", "newton", "trust"]):
+                return "gradient"
+            return "gradient"  # Default scipy to gradient
+        elif "optuna" in lower or "tpe" in lower or "bayesian" in lower:
+            return "bayesian"
+        elif "cmaes" in lower or "cma-es" in lower or "cma" in lower:
+            return "cmaes"
+        elif any(m in lower for m in ["de", "ga", "pso", "genetic", "evolutionary", "nsga"]):
+            return "population"
+        elif "ipopt" in lower:
+            return "gradient"
+        return "unknown"
+
+    def _detect_pattern_from_nodes(
+        self,
+        nodes: Dict[str, dict],
+        edges: List[dict],
+    ) -> str:
+        """Detect graph pattern from nodes and edges."""
+        if not nodes:
+            return "empty"
+        if len(nodes) == 1:
+            return "single"
+        if not edges:
+            return "multistart"
+
+        # Find roots (nodes with no incoming edges)
+        targets = {e["target"] for e in edges}
+        roots = [nid for nid in nodes if nid not in targets]
+
+        if len(roots) == 1:
+            # Check for chain vs tree
+            for nid in nodes:
+                outgoing = [e for e in edges if e["source"] == nid]
+                if len(outgoing) > 1:
+                    return "tree"
+            return "chain"
+
+        return "dag"
+
     def get_active_graphs(self) -> Dict[int, ActiveGraph]:
         """
         Get all active (in-progress) graphs.

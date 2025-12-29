@@ -224,6 +224,10 @@ def finalize_graph(
     Call this when the optimization task is complete. The graph record
     will be saved for cross-graph learning and future analysis.
 
+    v0.2.1: Added journal-based finalization for subprocess isolation.
+    If graph is not in active memory (created in subprocess), will attempt
+    to reconstruct from journal data.
+
     v0.4.8: Removed success parameter. Quality judgment is NOT encoded
     in the schema. The agent should record assessments in the notes field,
     and future queries will reason from final_objective values directly.
@@ -258,27 +262,39 @@ def finalize_graph(
 
         graph = _FOUNDRY.get_graph(graph_id)
 
-        if graph is None:
-            return {
-                "success": False,
-                "message": f"Graph {graph_id} not found or already finalized.",
-            }
+        if graph is not None:
+            # Graph is in active memory - use normal finalization
+            # Record notes as a decision if provided
+            if notes:
+                graph.record_decision(
+                    decision_type="finalize",
+                    reasoning=notes,
+                )
 
-        # Record notes as a decision if provided
-        if notes:
-            graph.record_decision(
-                decision_type="finalize",
-                reasoning=notes,
-            )
+            # Finalize graph (v0.4.8: no success parameter)
+            record = _FOUNDRY.finalize_graph(graph_id)
 
-        # Finalize graph (v0.4.8: no success parameter)
-        record = _FOUNDRY.finalize_graph(graph_id)
+            if record is None:
+                return {
+                    "success": False,
+                    "message": f"Failed to finalize graph {graph_id}.",
+                }
+        else:
+            # Graph not in active memory - try journal-based finalization (v0.2.1)
+            try:
+                record = _FOUNDRY.finalize_graph_from_journal(graph_id)
+            except ValueError as e:
+                # Already finalized
+                return {
+                    "success": False,
+                    "message": str(e),
+                }
 
-        if record is None:
-            return {
-                "success": False,
-                "message": f"Failed to finalize graph {graph_id}.",
-            }
+            if record is None:
+                return {
+                    "success": False,
+                    "message": f"Graph {graph_id} not found in active graphs or journal.",
+                }
 
         # Format final objective (handle None case)
         if record.final_objective is not None:
@@ -292,7 +308,7 @@ def finalize_graph(
             "final_objective": record.final_objective,
             "total_evaluations": record.total_evaluations,
             "n_nodes": len(record.nodes),
-            "pattern": record.detect_pattern(),
+            "pattern": record.pattern if hasattr(record, 'pattern') else record.detect_pattern(),
             "total_wall_time": record.total_wall_time,
             "message": (
                 f"Graph #{graph_id} finalized. "

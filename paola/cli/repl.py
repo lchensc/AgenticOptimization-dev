@@ -88,11 +88,11 @@ class AgenticOptREPL:
         from ..tools.registration_tools import (
             read_file,
             write_file,
-            execute_python,
             foundry_store_evaluator,
             foundry_list_evaluators,
             foundry_get_evaluator
         )
+        from ..tools.bash_tools import bash
 
         # Import skill tools (Paola Skills infrastructure)
         from ..skills import get_skill_tools
@@ -109,8 +109,8 @@ class AgenticOptREPL:
         #     explain_config_option,
         # )
 
-        # Tools - v0.2.0 code-execution model
-        # LLM writes Python optimization code → execute_python runs it
+        # Tools - v0.2.1 code-execution model
+        # LLM writes Python scripts → bash("python script.py") runs them
         self.tools = [
             # Problem formulation
             create_nlp_problem,
@@ -130,10 +130,12 @@ class AgenticOptREPL:
             # Analysis
             analyze_convergence_new,
 
-            # File/code execution (key for v0.2.0)
+            # File operations
             read_file,
             write_file,
-            execute_python,
+
+            # Bash tool (v0.2.1 - replaces execute_python)
+            bash,
 
             # Evaluator management
             foundry_store_evaluator,

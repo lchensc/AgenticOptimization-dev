@@ -102,6 +102,35 @@ class FileStorage(StorageBackend):
         with open(detail_path, 'w') as f:
             f.write(detail.to_json())
 
+    def save_graph_from_record(
+        self,
+        record: GraphRecord,
+        detail: Optional[GraphDetail] = None,
+    ) -> None:
+        """
+        Save GraphRecord directly (for journal-based finalization).
+
+        This method bypasses the OptimizationGraph → split_graph pipeline,
+        allowing direct persistence of a GraphRecord created from journal data.
+
+        v0.2.1: Added for journal-based finalization.
+
+        Args:
+            record: GraphRecord to save
+            detail: Optional GraphDetail (creates minimal if not provided)
+        """
+        # Save Tier 1: GraphRecord
+        record_path = self.graphs_dir / f"graph_{record.graph_id:04d}.json"
+        with open(record_path, 'w') as f:
+            f.write(record.to_json())
+
+        # Save Tier 2: GraphDetail (even if minimal)
+        if detail is None:
+            detail = GraphDetail(graph_id=record.graph_id, nodes={})
+        detail_path = self.details_dir / f"graph_{record.graph_id:04d}_detail.json"
+        with open(detail_path, 'w') as f:
+            f.write(detail.to_json())
+
     def load_graph(self, graph_id: int) -> Optional[OptimizationGraph]:
         """
         Load full graph from JSON file (legacy format).

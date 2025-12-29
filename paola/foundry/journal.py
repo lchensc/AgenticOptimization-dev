@@ -2,7 +2,7 @@
 Append-only journal for cross-process graph coordination.
 
 This module provides the GraphJournal class that enables coordination
-between the CLI process and subprocesses spawned by execute_python.
+between the CLI process and subprocesses spawned by bash("python script.py").
 
 Design:
 - One JSON entry per line (JSONL format)
@@ -11,9 +11,12 @@ Design:
 - No compaction (full history preserved)
 
 The journal solves the subprocess isolation problem where in-memory
-state (_checkpoint_summaries) is lost when execute_python exits.
+state (_checkpoint_summaries) is lost when the subprocess exits.
 RecordingObjective already writes evaluations to JSONL; the journal
 handles graph-level metadata (best_x, best_f, status).
+
+v0.2.1: Added get_full_graph_data() for journal-based finalization.
+This allows main process to finalize graphs created in subprocesses.
 
 See: docs/v0.2.0/20251229_journal_architecture_implementation.md
 """
@@ -227,3 +230,111 @@ class GraphJournal:
         if state is None:
             return 0
         return len(state.get("nodes", {}))
+
+    def get_full_graph_data(self, graph_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get complete graph data for reconstruction into GraphRecord.
+
+        This method collects all journal entries for a graph and returns
+        the full data needed to create a minimal but valid GraphRecord
+        for journal-based finalization (v0.2.1).
+
+        Args:
+            graph_id: Graph ID to query
+
+        Returns:
+            Dict with:
+            - graph_id: int
+            - problem_id: int
+            - goal: str
+            - created_at: float (timestamp from graph_created entry)
+            - nodes: Dict[node_id -> full node data including edges]
+            - best_f: float (best across nodes)
+            - best_x: List[float]
+            - total_evaluations: int
+            - total_wall_time: float
+
+            Returns None if graph not found.
+        """
+        if not self.path.exists():
+            return None
+
+        graph_data = None
+
+        with open(self.path, 'r') as f:
+            for line in f:
+                if not line.strip():
+                    continue
+
+                try:
+                    entry = json.loads(line.strip())
+                except json.JSONDecodeError:
+                    continue
+
+                if entry.get("graph_id") != graph_id:
+                    continue
+
+                entry_type = entry.get("type")
+
+                if entry_type == "graph_created":
+                    graph_data = {
+                        "graph_id": graph_id,
+                        "problem_id": entry.get("problem_id"),
+                        "goal": entry.get("goal"),
+                        "created_at": entry.get("ts"),
+                        "nodes": {},
+                        "best_f": None,
+                        "best_x": None,
+                        "best_node_id": None,
+                        "total_evaluations": 0,
+                        "total_wall_time": 0.0,
+                        "status": "active",
+                    }
+
+                elif entry_type == "checkpoint" and graph_data:
+                    node_id = entry.get("node_id")
+                    node_data = {
+                        "node_id": node_id,
+                        "problem_id": entry.get("problem_id"),
+                        "best_f": entry.get("best_f"),
+                        "best_x": entry.get("best_x"),
+                        "n_evaluations": entry.get("n_evals", 0),
+                        "n_actual_evals": entry.get("n_actual_evals", 0),
+                        "optimizer": entry.get("optimizer", "unknown"),
+                        "wall_time": entry.get("wall_time", 0.0),
+                        "parent_node": entry.get("parent_node"),
+                        "edge_type": entry.get("edge_type"),
+                        "status": "completed",
+                        "checkpoint_ts": entry.get("ts"),
+                    }
+                    graph_data["nodes"][node_id] = node_data
+
+                    # Accumulate totals
+                    graph_data["total_evaluations"] += node_data["n_evaluations"]
+                    graph_data["total_wall_time"] += node_data["wall_time"]
+
+                    # Update graph-level best
+                    if node_data["best_f"] is not None:
+                        if graph_data["best_f"] is None or node_data["best_f"] < graph_data["best_f"]:
+                            graph_data["best_f"] = node_data["best_f"]
+                            graph_data["best_x"] = node_data["best_x"]
+                            graph_data["best_node_id"] = node_id
+
+                    graph_data["status"] = "checkpointed"
+
+                elif entry_type == "continue" and graph_data:
+                    # Update node with parent relationship if not already checkpointed
+                    new_node_id = entry.get("new_node_id")
+                    if new_node_id and new_node_id not in graph_data["nodes"]:
+                        graph_data["nodes"][new_node_id] = {
+                            "node_id": new_node_id,
+                            "parent_node": entry.get("parent_node"),
+                            "edge_type": entry.get("edge_type"),
+                            "status": "active",
+                        }
+
+                elif entry_type == "finalized" and graph_data:
+                    graph_data["status"] = "finalized"
+                    graph_data["finalized_at"] = entry.get("ts")
+
+        return graph_data

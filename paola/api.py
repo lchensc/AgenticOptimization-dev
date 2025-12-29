@@ -266,15 +266,22 @@ def checkpoint(
         del _active_objectives[(graph_id, node_id)]
 
     # Log to journal for cross-process visibility
+    # Enhanced entry for journal-based finalization (v0.2.1)
     journal = _get_journal()
     journal.append({
         "type": "checkpoint",
         "graph_id": graph_id,
         "node_id": node_id,
+        "problem_id": f.problem_id,
         "best_f": summary.get("best_f"),
         "best_x": summary.get("best_x"),
         "n_evals": summary.get("n_evaluations"),
-        "optimizer": optimizer,
+        "n_actual_evals": summary.get("n_actual_evals"),
+        "optimizer": optimizer or "unknown",
+        "wall_time": summary.get("wall_time", 0.0),
+        # Parent relationship for edge reconstruction
+        "parent_node": getattr(f, '_parent_node', None),
+        "edge_type": getattr(f, '_edge_type', None),
     })
 
     return summary
@@ -373,7 +380,7 @@ def continue_graph(
     cache_dir = _get_cache_dir(graph_id)
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # Create RecordingObjective
+    # Create RecordingObjective with parent relationship tracking (v0.2.1)
     eval_func = evaluator.evaluate if hasattr(evaluator, 'evaluate') else evaluator
 
     recording_obj = RecordingObjective(
@@ -384,6 +391,8 @@ def continue_graph(
         problem_id=problem_id,
         goal=goal,
         parent_best_x=parent_best_x,
+        parent_node=parent_node,  # For edge reconstruction in journal-based finalize
+        edge_type=edge_type,
     )
 
     # Track for later use

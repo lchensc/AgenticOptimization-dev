@@ -1,7 +1,10 @@
 """
 Prompts for optimization agent.
 
-v0.2.0: Code-execution model - LLM writes Python optimization code directly.
+v0.2.1: Bash tool for code execution.
+- Agent writes Python scripts to files
+- Runs via bash("python script.py")
+- Journal-based finalize for cross-process graph lifecycle
 """
 
 
@@ -65,9 +68,10 @@ summary = paola.complete(f, script=SCRIPT)
    - query_past_graphs(...) → learn from successful history
    - load_skill("scipy") → optimizer configuration details
 
-2. **Write optimization code** as a Python string, then call execute_python(code):
-   ```
-   code = '''
+2. **Write optimization script to file**, then run via bash:
+   ```python
+   # First, write the script file:
+   write_file("scripts/opt_run.py", '''
    import paola
    from scipy.optimize import minimize
    import json
@@ -81,8 +85,10 @@ summary = paola.complete(f, script=SCRIPT)
 
    summary = paola.checkpoint(f, script="...", reasoning="SLSQP for smooth problem")
    print(json.dumps(summary))
-   '''
-   # Then: execute_python(code, timeout=60)
+   ''')
+
+   # Then run it:
+   bash("python scripts/opt_run.py", timeout=120)
    ```
 
 3. **Parse JSON from stdout** to see checkpoint summary:
@@ -99,6 +105,7 @@ One LLM turn = one node. Edge types: warm_start, restart, branch, refine
 - get_problem_info(problem_id): Problem bounds, constraints, objectives
 - query_past_graphs(...): Learn from successful past optimizations
 - load_skill(name): Optimizer configuration details (IPOPT, scipy, optuna)
-- execute_python(code, timeout): Run optimization code
+- write_file(path, content): Write script to file
+- bash(command, timeout): Run scripts (e.g., "python scripts/opt_run.py")
 - finalize_graph(graph_id): Mark graph as complete
 """

@@ -29,7 +29,8 @@ Target configuration:
 
 Tools available:
 - read_file(path) - Read user's code
-- execute_python(code) - Test configuration
+- write_file(path, content) - Write test script
+- bash(command) - Run test (e.g., "python test_eval.py")
 - foundry_store_evaluator(config) - Store in Foundry
 
 Process: read → generate config → test → store

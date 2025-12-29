@@ -1,14 +1,20 @@
 """
 Agent tools for Paola.
 
-v0.5.0 (v0.2.0 redesign): Code-execution model
-- LLM writes Python optimization code directly
-- Uses paola.objective() + scipy/optuna + execute_python
+v0.2.1: Bash tool + Journal-based finalize
+- Agent writes Python scripts, runs via bash("python script.py")
+- Journal-based finalize for cross-process graph lifecycle
+- Subprocess isolation preserved
 
-Removed tools (v0.2.0):
+v0.2.0 (redesign): Code-execution model
+- LLM writes Python optimization code directly
+- Uses paola.objective() + scipy/optuna
+
+Removed tools:
 - run_optimization → LLM writes code with paola.objective()
 - start_graph → paola.objective() creates graphs
 - list_available_optimizers → Skills provide optimizer info
+- execute_python → Replaced by bash tool (v0.2.1)
 
 Modules:
 - problem.py: Problem formulation (create_nlp_problem, derive_problem, list_problems)
@@ -17,7 +23,8 @@ Modules:
 - optimizer.py: Problem info (get_problem_info)
 - graph.py: Graph queries (query_past_graphs, get_graph_state, finalize_graph)
 - analysis.py: Analysis tools (analyze_convergence, detect_pattern)
-- file_tools.py: File operations (read_file, write_file, execute_python)
+- file_tools.py: File operations (read_file, write_file)
+- bash_tools.py: Bash command execution (bash)
 - cache.py: Cache operations (cache_get, cache_store, cache_clear)
 """
 
@@ -78,8 +85,10 @@ from paola.tools.evaluator import (
 from paola.tools.file_tools import (
     read_file,
     write_file,
-    execute_python,
 )
+
+# Bash tool (v0.2.1 - replaces execute_python)
+from paola.tools.bash_tools import bash
 
 # Backward compatibility - re-export from registration_tools
 from paola.tools.registration_tools import (
@@ -144,7 +153,8 @@ __all__ = [
     # File operation tools
     "read_file",
     "write_file",
-    "execute_python",
+    # Bash tool (v0.2.1 - replaces execute_python)
+    "bash",
     # Backward compatibility
     "ALL_REGISTRATION_TOOLS",
     # Graph management tools (v0.2.0 - start_graph removed)

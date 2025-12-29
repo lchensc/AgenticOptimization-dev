@@ -92,6 +92,8 @@ class RecordingObjective:
         problem_id: Optional[int] = None,
         goal: Optional[str] = None,
         parent_best_x: Optional[np.ndarray] = None,
+        parent_node: Optional[str] = None,
+        edge_type: Optional[str] = None,
         log_file: Optional[Path] = None,
         use_cache: bool = True,
         hasher: Optional[ArrayHasher] = None,
@@ -107,6 +109,8 @@ class RecordingObjective:
             problem_id: Optional problem ID for metadata
             goal: Optional goal description
             parent_best_x: Best x from parent node (for warm-start)
+            parent_node: Parent node ID for edge tracking (v0.2.1)
+            edge_type: Edge type to parent (warm_start, restart, etc.) (v0.2.1)
             log_file: Path to evaluation log (default: cache_dir/evaluations.jsonl)
             use_cache: Whether to use evaluation cache
             hasher: ArrayHasher for cache (default: tolerance=1e-10)
@@ -117,6 +121,9 @@ class RecordingObjective:
         self.problem_id = problem_id
         self.goal = goal
         self._parent_best_x = parent_best_x.copy() if parent_best_x is not None else None
+        # Parent relationship for journal-based finalization (v0.2.1)
+        self._parent_node = parent_node
+        self._edge_type = edge_type
 
         # Cache setup
         self._hasher = hasher or ArrayHasher()

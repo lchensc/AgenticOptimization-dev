@@ -836,9 +836,9 @@ Iteration"""
         # Import registration tools
         from ..tools.registration_tools import (
             read_file,
-            execute_python,
             foundry_store_evaluator
         )
+        from ..tools.bash_tools import bash
 
         # Read file
         result = read_file.func(file_path=str(path))
@@ -891,18 +891,29 @@ Iteration"""
         # Test configuration
         self.console.print("\n[dim]Testing configuration...[/dim]")
 
+        import tempfile
+        import json
+
         test_code = f"""
 from paola.foundry import FoundryEvaluator
 import numpy as np
 
-config = {config}
+config = {json.dumps(config)}
 evaluator = FoundryEvaluator.from_config(config)
 result = evaluator.evaluate(np.array([1.0, 1.0]))
 print(f"Test result: {{result.objectives}}")
 print("SUCCESS")
 """
 
-        test_result = execute_python.func(code=test_code, timeout=10)
+        # Write test script to temp file and run via bash
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
+            f.write(test_code)
+            test_file = f.name
+
+        try:
+            test_result = bash.func(command=f"python {test_file}", timeout=10)
+        finally:
+            Path(test_file).unlink(missing_ok=True)
 
         if not test_result["success"]:
             self.console.print(f"\n[red]Configuration test failed:[/red]")

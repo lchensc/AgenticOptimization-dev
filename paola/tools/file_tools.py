@@ -4,12 +4,10 @@ File operation tools.
 Tools for file operations:
 - read_file: Read file contents
 - write_file: Write content to file
-- execute_python: Execute Python code in subprocess
+
+v0.2.1: Removed execute_python. Use bash tool instead.
 """
 
-import subprocess
-import sys
-import tempfile
 from typing import Dict, Any
 from pathlib import Path
 from langchain_core.tools import tool
@@ -67,59 +65,6 @@ def write_file(file_path: str, content: str) -> Dict[str, Any]:
             "success": True,
             "file_path": file_path,
             "bytes_written": bytes_written
-        }
-
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
-
-
-@tool
-def execute_python(code: str, timeout: int = 30) -> Dict[str, Any]:
-    """
-    Execute Python code in subprocess.
-
-    Args:
-        code: Python code to execute
-        timeout: Timeout in seconds
-
-    Returns:
-        success, stdout, stderr, returncode
-    """
-    try:
-        # Write code to temporary file
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
-            f.write(code)
-            temp_file = f.name
-
-        try:
-            # Execute with timeout
-            result = subprocess.run(
-                [sys.executable, temp_file],
-                capture_output=True,
-                text=True,
-                timeout=timeout
-            )
-
-            success = result.returncode == 0
-
-            return {
-                "success": success,
-                "stdout": result.stdout,
-                "stderr": result.stderr,
-                "returncode": result.returncode
-            }
-
-        finally:
-            # Clean up
-            Path(temp_file).unlink()
-
-    except subprocess.TimeoutExpired:
-        return {
-            "success": False,
-            "error": f"Execution timed out after {timeout} seconds"
         }
 
     except Exception as e:
