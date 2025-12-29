@@ -441,6 +441,6 @@ def update_context(context: dict, tool_results: list) -> dict:
 
     # Tool results are already persisted by the platform
     # Context here is just for agent's working memory
-    # Most updates happen in tools (start_graph, run_optimization, etc.)
+    # Most updates happen via execute_python (paola.objective(), checkpoint, etc.)
 
     return new_context

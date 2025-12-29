@@ -17,7 +17,7 @@ from ..tools.problem import (
     list_problems,
     get_problem_lineage,
 )
-from ..tools.graph import start_graph, get_graph_state, finalize_graph, query_past_graphs, get_past_graph, set_foundry
+from ..tools.graph import get_graph_state, finalize_graph, query_past_graphs, get_past_graph, set_foundry
 from ..tools.analysis import analyze_convergence as analyze_convergence_new
 from ..callbacks import CallbackManager
 from ..foundry import FileStorage, StorageBackend, OptimizationFoundry
@@ -97,12 +97,8 @@ class AgenticOptREPL:
         # Import skill tools (Paola Skills infrastructure)
         from ..skills import get_skill_tools
 
-        # Import LLM-driven optimization tools (Paola Principle)
-        from ..tools.optimizer import (
-            run_optimization,
-            get_problem_info,
-            list_available_optimizers,
-        )
+        # Import problem info tool (v0.2.0 - LLM writes code directly)
+        from ..tools.optimizer import get_problem_info
 
         # Import expert configuration tools (DISABLED for testing - Skills should cover this)
         # from ..tools.config_tools import (
@@ -113,7 +109,8 @@ class AgenticOptREPL:
         #     explain_config_option,
         # )
 
-        # Tools - agent explicitly manages graphs (v0.3.x)
+        # Tools - v0.2.0 code-execution model
+        # LLM writes Python optimization code → execute_python runs it
         self.tools = [
             # Problem formulation
             create_nlp_problem,
@@ -121,33 +118,24 @@ class AgenticOptREPL:
             list_problems,
             get_problem_lineage,
 
-            # Graph management (v0.3.x)
-            start_graph,
+            # Graph queries (for cross-graph learning)
             get_graph_state,
             finalize_graph,
             query_past_graphs,
             get_past_graph,
 
-            # Optimization execution
-            run_optimization,
+            # Problem info
             get_problem_info,
-            list_available_optimizers,
 
-            # Expert configuration (escape hatch) - DISABLED for testing
-            # config_scipy,
-            # config_ipopt,
-            # config_nlopt,
-            # config_optuna,
-            # explain_config_option,
-
-            # Analysis (deterministic)
+            # Analysis
             analyze_convergence_new,
-            # TODO: analyze_efficiency, get_all_metrics, analyze_run_with_ai not yet implemented
 
-            # Evaluator management
+            # File/code execution (key for v0.2.0)
             read_file,
             write_file,
             execute_python,
+
+            # Evaluator management
             foundry_store_evaluator,
             foundry_list_evaluators,
             foundry_get_evaluator,
@@ -196,7 +184,7 @@ class AgenticOptREPL:
         """Display welcome message."""
         welcome = Panel(
             Text.from_markup(
-                "[bold cyan]Paola[/bold cyan] [dim]v0.4.2[/dim]\n"
+                "[bold cyan]Paola[/bold cyan] [dim]v0.5.0[/dim]\n"
                 "[dim]Package for agentic optimization with learning and analysis[/dim]\n\n"
                 "Commands: /help | /graphs | /problems | /evals | /skills | /exit\n"
                 "Or just tell me what you want to optimize"

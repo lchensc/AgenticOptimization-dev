@@ -258,8 +258,7 @@ class PymooBackend(OptimizerBackend):
             )
 
         # Extract configuration
-        # "method" is set by run_optimization from optimizer spec (e.g., "pymoo:NSGA-II")
-        # "algorithm" can be set directly in config
+        # "method" or "algorithm" specifies the pymoo algorithm (e.g., "NSGA-II", "GA")
         algorithm_name = config.get("algorithm", config.get("method", "GA"))
         n_gen = config.get("n_gen", config.get("n_generations", config.get("max_iterations", 100)))
         seed = config.get("seed")

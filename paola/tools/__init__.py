@@ -1,16 +1,21 @@
 """
 Agent tools for Paola.
 
-v0.2.0: LLM writes Python code directly. Deprecated tools:
-- run_optimization → Use paola.objective() + scipy/optuna directly
-- start_graph → Use paola.objective()
+v0.5.0 (v0.2.0 redesign): Code-execution model
+- LLM writes Python optimization code directly
+- Uses paola.objective() + scipy/optuna + execute_python
 
-Organized into logical modules:
+Removed tools (v0.2.0):
+- run_optimization → LLM writes code with paola.objective()
+- start_graph → paola.objective() creates graphs
+- list_available_optimizers → Skills provide optimizer info
+
+Modules:
 - problem.py: Problem formulation (create_nlp_problem, derive_problem, list_problems)
 - evaluator.py: Evaluator registration (foundry_store_evaluator, foundry_list_evaluators)
 - evaluation.py: Function evaluation (evaluate_function, compute_gradient)
-- optimizer.py: Problem info (get_problem_info) [run_optimization deprecated]
-- graph.py: Graph queries (query_past_graphs, get_graph_state) [start_graph deprecated]
+- optimizer.py: Problem info (get_problem_info)
+- graph.py: Graph queries (query_past_graphs, get_graph_state, finalize_graph)
 - analysis.py: Analysis tools (analyze_convergence, detect_pattern)
 - file_tools.py: File operations (read_file, write_file, execute_python)
 - cache.py: Cache operations (cache_get, cache_store, cache_clear)
@@ -32,12 +37,8 @@ from paola.tools.cache import (
     run_db_query,
 )
 
-# Optimization tools
-from paola.tools.optimizer import (
-    run_optimization,
-    get_problem_info,
-    list_available_optimizers,
-)
+# Problem info tool (v0.2.0 - run_optimization, list_available_optimizers removed)
+from paola.tools.optimizer import get_problem_info
 
 # Function evaluation tools
 from paola.tools.evaluation import (
@@ -85,9 +86,8 @@ from paola.tools.registration_tools import (
     ALL_REGISTRATION_TOOLS,
 )
 
-# Graph management tools
+# Graph management tools (v0.2.0 - start_graph removed)
 from paola.tools.graph import (
-    start_graph,
     get_graph_state,
     finalize_graph,
     query_past_graphs,
@@ -117,9 +117,8 @@ __all__ = [
     "cache_stats",
     "run_db_log",
     "run_db_query",
-    # Optimization tools (run_optimization deprecated in v0.2.0)
+    # Problem info (v0.2.0 - run_optimization, list_available_optimizers removed)
     "get_problem_info",
-    "list_available_optimizers",
     # Function evaluation tools
     "evaluate_function",
     "compute_gradient",
@@ -148,7 +147,7 @@ __all__ = [
     "execute_python",
     # Backward compatibility
     "ALL_REGISTRATION_TOOLS",
-    # Graph management tools (start_graph deprecated in v0.2.0)
+    # Graph management tools (v0.2.0 - start_graph removed)
     "get_graph_state",
     "finalize_graph",
     "query_past_graphs",

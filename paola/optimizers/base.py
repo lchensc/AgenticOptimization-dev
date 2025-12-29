@@ -29,7 +29,7 @@ class OptimizerBackend(ABC):
         """
         Backend identifier (e.g., 'scipy', 'ipopt', 'pymoo').
 
-        Used for backend selection in run_optimization(optimizer="scipy:SLSQP").
+        Used for backend selection (e.g., scipy:SLSQP format).
         """
         pass
 

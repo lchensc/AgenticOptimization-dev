@@ -1,22 +1,18 @@
 """
-Tools for agent to manage optimization graphs.
+Tools for agent to query and manage optimization graphs.
 
-v0.3.0: Graph-based architecture
-- Graph = complete optimization task (may involve multiple nodes)
-- Node = single optimizer execution
-
-v0.5.0 (v0.2.0 redesign): start_graph is DEPRECATED
-- Use paola.objective(problem_id) instead - creates graph and returns RecordingObjective
+v0.5.0 (v0.2.0 redesign): Code-execution model
+- Use paola.objective(problem_id) to create graphs and get RecordingObjective
 - See paola.api module for Recording API
 
-Uses OptimizationFoundry with dependency injection for data foundation.
+This module provides graph query/management tools:
+- get_graph_state(): Query active or completed graph state
+- finalize_graph(): Complete and persist a graph
+- query_past_graphs(): Search past optimizations for learning
+- get_past_graph(): Get detailed strategy from a past graph
 
-Design Principle: "Graph externalizes state, agent makes decisions."
-- The graph helps the agent track state (node IDs, not x0 values)
-- The agent explicitly decides which node to continue from
-- The system does NOT automatically select "best" - that's the agent's decision
+Uses OptimizationFoundry with dependency injection for data foundation.
 """
-import warnings
 
 from typing import Dict, Any, Optional
 from langchain_core.tools import tool
@@ -51,63 +47,6 @@ def get_foundry() -> Optional[OptimizationFoundry]:
 
 
 @tool
-def start_graph(
-    problem_id: int,
-    goal: str = "",
-) -> Dict[str, Any]:
-    """
-    Start optimization graph.
-
-    Args:
-        problem_id: Problem ID from create_nlp_problem
-        goal: Description of optimization goal
-
-    Returns:
-        success, graph_id, problem_id
-
-    Example:
-        start_graph(problem_id=1, goal="Minimize cost")
-
-    .. deprecated:: 0.5.0
-        Use paola.objective(problem_id) instead.
-        Returns RecordingObjective that can be called directly.
-    """
-    warnings.warn(
-        "start_graph is deprecated in v0.5.0. "
-        "Use paola.objective(problem_id) instead. "
-        "See paola.api for the Recording API.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-
-    try:
-        if _FOUNDRY is None:
-            return {
-                "success": False,
-                "message": "Foundry not initialized. Call set_foundry() first.",
-            }
-
-        # Create graph
-        graph = _FOUNDRY.create_graph(
-            problem_id=problem_id,
-            goal=goal if goal else None,
-        )
-
-        return {
-            "success": True,
-            "graph_id": graph.graph_id,
-            "problem_id": problem_id,
-            "message": f"Created graph #{graph.graph_id} for problem #{problem_id}.",
-        }
-
-    except Exception as e:
-        return {
-            "success": False,
-            "message": f"Error creating graph: {str(e)}",
-        }
-
-
-@tool
 def get_graph_state(graph_id: int) -> Dict[str, Any]:
     """
     Get current state of an optimization graph for decision making.
@@ -117,7 +56,7 @@ def get_graph_state(graph_id: int) -> Dict[str, Any]:
     node to continue from.
 
     Args:
-        graph_id: Graph ID from start_graph
+        graph_id: Graph ID from paola.objective()
 
     Returns:
         Dict with:
@@ -148,9 +87,9 @@ def get_graph_state(graph_id: int) -> Dict[str, Any]:
         # state["best_node"] shows the best result found
         # state["leaf_nodes"] shows nodes you can continue from
 
-        # Agent reasons: "n2 has best objective (0.08), I'll warm-start from n2"
-        run_optimization(graph_id=1, optimizer="scipy:SLSQP",
-                         parent_node="n2", edge_type="warm_start")
+        # Agent uses state to decide next action in code:
+        # f = paola.continue_graph(1, parent_node="n2", edge_type="warm_start")
+        # x0 = f.get_warm_start()
     """
     try:
         if _FOUNDRY is None:
@@ -248,7 +187,7 @@ def finalize_graph(
     and future queries will reason from final_objective values directly.
 
     Args:
-        graph_id: Graph ID from start_graph
+        graph_id: Graph ID from paola.objective()
         notes: Final notes, analysis, or assessment of the optimization outcome
 
     Returns:
@@ -490,14 +429,12 @@ def get_past_graph(graph_id: int) -> Dict[str, Any]:
         past = get_past_graph(graph_id=11)
 
         # Agent sees: Graph #11 used TPE→L-BFGS-B chain on ackley_30d
-        # with TPE config: {max_iterations: 300}
+        # with TPE config: {n_trials: 300}
         # achieved 5.7e-07 in 28591 evals
 
-        # Agent composes improved strategy for same problem:
-        start_graph(problem_id="ackley_30d",
-                    goal="Improve on graph #11 strategy")
-        run_optimization(..., optimizer="optuna:TPE",
-                         config={"max_iterations": 500})  # More exploration
+        # Agent writes improved strategy code:
+        # f = paola.objective(problem_id=7, goal="Improve on graph #11")
+        # ... use optuna with more trials ...
     """
     try:
         if _FOUNDRY is None:

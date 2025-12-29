@@ -57,25 +57,7 @@ def normalize_problem_id(problem_id: ProblemIdType) -> int:
 # Tool Argument Schemas
 # =============================================================================
 
-class RunOptimizationArgs(BaseModel):
-    """Arguments for run_optimization tool."""
-
-    graph_id: int = Field(description="Graph ID from start_graph")
-    optimizer: str = Field(description="Backend spec like 'scipy:SLSQP' or 'optuna:TPE'")
-    # Note: Named 'optimizer_config' to avoid conflict with LangChain's RunnableConfig
-    optimizer_config: Optional[str] = Field(default=None, description="JSON string with optimizer options")
-    max_iterations: int = Field(default=100, description="Maximum iterations")
-    init_strategy: str = Field(default="center", description="Initialization: center, random, warm_start")
-    parent_node: Optional[str] = Field(default=None, description="Node ID to continue from (e.g., 'n1')")
-    edge_type: Optional[str] = Field(default=None, description="Relationship type: warm_start, restart, refine, branch, explore")
-    problem_id: Optional[ProblemIdType] = Field(default=None, description="Override graph's problem with derived problem ID")
-
-    @field_validator("problem_id", mode="before")
-    @classmethod
-    def coerce_problem_id(cls, v):
-        if v is None:
-            return None
-        return normalize_problem_id(v)
+# RunOptimizationArgs removed in v0.2.0 - LLM writes code directly
 
 
 class EvaluateFunctionArgs(BaseModel):
