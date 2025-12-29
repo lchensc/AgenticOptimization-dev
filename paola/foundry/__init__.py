@@ -82,6 +82,9 @@ from .schema import (
 # Active graph management (v0.3.0+)
 from .active_graph import ActiveGraph, ActiveNode
 
+# Cross-process coordination (v0.2.1+)
+from .journal import GraphJournal
+
 # Evaluator system
 from .evaluator import FoundryEvaluator, InterjectionRequested, EvaluationError
 from .capabilities import EvaluationObserver, EvaluationCache, PerformanceTracker
@@ -126,6 +129,8 @@ __all__ = [
     "OptimizationGraph",
     "ActiveGraph",
     "ActiveNode",
+    # Cross-process coordination
+    "GraphJournal",
     # Component ABCs
     "InitializationComponent",
     "ProgressComponent",

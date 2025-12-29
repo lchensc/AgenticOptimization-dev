@@ -55,6 +55,20 @@ def _get_foundry() -> OptimizationFoundry:
     return _foundry
 
 
+# Module-level journal instance (lazy initialization)
+_journal = None
+
+
+def _get_journal():
+    """Get or create the module-level Journal instance."""
+    global _journal
+    if _journal is None:
+        from paola.foundry.journal import GraphJournal
+        journal_path = Path(_foundry_base_dir) / "journal.jsonl"
+        _journal = GraphJournal(journal_path)
+    return _journal
+
+
 def set_foundry_dir(base_dir: str) -> None:
     """
     Set the base directory for Foundry storage.
@@ -64,9 +78,10 @@ def set_foundry_dir(base_dir: str) -> None:
     Args:
         base_dir: Path to storage directory (default: ".paola_foundry")
     """
-    global _foundry, _foundry_base_dir
+    global _foundry, _foundry_base_dir, _journal
     _foundry_base_dir = base_dir
     _foundry = None  # Reset to force re-initialization
+    _journal = None  # Reset journal as well
 
 
 def _get_scripts_dir(graph_id: int) -> Path:
@@ -147,6 +162,15 @@ def objective(
 
     # Track for later use
     _active_objectives[(graph_id, node_id)] = recording_obj
+
+    # Log graph creation to journal for cross-process visibility
+    journal = _get_journal()
+    journal.append({
+        "type": "graph_created",
+        "graph_id": graph_id,
+        "problem_id": problem_id,
+        "goal": goal,
+    })
 
     return recording_obj
 
@@ -241,6 +265,18 @@ def checkpoint(
     if (graph_id, node_id) in _active_objectives:
         del _active_objectives[(graph_id, node_id)]
 
+    # Log to journal for cross-process visibility
+    journal = _get_journal()
+    journal.append({
+        "type": "checkpoint",
+        "graph_id": graph_id,
+        "node_id": node_id,
+        "best_f": summary.get("best_f"),
+        "best_x": summary.get("best_x"),
+        "n_evals": summary.get("n_evaluations"),
+        "optimizer": optimizer,
+    })
+
     return summary
 
 
@@ -273,6 +309,7 @@ def continue_graph(
         result = minimize(f, x0, method='L-BFGS-B')
     """
     foundry = _get_foundry()
+    journal = _get_journal()
 
     # First, try to get parent's best_x from checkpoint summaries (same-session)
     parent_best_x = None
@@ -281,6 +318,12 @@ def continue_graph(
         parent_summary = _checkpoint_summaries[checkpoint_key]
         if parent_summary.get("best_x"):
             parent_best_x = np.array(parent_summary["best_x"])
+
+    # Second, try journal (cross-process fallback)
+    if parent_best_x is None:
+        journal_best_x = journal.get_node_best_x(graph_id, parent_node)
+        if journal_best_x is not None:
+            parent_best_x = np.array(journal_best_x)
 
     # Load graph record to get parent node info
     record = foundry.load_graph_record(graph_id)
@@ -311,14 +354,19 @@ def continue_graph(
         raise ValueError(f"Problem {problem_id} not found in Foundry")
 
     # Determine next node ID
-    # Count existing nodes from checkpoint summaries + graph record
+    # Count existing nodes from checkpoint summaries + graph record + journal
     checkpoint_nodes = {
         k[1] for k in _checkpoint_summaries.keys()
         if k[0] == graph_id
     }
     record_nodes = set(record.nodes.keys()) if record and record.nodes else set()
-    all_nodes = checkpoint_nodes | record_nodes
-    existing_count = len(all_nodes) if all_nodes else 1
+    journal_node_count = journal.count_nodes(graph_id)
+    # Take max of all sources
+    existing_count = max(
+        len(checkpoint_nodes | record_nodes),
+        journal_node_count,
+        1  # At least 1 for first node
+    )
     node_id = f"n{existing_count + 1}"
 
     # Get/create cache directory (shared across nodes in same graph)
@@ -340,6 +388,15 @@ def continue_graph(
 
     # Track for later use
     _active_objectives[(graph_id, node_id)] = recording_obj
+
+    # Log continue to journal for cross-process visibility
+    journal.append({
+        "type": "continue",
+        "graph_id": graph_id,
+        "parent_node": parent_node,
+        "edge_type": edge_type,
+        "new_node_id": node_id,
+    })
 
     return recording_obj
 
@@ -403,6 +460,13 @@ def finalize_graph(graph_id: int) -> Optional[Dict[str, Any]]:
 
     if result is None:
         return None
+
+    # Log finalization to journal
+    journal = _get_journal()
+    journal.append({
+        "type": "finalized",
+        "graph_id": graph_id,
+    })
 
     return {
         "graph_id": graph_id,

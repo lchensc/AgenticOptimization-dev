@@ -159,6 +159,48 @@ def get_graph_state(graph_id: int) -> Dict[str, Any]:
                 "message": f"Graph #{graph_id} completed with {len(record.nodes)} node(s).",
             }
 
+        # Check journal for checkpointed graphs (cross-process visibility)
+        from paola.foundry.journal import GraphJournal
+        journal_path = _FOUNDRY.storage.base_dir / "journal.jsonl"
+        journal = GraphJournal(journal_path)
+        journal_state = journal.get_graph_state(graph_id)
+
+        if journal_state is not None and journal_state.get("status") != "finalized":
+            # Build node summaries from journal state
+            node_summaries = []
+            for nid, node_info in journal_state.get("nodes", {}).items():
+                node_summaries.append({
+                    "node_id": nid,
+                    "optimizer": node_info.get("optimizer", "unknown"),
+                    "status": node_info.get("status", "checkpointed"),
+                    "best_objective": node_info.get("best_f"),
+                    "n_evaluations": node_info.get("n_evaluations"),
+                })
+
+            best_summary = None
+            if journal_state.get("best_node_id"):
+                best_node = journal_state["nodes"].get(journal_state["best_node_id"])
+                if best_node:
+                    best_summary = {
+                        "node_id": journal_state["best_node_id"],
+                        "optimizer": best_node.get("optimizer", "unknown"),
+                        "best_objective": journal_state["best_f"],
+                        "best_x": journal_state["best_x"],
+                    }
+
+            return {
+                "success": True,
+                "status": journal_state["status"],
+                "graph_id": graph_id,
+                "problem_id": journal_state.get("problem_id"),
+                "goal": journal_state.get("goal"),
+                "n_nodes": len(journal_state.get("nodes", {})),
+                "nodes": node_summaries,
+                "best_node": best_summary,
+                "leaf_nodes": node_summaries,  # All nodes are potential leaves
+                "message": f"Graph #{graph_id} is {journal_state['status']} (from journal).",
+            }
+
         return {
             "success": False,
             "message": f"Graph {graph_id} not found.",
