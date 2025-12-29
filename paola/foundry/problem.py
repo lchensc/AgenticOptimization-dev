@@ -426,6 +426,11 @@ class OptimizationProblem:
         else:
             return "NLP"
 
+    @property
+    def problem_type(self) -> str:
+        """Alias for problem_class (for storage layer compatibility)."""
+        return self.problem_class
+
     # =========================================================================
     # Bounds and Indices
     # =========================================================================
@@ -544,6 +549,7 @@ class OptimizationProblem:
             "version": self.version,
             "metadata": self.metadata,
             # Computed fields for query efficiency
+            "problem_type": self.problem_type,  # For deserializer compatibility
             "problem_class": self.problem_class,
             "problem_family": self.problem_family,
             "n_variables": self.n_variables,
@@ -556,6 +562,7 @@ class OptimizationProblem:
         """Deserialize from dictionary."""
         # Remove computed fields (they'll be recomputed)
         data = dict(data)
+        data.pop("problem_type", None)
         data.pop("problem_class", None)
         data.pop("problem_family", None)
         # Keep n_* fields only if variables/objectives not present (legacy)

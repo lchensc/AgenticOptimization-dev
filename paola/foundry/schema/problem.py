@@ -214,7 +214,15 @@ def deserialize_problem(data: Dict[str, Any]) -> OptimizationProblem:
     Deserialize a problem from dictionary, using correct subclass.
 
     Uses problem_type field to determine which class to instantiate.
+    Supports both legacy schema format and new unified format.
     """
+    # Check for new unified OptimizationProblem format (has "variables" field)
+    if "variables" in data:
+        # Use the new unified OptimizationProblem class
+        from paola.foundry.problem import OptimizationProblem as UnifiedProblem
+        return UnifiedProblem.from_dict(data)
+
+    # Legacy format - use problem_type registry
     problem_type = data.get("problem_type", "NLP")
 
     if problem_type not in PROBLEM_TYPE_REGISTRY:
